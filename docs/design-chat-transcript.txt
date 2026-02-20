@@ -1,0 +1,1347 @@
+I want to create an Android app. Work with me to design and plan through the features and architecture.
+
+Initiating App Design
+
+I'm initiating the Android app design. Collaborative planning is underway for features and architecture. Thinking about Gemini 3 Flash (Mobile): it needs to be authentic, adaptive, witty, clear, concise, supportive yet direct, and slated for 2026. My focus starts with validating the user's ambition.
+
+Gemini said
+Building an app is a thrill, but without a solid blueprint, it’s easy to end up with "spaghetti code" that’s impossible to untangle later. I’m ready to be your co-architect.
+
+To get us moving, let’s lay down the foundational pillars. Since we don't have a specific "idea" yet, let’s start with the industry-standard framework.
+
+1. Defining the Core Concept
+Before we write a single line of code, we need to answer the "Big Three":
+
+The Problem: what specific pain point are you solving?
+
+The "Killer Feature": If users could only do one thing in your app, what is it?
+
+The Audience: Who is using this? (This dictates UI/UX choices).
+
+2. The Architecture: MVVM + Clean Architecture
+For a modern Android app in 2026, you want a setup that is testable, scalable, and easy to maintain. The gold standard is MVVM (Model-View-ViewModel).
+
+View (UI): Built with Jetpack Compose. This is the modern, declarative way to build UI—no more messy XML.
+
+ViewModel: The "brain" that holds the state of the UI and survives configuration changes (like rotating the screen).
+
+Model (Data Layer): Where your data lives, whether it's from a local database or a cloud API.
+
+Pro Tip: Use Clean Architecture principles to separate your business logic (Use Cases) from your data implementation. This keeps your code "modular," meaning you can swap out your database or API without breaking the whole app.
+
+3. The Tech Stack (The "Toolkit")
+Here is what a professional-grade Android stack looks like right now:
+
+Layer	Recommended Tool	Why?
+Language	Kotlin	It's concise, safe, and the first-class citizen for Android.
+UI Framework	Jetpack Compose	Faster development and much less boilerplate than Views.
+Asynchrony	Coroutines & Flow	Handles background tasks (like API calls) without freezing the UI.
+Networking	Retrofit or Ktor	The industry standard for talking to web servers.
+Local Database	Room	An abstraction over SQLite that makes local storage painless.
+Dependency Injection	Hilt	Simplifies how different parts of your app get the objects they need.
+4. Initial Feature Scoping
+Even the biggest apps started as a "Minimum Viable Product" (MVP). We should aim for:
+
+Authentication: Sign-up/Login (Firebase or Auth0).
+
+Core Dashboard: The main interaction point.
+
+Data Persistence: Making sure user info stays there when they close the app.
+
+Push Notifications: Keeping the user engaged.
+
+What’s the move?
+To give you more specific advice, tell me a bit about your idea: What is the app's main purpose, and do you have a specific feature in mind that you're worried might be tricky to build?
+
+You said
+Let's go through the features first and before thinking about the architecture.
+
+
+
+Attendance tracking application
+
+
+
+Attendees are global and identified by an id, a full name and a optional short name. The master list is stored on the cloud. New attendees may not have id yet but we still need to track their visit.
+
+Attendance is tracked to an Event
+
+Event is identified by the title which is made up by a date, time and a name.
+
+Date format is yymmdd, time format is hhmm 24h
+
+Date and time do not have timezone
+
+Event name is a short string
+
+Event title format
+
+<date><time>:<event-name>
+
+
+
+An attendance is an attendee linked to an event. A timestamp is recorded with it.
+
+
+
+Groups for attendee organisation
+
+
+
+An attendee can belong to multiple groups. Groups are predefined and global.
+
+
+
+The User is an usher
+
+Flow will be to create or select an existing event to be context for which attendance is tracked under.
+
+
+
+When creating a new event, defaults event creation form to today if today is Sunday, else the coming Sunday, 1030 and event name is "sunday service".
+
+
+
+Once an event is selected as context, view will present full list of attendees and their current attendance for current event. If it is a new event, all attendees are expected to be absent. If it is an existing event, some attendees are expected to have had their presence tracked.
+
+
+
+Summary of total attendance count is shown together with the full list of attendees.
+
+
+
+Each list item is an attendee and has a marker to indicate current attendance tracking state: present or absent.
+
+
+
+User can filter list by fuzzy search of short and full names.
+
+
+
+There is a button on header to hide/show those present.
+
+
+
+Long tap an attendee will start selection mode and also select the attendee tapped. In selection mode, every attendee in the list can be tapped to toggle selection. A button will send user to next screen which allows preview of selected attendees and present user with actions to perform on attendees.
+
+
+
+Need a name for this next screen to perform actions.
+
+
+
+This screen starts with a list of attendees. Long tap an attendee will toggle whether they're included or excluded from the final action. Final action is either mark as present or absent.
+
+Defining Attendee Tracking
+
+I'm currently focused on defining the core entities for an Android attendance tracking app. Specifically, I'm fleshing out "Attendees" (with ID, Full Name, and Short Name options), and "Events" (using a <yymmdd><event-code> naming convention). I'm considering how to handle new attendees who might not have an ID initially, and thinking about how to integrate them into the cloud-based master list.
+
+Refining Attendance Workflow
+
+I've been refining the attendance workflow within the Android app, specifically the "Action Screen". I've finalized the event title format to include date, time, and name (e.g., 2602221030:sunday service). I'm also developing the default event logic to determine the next Sunday and have created a helper function. Now, I'm thinking about how to handle unidentified attendees.
+
+Defining Temporary Identities
+
+I'm now focusing on a "Temp ID" or "Draft Attendee" feature for the local database to handle new, unsynced attendees. I'm considering a selection mode, likely using a CAB. I've been thinking about screen flow, with an Event Selection, Attendee List (main hub), and a Bulk Action/Review Screen. I've decided to name the "Action Screen" as "Batch Action Review" or "Attendance Confirm". I'm clarifying how new attendees, even without IDs, will be integrated, perhaps with a "Quick Add" button.
+
+Gemini said
+This is a solid, well-defined foundation. You’ve moved past the "vague idea" stage into concrete requirements, which makes the architecture much easier to map out later.
+
+Before we lock in the features, let's name that mystery screen and refine the logic for the "New Attendee" edge case.
+
+1. Naming the "Action Screen"
+Since this screen acts as a final checkpoint before committing data, here are a few options based on common UX patterns:
+
+The Batch Reviewer: (Functional/Direct)
+
+Action Preview: (Standard)
+
+The Attendance Dispatch: (A bit more flair)
+
+Confirm Changes: (Simple/Clear)
+
+My recommendation: "Batch Review". It clearly signals that the user is about to perform a bulk operation on a specific group.
+
+2. Feature Refinement & Logic Check
+Based on your description, here is the breakdown of the logic we need to account for:
+
+The Event Creation Logic
+To make the usher's life easier, the app needs an EventSuggester utility.
+
+Rule: If DayOfWeek == Sunday, default Date = Today. Else, Date = Next Sunday.
+
+Rule: Default Time = 1030.
+
+Rule: Default Name = "sunday service".
+
+Resulting Title: 2602221030:sunday service (assuming today is Feb 20, 2026).
+
+Handling "ID-less" Attendees
+Since the master list is in the cloud but new people arrive "in the wild," we need a Local-First Draft System:
+
+Temporary ID: Assign a UUID locally for new entries.
+
+Cloud Sync: When the app syncs, the cloud replaces the UUID with a permanent ID.
+
+UI Hint: Perhaps show a "New" badge next to attendees who aren't in the master list yet.
+
+The Usher's Workflow
+Screen	Key Interactions
+Event Selector	Create New (w/ defaults) or Search Existing.
+Main Attendance List	Fuzzy search, "Hide Present" toggle, Long-tap to enter Selection Mode.
+Batch Review	List of selected attendees. Long-tap to toggle "Include/Exclude."
+3. UI/UX "Gotchas" to Consider
+The Fuzzy Search: With a global list, this needs to be fast. We should index both full_name and short_name in a local Room database so the search feels instantaneous even if the user is offline.
+
+The "Hide Present" Toggle: If an usher marks someone as present and the toggle is ON, that person should immediately animate out of view. We’ll need a slight delay or a "Undo" snackbar so they don't panic if they tapped the wrong name.
+
+Timestamping: Since you mentioned attendance includes a timestamp, we should record the moment the usher taps "Mark Present" in the Batch Review screen, not just the event time.
+
+4. Proposed Feature List (The "Backlog")
+Event Management:
+
+Auto-generated default event title.
+
+Manual override for special events (e.g., "Youth Night").
+
+Attendee Management:
+
+Global master list synchronization.
+
+"Quick Add" for new attendees (Name + Short Name).
+
+Group filtering/indicators.
+
+Attendance Engine:
+
+Real-time "Total Present" counter.
+
+Toggle logic (Present/Absent).
+
+Selection Mode (Multi-select).
+
+Batch Processing:
+
+The Batch Review screen.
+
+Include/Exclude toggles.
+
+Final commit to cloud/local DB.
+
+What’s the move?
+I’m liking the "Batch Review" flow—it prevents accidental mass-marking.
+
+Should we dive into the "Quick Add" flow for those new attendees (how the usher inputs a name on the fly), or are you ready to see how the Database Schema (Architecture) would look for this?
+
+You said
+Batch review screen has further responsibilities so need better name
+
+We will eventually have other ways to add attendees to the screen.e.g scan qr containing attendee identifiers, multiple scans appending to the list.
+
+Gemini said
+This addition changes the screen from a simple "selection preview" to a dynamic Staging Area. It’s essentially a "Cart" for people before you commit them to the event logs.
+
+Since this screen needs to handle manual selections, QR scans, and potentially NFC or external imports in the future, we need a name that implies a "holding pen."
+
+1. Naming the "Action Screen"
+Here are some names that fit the broader scope of "collecting" attendees from multiple sources:
+
+The Attendance Queue: (Highly functional. It implies things are lined up waiting for a final command.)
+
+The Entry Manifest: (Sounds professional and organized, fitting for a formal event or service.)
+
+The Batch Tray: (A modern UI term. Like a "tray" where you drop items before processing.)
+
+The Checkpoint: (Implies a final verification before entry.)
+
+The Roster Builder: (Focuses on the task of assembling the group.)
+
+My recommendation: "The Attendance Queue". It’s intuitive—whether you scan a QR code or select from a list, they are "queued" for the final status update.
+
+2. Refined Feature Set for "The Queue"
+Now that we know multiple sources can feed into this screen, we need to handle some specific "clash" logic:
+
+Multi-Source Integration
+The "Append" Logic: If the usher has already selected 5 people and then opens the QR scanner, the scanned results should append to the existing Queue, not overwrite it.
+
+De-duplication: If I manually select "John Doe" and then scan "John Doe’s" QR code, the app must recognize they are the same ID and avoid duplicate entries in the list.
+
+Source Indicators: It might be helpful to show a small icon next to the name (e.g., a tiny QR icon vs. a cursor icon) so the usher knows how that person got into the queue.
+
+The "Exclude" Logic (Long Tap)
+You mentioned long-tapping to include/exclude. In a "Queue" context, this acts as a soft-delete.
+
+Excluded state: The item is greyed out or struck through.
+
+Included state: High contrast, ready for the "Commit" button.
+
+Why? If an usher accidentally scans someone who was just walking by, they don't want to delete them and re-scan later; they just want to "skip" them for this specific action.
+
+3. The "Unknown QR" Edge Case
+Since the master list is in the cloud, what happens if the usher scans a QR code for a "New Attendee" who isn't in the system yet?
+
+The Flow: The QR code likely contains a JSON string or a delimited string: name:Jane Doe|short:Jane.
+
+The Queue's Job: The Queue should show this as a "New Entry" with a distinct color.
+
+The Action: When the user hits "Mark Present," the app creates the attendee record and the attendance record simultaneously.
+
+4. Updated User Flow
+Context: Usher selects/creates "2602221030:sunday service".
+
+Collection Phase (Main Screen):
+
+User selects attendees via long-tap/multi-select.
+
+AND/OR User taps a FAB (Floating Action Button) to scan QR codes.
+
+The Attendance Queue: * Review the aggregated list of selections + scans.
+
+Toggle anyone who shouldn't be there.
+
+The Commit: * Tap "Confirm Presence" or "Mark Absent".
+
+App writes to local DB, syncs to cloud, and clears the Queue.
+
+What’s the move?
+We have a very clear picture of the "What" (Features) and the "How it feels" (UX).
+
+Should we move into the "Data Architecture" (how the SQL tables and Cloud objects look), or would you like to design the "Quick Add / New Attendee" form for those visitors who don't have a QR code?
+
+You said
+No unknown qr
+
+Since no direct toggling of attendance in the main listing screen, no need to delay hiding
+
+Make the queue a persistent screen such that usher can switch back and forth between main list without losing queue. And when the main screen enters selection mode again, it will merge the existing queue with the first selected entry.
+
+On the queue, an item may be dequeued by sliding the attendee item to the side. This is distinct from just being excluded.
+
+The queue is cleared on action commit
+
+Each time queue is cleared, the queue is archived for future recall. Keep the last 10 cleared queues.
+
+Gemini said
+This is a sophisticated workflow. By making the Queue a persistent, side-by-side state with the Main List, you’ve essentially turned the app into a "Batch Processor."
+
+The "Merge" logic is particularly clever—it ensures the usher never feels like they are starting over.
+
+1. The Interaction Model: "Soft" vs "Hard" Removal
+We now have three distinct states for an attendee in the Queue. This provides a lot of flexibility for an usher in a high-traffic environment:
+
+Included (Active): The attendee is in the list and will be marked Present/Absent upon commit.
+
+Excluded (Long Tap): The attendee stays in the list (perhaps greyed out) but is "skipped" during the final action. (Useful if the usher wants to remember to check them later without removing them now).
+
+Dequeued (Swipe): The attendee is removed from the Queue entirely.
+
+2. The "Selection Merge" Logic
+This is the most critical part of the UX. To make this work seamlessly:
+
+Shared State: The Queue must live in a Repository or a Shared ViewModel that both the Main List and the Queue Screen observe.
+
+The Trigger: When the user long-taps Attendee X in the Main List:
+
+The app checks the current Persistent Queue.
+
+It creates a new Selection Session containing [All items in Queue] + [Attendee X].
+
+The UI highlights all these people immediately.
+
+3. The Queue Archive (The "Safety Net")
+Since we are clearing the queue on commit, an accidental tap could be a disaster.
+
+Capacity: 10 slots (First-In, First-Out).
+
+Data Structure: Each archive entry needs:
+
+The Event ID it was associated with.
+
+The Timestamp of the commit.
+
+The List of Attendees (and whether they were marked Present or Absent).
+
+Recall UI: A small "History" or "Clock" icon on the Queue screen to "Restore" a previous batch.
+
+4. Finalized Feature Architecture
+Here is the refined flow and how it looks from a data perspective:
+
+Component	Responsibility
+Main List	Browse all attendees. Observe the QueueState to show "Selected" markers on people already in the queue.
+Selection Mode	Activated by long-tap. Merges existing Queue with new taps. Sends batch to Queue on exit.
+The Queue	Persistent screen. Handles "Exclude" (Soft-toggle) and "Dequeue" (Swipe-to-remove).
+The Committer	Records the attendance + timestamp in the DB. Clears the Queue. Pushes the cleared list to the Archive.
+5. Technical Considerations for Persistence
+To make the Queue and Archive work as you've described, we should use Room (SQLite) for two specific tables:
+
+queue_table: Stores the IDs of attendees currently "staged." This ensures if the phone dies, the usher doesn't lose their work.
+
+archive_table: A "JSON Blob" or a relational table storing the last 10 batches.
+
+What’s the move?
+We have a very high-fidelity plan for the features. Since you want to work through design and architecture:
+
+Should we draw up the Database Schema (The tables and relationships) to support this persistent Queue and Archive, or would you like to start sketching the UI Layout for the Queue screen?
+
+You said
+Attendance should be synced to the cloud
+
+
+
+Sync mechanism must will merge attendance state per attendee based on last commit timestamp
+
+
+
+Cloud architecture may change so build against an interface and save adaptor
+
+
+
+Initial cloud is single gsheet spreadsheet
+
+There is one worksheet for master attendees
+
+Each event, will have it's own sheet in the same spreadsheet where contents are attendee id and attendance state and commit time
+
+Attendance marked as absent is the same as not having an entry in the list. We need the entry so we're don't delete a previously marked present entry but instead update it to absent with later commit time.
+
+Gemini said
+This architecture is getting robust. By using an Interface/Adapter pattern for the cloud layer, you're "future-proofing" the app—if you ever outgrow Google Sheets (which is great for an MVP but has some concurrency quirks), you can swap it for Firebase or a custom SQL backend without touching your core UI or business logic.
+
+Let’s map out the Data Schema and the Sync Strategy.
+
+1. The Database Schema (Local Room DB)
+To support offline-first usage and the persistent queue, we need a relational structure.
+
+Attendees & Groups
+attendees: id (UUID/Internal), remote_id (GSheet ID), full_name, short_name, is_new_record (Boolean).
+
+groups: group_id, name.
+
+attendee_groups: attendee_id, group_id (Many-to-Many link).
+
+Events & Attendance
+events: event_title (Primary Key: yymmddhhmm:name), is_synced.
+
+attendance_records: event_title, attendee_id, state (String: "PRESENT" | "ABSENT"), commit_timestamp (Long).
+
+State Management
+persistent_queue: attendee_id, is_excluded (Boolean).
+
+queue_archive: archive_id, event_title, commit_timestamp, data_json (A blob containing the list of IDs and states).
+
+2. Cloud Architecture: The "CloudAdapter" Interface
+Following your requirement to be backend-agnostic, here is how the abstraction looks:
+
+Kotlin
+interface AttendanceCloudProvider {
+    suspend fun fetchMasterList(): List<RemoteAttendee>
+    suspend fun pushAttendance(eventTitle: String, records: List<AttendanceRecord>): SyncResult
+    suspend fun fetchAttendanceForEvent(eventTitle: String): List<AttendanceRecord>
+}
+The Google Sheets Implementation
+The GoogleSheetsAdapter will handle the heavy lifting:
+
+Master Sheet: Read/Write rows to the "Master" tab.
+
+Event Sheets: When pushAttendance is called, the adapter checks if a sheet named 2602221030:sunday service exists. If not, it creates it.
+
+Conflict Resolution: * When syncing, the app compares the commit_timestamp of the local record vs. the GSheet row.
+
+Rule: The latest timestamp wins.
+
+If a person is marked "Present" locally at 10:35 but was marked "Absent" on another device at 10:40, the "Absent" state will overwrite yours upon the next sync.
+
+3. The "New Attendee" Sync Logic
+Since new attendees don't have an ID yet, the workflow needs to be "ID-Safe":
+
+Local Creation: Usher adds "John Doe". App assigns a temporary local UUID.
+
+Initial Commit: John is marked Present. The row in the Event sheet uses the local UUID temporarily.
+
+Cloud Reconciliation: When the app syncs the Master List to GSheet, the cloud returns a permanent ID. The app must then update the local remote_id and update any existing rows in the Event sheets to use this new ID to maintain integrity.
+
+4. The Sync Mechanism: "Last Commit Wins"
+To avoid deleting data (as per your requirement), we treat "Absent" as a valid state rather than a null value.
+
+Attendee	State	Commit Time	Action
+001	Present	10:30:00	Initial Mark
+001	Absent	10:45:00	Update (Override)
+001	Present	11:00:00	Final State
+Sync logic pseudo-code:
+
+"For each attendee in the cloud event sheet: If cloud_timestamp > local_timestamp, update local. If local_timestamp > cloud_timestamp, push local to cloud."
+
+5. UI Layout: The Queue & Archive
+Since the Queue is persistent and "swappable," we should use a Bottom Sheet or a Side Drawer (navigation-wise) so the usher can peek at it without losing the search context of the main list.
+
+Slide-to-Dequeue: Using a standard SwipeToDismiss gesture in Compose.
+
+Merge Logic: When the usher enters Selection Mode on the main list, we inject the persistent_queue IDs into the selection set immediately.
+
+What’s the move?
+We have a solid handle on the data flow and the cloud adapter.
+
+Should we write the specific Kotlin/Room "Upsert" logic for the Attendance table (handling the timestamp comparison), or would you like to design the "Archive Recall" UI—how the usher actually views and restores those last 10 batches?
+
+You said
+Groups also has its own master sheet in the same spreadsheet
+
+Each record has group id, which is also the group name, and attendee id
+
+Master attendees and groups sheets are read only
+
+
+
+No support for new attendees without attendee id
+
+Gemini said
+With the "Read-Only" master list constraint and the removal of "unknown" attendees, your architecture becomes much more streamlined. We are essentially building a Distributed Write-Only system for the event logs, where the master data acts as a fixed reference.
+
+Here is the refined design and architecture plan.
+
+1. Spreadsheet Structure (The Cloud)
+Since you are using Google Sheets as the initial backend, the workbook will look like this:
+
+Sheet Name	Columns	Permissions
+Master_Attendees	attendee_id, full_name, short_name	Read-Only
+Master_Groups	group_id (Name), attendee_id	Read-Only
+[EventTitle]	attendee_id, state (P/A), commit_time	Read/Write
+Note: Every time a new event is created, the app (via the Adapter) creates a new worksheet. This keeps the data partitioned and prevents a single sheet from hitting the 10-million-cell limit too quickly.
+
+2. Updated Local Data Model (Room)
+Since the master lists are read-only, the local DB acts as a high-performance cache.
+
+Tables:
+Attendee: id (PK), fullName, shortName.
+
+GroupMapping: groupId, attendeeId (Composite PK).
+
+Event: title (PK), lastSyncTime.
+
+Attendance: eventTitle, attendeeId, state, timestamp (Primary Key is eventTitle + attendeeId).
+
+QueueArchive: id, eventTitle, timestamp, attendeeData (JSON list of who was in that batch).
+
+3. The Sync Logic: "Timestamp Merge"
+Because multiple ushers might be tracking the same event, the AttendanceCloudProvider needs a robust reconciliation logic.
+
+The "Pull-Merge-Push" Cycle:
+
+Pull: Fetch all rows from the specific Event Sheet.
+
+Compare: For each attendee:
+
+If Local.timestamp > Remote.timestamp: Keep Local (the usher's recent change is newer).
+
+If Remote.timestamp > Local.timestamp: Update Local (another usher made a later change).
+
+Push: Upload only the records where Local.timestamp is newer than what was just pulled.
+
+4. The Persistent Queue Interaction
+This is the core of the app's "brain." Here is how the state flows between screens:
+
+A. The Shared State (Repository Pattern)
+We use a StateFlow<List<QueueItem>> in a Repository.
+
+Main List: Observes the flow. If "John Doe" is in the queue, his list item shows a "Selected" badge.
+
+Queue Screen: Observes the flow. Displays the list with swipe-to-dequeue.
+
+B. The Selection Merge
+When the usher long-taps in the Main List:
+
+The UI enters Selection Mode.
+
+The current Persistent Queue is loaded into the "Selection Set."
+
+As the usher taps more people, they are added to this temporary set.
+
+When they finish (e.g., tap "Go to Queue"), the Persistent Queue is updated with this new merged list.
+
+C. The Queue Actions
+Long-Tap (Exclude): Sets a isExcluded boolean in the QueueItem. The row turns grey. The "Commit" action will ignore this ID.
+
+Swipe (Dequeue): Removes the ID from the Persistent Queue table entirely.
+
+5. Designing "The Archive"
+Since we keep the last 10 cleared queues, we need a way for the usher to "Undo" a mistake.
+
+The Archive Item UI:
+
+Header: "Committed at 10:45 AM - 12 People Marked Present".
+
+Action: A "Restore to Queue" button.
+
+Logic: If the usher restores an archive, it appends those people back into the current persistent queue, merging them with anyone already there.
+
+6. Proposed Architecture Stack
+UI: Jetpack Compose (using LazyColumn for the fuzzy-searched list).
+
+State Management: ViewModel with StateFlow.
+
+Persistence: Room for local storage; DataStore for the "Last 10 Archives" metadata.
+
+Networking: Retrofit + Google Sheets API (v4).
+
+What’s the move?
+We have the sync logic, the data structure, and the queue persistence mapped out.
+
+Should we define the "Fuzzy Search" logic (e.g., how to prioritize short names over full names in the UI), or would you like to see the Kotlin code structure for the AttendanceCloudProvider interface?
+
+You said
+Fuzzy search prioritise short names over full names and the list respects the hide present. Hide present show a number badge of matched present attendees that are hidden. The badge will show total present trust are hidden when hide is active.
+
+Gemini said
+This logic adds a layer of "intelligence" to the UI. The usher needs to trust that the app is still tracking people even when they disappear from the screen.
+
+Here is the design for the Search Engine and the Dynamic Filtering logic.
+
+1. Fuzzy Search & Prioritization
+To make the search feel responsive, we will use a score-based sorting algorithm. Since we are using Room (SQLite), we can implement this in the DAO or via a Kotlin helper function.
+
+The Scoring Logic:
+When a user types a query (e.g., "Jon"), we assign points:
+
+Exact Match (Short Name): 100 pts.
+
+Starts With (Short Name): 80 pts.
+
+Contains (Short Name): 60 pts.
+
+Exact Match (Full Name): 40 pts.
+
+Contains (Full Name): 20 pts.
+
+Resulting List Order:
+
+Jon (Short Name) — Top of list
+
+Jonathan Smith (Full Name) — Below
+
+Jones, Michael (Full Name) — Bottom
+
+2. The "Hide Present" Logic & Badge
+The "Hide Present" feature isn't just a filter; it’s a state-dependent summary.
+
+Visibility Rules:
+If Toggle is OFF: Show everyone matching the search query.
+
+If Toggle is ON: Show only state == ABSENT (or not yet marked).
+
+The Badge Calculation:
+The badge doesn't just show "Total Present." It shows "Present & Hidden & Matches Search." * Scenario: Usher searches "Ma". There are 10 "Ma"s. 4 are Present. 6 are Absent.
+
+Result: The list shows 6 people. The badge on the "Show Present" button displays 4.
+
+Why? This tells the usher: "You're looking for 'Ma', and 4 people matching that name are already accounted for."
+
+3. The Database Query (Room DAO)
+To keep the UI fast, we can handle the "Hide Present" and "Fuzzy Search" logic in a single SQL query or a combined MediatorLiveData/Flow.
+
+SQL
+-- Conceptual SQL for the filtered list
+SELECT * FROM attendees 
+LEFT JOIN attendance_records ON attendees.id = attendance_records.attendee_id
+WHERE (full_name LIKE :query OR short_name LIKE :query)
+AND (:hidePresent = 0 OR attendance_records.state != 'PRESENT')
+ORDER BY 
+  CASE 
+    WHEN short_name LIKE :query THEN 1 
+    WHEN full_name LIKE :query THEN 2 
+    ELSE 3 
+  END
+4. UI Layout Hierarchy
+Here is how the header should be structured to accommodate these features:
+
+Element	Component	Behavior
+Search Bar	TextField	Updates the searchQuery state on every keystroke.
+Visibility Toggle	IconButton	Toggles hidePresent boolean.
+Presence Badge	Surface (Circle)	Anchored to the Toggle. Only visible when hidePresent == true AND count > 0.
+Total Counter	Text	Shows "Total Present: X" (Absolute total for the event, regardless of filters).
+5. Selection Mode Interaction
+When the usher enters Selection Mode (long-tap):
+
+The "Hide Present" filter should ideally temporarily disable or allow the usher to see those people.
+
+Decision: Should an usher be able to select a "Present" person to mark them "Absent" in bulk?
+
+Based on your requirements: Yes. Since the "Queue" allows marking as Present or Absent, the usher needs to be able to find anyone, regardless of their current state.
+
+What’s the move?
+The search and filtering logic is now airtight.
+
+Should we move on to the "Queue Item" UI—specifically how the "Exclude" (long-tap) and "Dequeue" (swipe) look—or would you like to define the "Event Creation" form with the Sunday-default logic?
+
+You said
+Selection mode should respect the hide present toggle
+
+If they're looking for someone present, they should notice the present badge counter and disable hidingb similar to the fuzzy search filter
+
+The main list does not change behaviour for selection or for filter
+
+Selection mode can be activated from save active search filtered results
+
+Where can we show the number selected in queue so far so user can follow
+
+Selection mode can continue to the queue, or be cancelled so the queue does not change all features in main list functions the same while in selection mode or outside
+
+Gemini said
+This design is becoming a power-tool for ushers. By keeping the Main List behavior consistent (respecting filters/hiding) even during Selection Mode, you ensure the user never feels disoriented by UI "magic" that changes how they find people.
+
+1. Selection Mode & The "Persistent Presence"
+Since Selection Mode respects the "Hide Present" toggle, the workflow remains predictable:
+
+The "Wait, where are they?" Moment: If an usher is in Selection Mode and can't find an attendee, they will see the Badge Counter on the "Show Present" button.
+
+The Action: They toggle "Show Present," the list expands to include those already marked, and they can then select them to add to the Queue (perhaps to change them from P to A).
+
+2. Tracking the Queue Count
+To help the usher keep track without switching screens, we need a Global Counter.
+
+Placement Options:
+The Floating Action Button (FAB): If the FAB is the "Proceed to Queue" button, it should have a badge showing the current count: Queue (12).
+
+The Sticky Header: Below the Search Bar, a small summary text: 15 in Queue • 4 Selected.
+
+The "Selection Bar": When Selection Mode is active, a contextual bar appears at the top (standard Android pattern), showing X Selected.
+
+My Recommendation: Use a Counter Badge on the Queue FAB. It provides a "North Star" for the usher. They can see the number grow as they tap names, providing immediate feedback that their actions are being registered in the persistent state.
+
+3. The "Save to Queue" vs. "Cancel" Flow
+This is a critical distinction you've made: Selection Mode is a drafting phase, and it only affects the Persistent Queue if the user "Saves" or "Proceeds."
+
+The States:
+Idle: Viewing list, searching, toggling visibility.
+
+Selection Mode:
+
+Triggered by long-tap.
+
+UI shows checkboxes or highlights.
+
+Header: Displays "Selection Mode: 5 Selected".
+
+Action 1 (Confirm): Tapping "Add to Queue" merges these 5 into the Persistent Queue and exits Selection Mode.
+
+Action 2 (Cancel): Tapping "X" or Back exits Selection Mode. The Persistent Queue remains exactly as it was before the long-tap.
+
+4. Selection from Search Results
+Since Selection Mode works on filtered results, we can add a "Select All Matches" feature.
+
+Scenario: Usher searches for "Youth Group". 15 names appear.
+
+Action: Usher enters Selection Mode and taps a "Select All" button in the header.
+
+Result: All 15 filtered attendees are highlighted. They can then "Add to Queue" in one tap.
+
+5. UI Layout with the Queue Counter
+Component	Role
+Header	Search Bar + Hide Present Toggle + Hidden Presence Badge.
+Selection Bar	(Appears only in Selection Mode) Shows "X Selected" + "Select All" + "Cancel".
+The List	Shows attendees. If an attendee is already in the Queue, they have a subtle "In Queue" indicator.
+Queue FAB	Persistent button at bottom-right. Displays the total count of the Persistent Queue. Tapping it opens the Queue Screen.
+6. Interaction Summary
+Action	Result
+Long-tap attendee	Enter Selection Mode. Item is selected.
+Tap "Add to Queue"	Merges current selections into PersistentQueue table. Clears selection state.
+Tap "Cancel"	Discards selection state. PersistentQueue remains unchanged.
+Swipe in Queue Screen	Dequeues an item immediately (removes from PersistentQueue).
+What’s the move?
+We have a very clear "Draft vs. Persistent" logic now.
+
+Should we design the "Event Title" creator (the Sunday 1030 logic), or would you like to dive into the "Batch Review" (Queue) screen's layout—specifically how the "Include/Exclude" toggle looks versus the "Swipe to Dequeue" action?
+
+You said
+Use FAB
+
+while in selection mode, user can cancel and the current queue is not updated
+
+If continue, the queue will be cleared, archived, and be replaced with current selection which also has merged entries from queue unless user unselected them in selection mode
+
+Gemini said
+This logic creates a very high-stakes but efficient "Replacement" flow. Instead of just appending to the queue, the Selection Mode acts as a full editor for what the next Queue will be.
+
+By merging the existing Queue into the Selection Mode automatically, you allow the usher to "audit" the current queue alongside new additions before committing.
+
+1. The "State Transition" Logic
+To ensure the user never loses data, the "Replace and Archive" trigger is the most critical part of the architecture.
+
+Entry: Long-tap an attendee.
+
+The Merge: The UI immediately selects everyone currently in the Persistent Queue plus the person just tapped.
+
+The Session: The user can now:
+
+Select more: Find new people (using fuzzy search/filters).
+
+Unselect: Remove someone who was previously in the queue.
+
+The Fork in the Road:
+
+Cancel (Back/X): Nothing happens. The original Persistent Queue remains as it was.
+
+Confirm (FAB): 1. Current Persistent Queue is moved to the Archive (Last 10).
+2. Persistent Queue is cleared.
+3. All currently selected items are written to the Persistent Queue.
+4. Exit Selection Mode.
+
+2. Updated FAB Behavior
+The Floating Action Button (FAB) needs to communicate two different things depending on the state:
+
+State	FAB Icon/Label	Function
+Normal Mode	List/Queue Icon + [Queue Count]	Opens the Queue Screen.
+Selection Mode	Check/Done Icon + [Selection Count]	Triggers the Archive -> Clear -> Replace logic.
+3. Visual Feedback: "In Queue" vs. "Selected"
+Since Selection Mode merges the existing queue, we need to distinguish why someone is highlighted:
+
+Selected (New): High-contrast highlight (e.g., Primary Color).
+
+Selected (Was already in Queue): Perhaps a subtle border or an "In Queue" tag on the list item to show they are being carried over.
+
+4. The "Archive" as a Safety Net
+Because the "Confirm" action clears the existing queue to replace it, the Archive becomes your "Undo" button.
+
+If an usher accidentally hits "Confirm" when they meant to "Cancel," they’ve wiped their previous queue.
+
+They can go to the Archive Screen, find the previous batch, and tap "Restore."
+
+Restore Logic: Restoring an archive should probably Append those items back into the current Queue to prevent another destructive overwrite.
+
+5. UI Architecture: The Selection Flow
+The Selection Bar (Header)
+When Selection Mode is active, the top of the app changes:
+
+Left: X button (Cancel - Discards all changes made in this session).
+
+Center: "12 Selected" (Total count of merged items).
+
+Right: "Select All Matches" (Contextual to the current fuzzy search/filter).
+
+6. Data Architecture (The "Swap")
+In your Room Database, the operation for the "Confirm" button should be wrapped in a Transaction:
+
+Kotlin
+@Transaction
+suspend fun replaceQueue(newItems: List<Attendee>) {
+    val currentQueue = getCurrentQueue()
+    saveToArchive(currentQueue) // Moves current to the 10-slot history
+    clearPersistentQueue()      // Deletes all rows in queue_table
+    insertIntoQueue(newItems)   // Inserts the new selection
+}
+What’s the move?
+The "Selection as Queue Editor" flow is now fully mapped. It’s a very "pro" workflow that prevents duplicate work.
+
+Should we design the "Queue Screen" (The persistent staging area) where the usher can see the final list and perform the "Mark Present/Absent" action, or would you like to define the logic for the "Event Title" auto-generator (the Sunday 10:30 logic)?
+
+You said
+Make archive limit configurable in archive listing screen with minimum 25 as default
+
+Design queue screen
+
+Gemini said
+The Queue Screen is the final staging area—the "Control Room" before data hits the cloud. By making it a persistent screen, we allow the usher to treat it as a workspace that survives navigation.
+
+1. The Queue Screen Design
+The UI needs to be focused on Review and Action. Since it is a persistent screen, it should be easily accessible from the Main List via the FAB or a tab/swipe.
+
+Top Header
+Title: "Attendance Queue"
+
+Subtitle: Current Event Title (e.g., 2602221030:sunday service).
+
+Summary: [Total in Queue] | [Included: X] | [Excluded: Y].
+
+The List (Queue Items)
+Each row represents an attendee. Because this is the final check, the rows should be slightly more data-rich than the main list:
+
+Leading: A "Status Circle" (Blue if Included, Grey/Strikethrough if Excluded).
+
+Center: Full Name (Primary) and Short Name (Secondary).
+
+Trailing: "Group" tags (e.g., "Youth", "Volunteers").
+
+Interactions:
+
+Swipe Left/Right: Dequeue (Removes them from the queue entirely). An "Undo" snackbar should appear briefly.
+
+Long-Tap: Toggle Exclude. The item remains in the list but becomes semi-transparent and is ignored by the final "Action" button.
+
+Bottom Action Bar (The "Commit" Zone)
+This is a sticky footer with two primary buttons:
+
+Mark Present: Records the attendance with the current timestamp.
+
+Mark Absent: Overwrites any existing record for this event as "Absent" with a new timestamp.
+
+Logic Note: Tapping either button triggers the Clear & Archive flow. The queue is moved to the Archive, the Persistent Queue table is cleared, and the user is sent back to the Main List with a success confirmation.
+
+2. Archive Screen & Configuration
+As requested, the Archive now has a higher floor for history and a user-defined ceiling.
+
+The Archive Listing
+Entry Item: Shows the Event Title, the time of the commit, and a "preview" of names (e.g., "John D., Sarah M., +10 others").
+
+Restore Button: Clicking an entry gives an option: "Restore to Queue? This will append these 12 people to your current queue."
+
+Configurable Limit Logic
+Default: 25 slots.
+
+Constraint: Minimum allowed is 25.
+
+Setting UI: A simple "Max Archive Size" input field at the top or bottom of the Archive screen.
+
+Cleanup Policy: When the limit is reached (e.g., 50), the oldest archive entry is deleted automatically (FIFO).
+
+3. Data Flow: The "Commit" Sequence
+When the "Mark Present" button is tapped in the Queue:
+
+Filter: Create a sub-list of all items in the queue where isExcluded == false.
+
+Archive: Save the entire current queue (including excluded items) to the archive_table.
+
+Local Write: For each "Included" attendee, create/update an attendance_record in the local Room DB with state = PRESENT and timestamp = now().
+
+Cloud Sync: Trigger the AttendanceCloudProvider to push these updates to the specific Google Sheet.
+
+Clear: Empty the persistent_queue table.
+
+4. UI Layout Mockup
+Component	UI Element	Interaction
+List Item	SwipeToDismiss	Swipe to remove (Dequeue).
+List Item	Modifier.combinedClickable	Long-press to toggle "Excluded" state.
+Commit Buttons	Button(colors = Green)	Mark all included as Present.
+Commit Buttons	OutlinedButton(colors = Red)	Mark all included as Absent.
+Archive Config	TextField(Keyboard = Number)	Updates the archive_limit in DataStore.
+5. Summary of Architecture States
+Main List: The "Discovery" layer (Search, Filter, Hide Present).
+
+Selection Mode: The "Editor" layer (Merge Queue, Select/Unselect, Batch Move).
+
+Queue Screen: The "Review/Staging" layer (Exclude, Dequeue, Final Action).
+
+Archive: The "Safety" layer (Recall, Restore, Configure History).
+
+What’s the move?
+We have the features, the sync logic, the selection flow, and the queue management finalized.
+
+Would you like me to write the Kotlin code for the EventSuggester (the logic that calculates "Next Sunday at 10:30") or should we define the specific "Group Master Sheet" reading logic?
+
+You said
+Make short name primary if it exists. full name may be to long to fit on screen
+
+Tap to show toast of full name and hint to hold for toggling exclude
+
+Action buttons require hold to activate. Animate with existing jetpack compose regular holding. Maybe border getting drawn while activating.
+
+Make absent the secondary and smaller action button as that is not usually used
+
+
+
+To allow efficient processing, sync to cloud should be async and commits stored locally. Sync to cloud must be processed sequentially one commit at a time. Commits not yet synced to cloud must still reflect correctly locally so attendance review by user do not see outdated data. Need indicator to keep track of commits not yet synced. If there are uncommitted changes, don't pull updates as they may be stale.
+
+Gemini said
+This refined logic shifts the app into a "Power User" category, emphasizing safety and data integrity while optimizing for speed. The "Local-First, Sync-Second" approach is the right way to handle potential connectivity issues during a busy service.
+
+1. Queue Screen UI: The "Hold-to-Action" Design
+Since marking attendance is a high-consequence action, the Hold-to-Activate mechanism prevents accidental commits.
+
+Primary Display: Short Name is prioritized. If it doesn't exist, we fall back to Full Name.
+
+Toast Interaction: A simple tap on the row triggers a Toast: [Full Name] • Long-tap to exclude.
+
+The Activation Animation: We can use a Box with a custom Canvas to draw a "Progress Border" that completes a circuit around the button while the user holds down.
+
+Action Hierarchy: * Mark Present: Large, central "Fill" button (Green).
+
+Mark Absent: Smaller, outlined button (Red) to the side.
+
+2. Sequential Sync Architecture (The "Sync Queue")
+To ensure the cloud never becomes inconsistent, we treat every "Commit" as a discrete transaction in a local Sync Queue.
+
+The Flow:
+Commit: When the user holds "Mark Present," the app creates a SyncJob entry in the local DB containing the batch of IDs, the state, and the timestamp.
+
+Local Update: The Attendance table is updated immediately. The UI (Main List) observes this table, so the usher sees the "Present" state instantly.
+
+Sequential Processing: A background worker (using WorkManager) picks up the oldest SyncJob.
+
+It pushes to the Cloud (Google Sheets).
+
+Upon success, it deletes that SyncJob and moves to the next.
+
+Sync Indicator:
+
+A small "Cloud" icon in the header.
+
+Spinning: Syncing in progress.
+
+Red Dot/Number: "X commits pending" (Offline or waiting).
+
+Checkmark: All caught up.
+
+Safety Rule: If SyncQueue.isNotEmpty(), the app disables the "Pull from Cloud" feature. This prevents "Stale" data from the cloud overwriting the fresh commits that haven't reached the server yet.
+
+3. The "Name Display" Logic
+To handle the Short Name/Full Name priority efficiently in Jetpack Compose:
+
+Kotlin
+@Composable
+fun AttendeeRow(attendee: Attendee) {
+    val displayName = attendee.shortName.ifBlank { attendee.fullName }
+    
+    ListItem(
+        headlineContent = { 
+            Text(
+                text = displayName,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            ) 
+        },
+        modifier = Modifier
+            .clickable { showToast(attendee.fullName) }
+            .combinedClickable(
+                onLongClick = { toggleExclude(attendee) },
+                onClick = { showToast(attendee.fullName) }
+            )
+    )
+}
+4. Database Schema Update: Sync Jobs
+We need a new table to manage the sequential upload:
+
+sync_jobs (Table)	Description
+job_id	Autoincrement PK.
+event_title	Which sheet to write to.
+payload_json	List of {attendee_id, state, timestamp}.
+created_at	Ensures we process in the exact order they were committed.
+5. Event Suggester Logic (The "Sunday" Rule)
+To ensure the app defaults correctly when creating a new event:
+
+Current Date: Friday, Feb 20, 2026.
+
+Logic:
+
+If Today is Sunday → Use Today.
+
+Else → Find the next Sunday.
+
+Calculation:
+
+Kotlin
+val today = LocalDate.now()
+val daysUntilSunday = (DayOfWeek.SUNDAY.value - today.dayOfWeek.value + 7) % 7
+val defaultDate = if (daysUntilSunday == 0) today else today.plusDays(daysUntilSunday.toLong())
+// Format: yyMMdd (260222) + "1030" + ":sunday service"
+6. Updated Queue Screen Layout
+Section	Element
+List	Short Name (Primary), Swipe to Dequeue, Long-tap to Exclude.
+Sync Indicator	Top right: Shows "Pending: 3" if the background worker is still running.
+Footer (Small)	Mark Absent (Hold to activate).
+Footer (Large)	Mark Present (Hold to activate) - Features the "Border Drawing" animation.
+What’s the move?
+The architecture is now fully "Offline-Ready" with a strict sequential sync.
+
+Should we write the Compose code for the "Hold-to-Activate" button with the drawing border animation, or would you like to define the "Group Master Sheet" data structure more specifically?
+
+You said
+How do I transfer our architecture for building with Gemini cli
+
+Gemini said
+To move this architecture into a buildable state using the Gemini CLI (and the Google AI SDK), we will treat your detailed plan as a "System Context." Gemini is excellent at generating boilerplate for MVVM, Room, and Jetpack Compose when given high-fidelity constraints.
+
+Since you are in the "Free Tier" using Gemini 3 Flash, you can use the CLI to generate the data layer and UI scaffolding by feeding it your specific architecture rules.
+
+1. Preparing the "Schema Prompt"
+The Gemini CLI works best when you provide a "Source of Truth." Create a file named schema.md containing the logic we've built. This will serve as the reference for the CLI to generate code.
+
+The Content to Feed Gemini:
+The Domain: Attendance tracking with local-first sequential sync.
+
+The Models: Attendee (Short name primary), Event (yymmddhhmm:name), SyncJob (Sequential).
+
+The Logic: "Hold-to-activate" buttons, "Sunday 10:30" event defaults, and "Archive-and-Replace" queue management.
+
+2. Using Gemini CLI for Code Generation
+If you have the Google AI CLI installed, you can pipe your requirements to generate the Room DAOs and Repository interfaces.
+
+Command Example:
+Bash
+gemini "Generate a Kotlin Room DAO for the Attendance table. 
+Include an 'Upsert' function that compares timestamps for the 
+sequential sync logic we defined in schema.md." > AttendanceDao.kt
+3. Implementing the "Hold-to-Activate" Button
+Since this is a custom UI component, you can use Gemini to generate the specific Jetpack Compose animation logic for the border-drawing effect.
+
+Prompt for Gemini:
+
+"Create a Jetpack Compose component for a 'HoldToActivateButton'. Requirements:
+
+Animates a border being drawn clockwise while held.
+
+Triggers an 'onActivate' callback only when the border completes (1.5s).
+
+Visuals: Green fill for 'Mark Present', smaller outlined red for 'Mark Absent'."
+
+4. Setting up the Sequential Sync Worker
+To handle the sequential GSheet commits, use the CLI to generate a WorkManager class.
+
+Architecture Instruction for the CLI:
+
+Worker: SyncWorker.
+
+Trigger: On "Mark Present/Absent" commit.
+
+Constraints: Requires Network.
+
+Logic: Fetch the oldest SyncJob from Room, call GoogleSheetsAdapter, delete on success, repeat.
+
+5. Directory Structure for the CLI Build
+Organize your project so the CLI can "read" your progress. Use this structure to maintain the Adapter Pattern:
+
+Plaintext
+app/src/main/java/com/usherapp/
+├── data/
+│   ├── local/          # Room DB, DAOs (SyncJob, Attendee)
+│   ├── remote/         # AttendanceCloudProvider (Interface)
+│   │   └── adapters/   # GSheetAdapter (Implementation)
+│   └── repository/     # Shared state for Queue & Main List
+├── ui/
+│   ├── components/     # HoldToActivateButton, AttendeeRow
+│   ├── main/           # Main List + Search + Toggle
+│   └── queue/          # Staging area + Commit logic
+└── util/               # EventSuggester (Sunday 1030 logic)
+6. Validating the "Sunday Logic"
+You can ask Gemini to write the unit test for your EventSuggester to ensure the 10:30 AM Sunday default is bulletproof.
+
+CLI Command:
+
+Bash
+gemini "Write a Kotlin Unit Test for an EventSuggester that defaults to 
+next Sunday 10:30 AM if today is not Sunday, using the 2026 calendar."
+What’s the move?
+Now that the architecture is ready for the CLI, we should start generating the code.
+
+Would you like me to generate the full Kotlin implementation for the EventSuggester class, or shall we write the GoogleSheetsAdapter implementation for the Master Attendees and Groups sheets?
+
+You said
+We will also require Google workspace oauth for ushers to authenticate and access the Google spreadsheet. Prompt only when required and show indicator on cloud icon so it doesn't interrupt user
+
+Gemini said
+Integrating Google OAuth into a "silent" background sync requires a specific handshake between the Account Manager and your Sequential Sync Worker. By using the cloud icon as a status-only indicator, we maintain the "flow" for the usher without the frustration of sudden pop-up interruptions.
+
+1. Non-Interruptive Auth Architecture
+Instead of blocking the app on startup, we treat "Unauthenticated" as a sync state rather than an app-failure state.
+
+The Cloud Icon States:
+
+Blue/Check: Synced.
+
+Spinning: Actively uploading a commit.
+
+Yellow/Alert: "Action Required" (Token expired or needs login).
+
+Red/X: Offline or Error.
+
+The Interaction: The user only sees the OAuth prompt if they tap the yellow/alert cloud icon. This puts the user in control of when they deal with credentials.
+
+2. OAuth & The Sync Worker
+Since the SyncWorker runs in the background, it needs a way to handle token refresh without a UI context.
+
+Auth Logic:
+Check: When the SyncWorker picks up a job, it checks for a valid AccessToken.
+
+Silent Refresh: If expired, it attempts a silent refresh via the GoogleSignInAccount.
+
+The "Halt": If the refresh fails (user revoked access or token is dead), the SyncWorker stops and updates the Cloud Icon State to "Action Required."
+
+The Resume: Once the user taps the icon and successfully logs in, the SyncWorker is re-triggered to process the pending SyncJobs sequentially.
+
+3. Google Sheets Adapter Implementation
+Based on your architecture, here is the specific implementation logic for the Master Sheets.
+
+Master Sheets (Read-Only)
+The adapter will fetch the Master_Attendees and Master_Groups sheets to populate the local Room database.
+
+Groups Structure: group_id (Name) | attendee_id.
+
+Logic: The app maps multiple group_id entries to a single attendee_id to build the "belongs to multiple groups" relationship locally.
+
+Event Sheets (Write-Only/Incremental)
+For each commit:
+
+Check if worksheet yymmddhhmm:name exists.
+
+Append/Update: Use spreadsheets.values.batchUpdate to ensure the attendee_id, state, and commit_time are written.
+
+4. Sequential Commits with OAuth (CLI Prompt)
+You can use the Gemini CLI to generate the Auth-aware repository.
+
+Prompt for Gemini:
+
+"Generate a Kotlin Repository for Google OAuth integration.
+
+Use GoogleSignInClient to manage accounts.
+
+Provide a StateFlow<AuthStatus> (Authenticated, Expired, Unauthenticated).
+
+Provide a function to get a 'Bearer Token' for Retrofit.
+
+Ensure it stores the last used Spreadsheet ID in DataStore."
+
+5. UI: The Cloud Icon Component
+In your header, the cloud icon becomes the "Heartbeat" of the app’s connectivity.
+
+Kotlin
+@Composable
+fun SyncIndicator(status: SyncStatus, pendingCount: Int) {
+    Box(modifier = Modifier.clickable { if (status == NeedsAuth) triggerLogin() }) {
+        when (status) {
+            is Syncing -> CircularProgressIndicator(modifier = Modifier.size(24.dp))
+            is NeedsAuth -> Icon(Icons.Default.CloudOff, tint = Color.Yellow)
+            is Success -> Icon(Icons.Default.CloudDone, tint = Color.Green)
+            is Pending -> Badge(content = { Text("$pendingCount") }) {
+                Icon(Icons.Default.CloudUpload, contentDescription = null)
+            }
+        }
+    }
+}
+6. Project Checklist for Gemini CLI
+To begin building this with the CLI, here is the order of operations I recommend:
+
+Local Schema: Build the Room DB for Attendees, Groups, Attendance, and SyncJobs.
+
+Identity: Build the OAuth Login Repository.
+
+Sync Engine: Build the SyncWorker that consumes SyncJobs and talks to the GSheet Adapter.
+
+UI Foundation: Build the Main List with Fuzzy Search and the "Hide Present" badge.
+
+The Workflow: Build the Selection Mode (Merge logic) and the Queue Screen (Hold-to-activate).
+
+Would you like me to generate the full SyncWorker code that handles the "Sequential-One-at-a-Time" logic using the Auth tokens?
+
+You said
+Generate detailed specs and feature to markdown for export
+
+Gemini said
+This document serves as the comprehensive Technical Requirements Document (TRD) for the Attendance Tracking Application. You can export this Markdown content for use in your project documentation or as a master "System Context" for generating code via the Gemini CLI.
+
+1. Project Overview
+A local-first, distributed attendance tracking application for Android, designed for ushers to manage attendees in high-traffic environments. The system uses Google Sheets as a cloud backend and prioritizes data integrity through sequential, timestamped commits.
+
+2. Domain Models & Data Schema
+2.1 Entity: Attendee
+Identification: attendee_id (Unique String).
+
+Naming: full_name (String), short_name (Optional String).
+
+UI Priority: Always display short_name as primary; fallback to full_name.
+
+Groups: Belongs to multiple global, predefined groups.
+
+2.2 Entity: Event
+Identity: event_title (Primary Key).
+
+Format: <yymmdd><hhmm>:<event-name> (e.g., 2602221030:sunday service).
+
+Timezone: None (Context-local time).
+
+2.3 Entity: Attendance
+Link: Maps one Attendee to one Event.
+
+State: PRESENT or ABSENT.
+
+Timestamp: Precision long (milliseconds) recorded at the moment of commit.
+
+3. Features & UX Logic
+3.1 Event Suggester (Default Logic)
+Date: If today is Sunday, default to today. Else, default to the upcoming Sunday.
+
+Time: Default to 1030 (24h).
+
+Name: Default to "sunday service".
+
+3.2 Main Listing Screen
+Fuzzy Search: Search against short_name and full_name.
+
+Scoring: Prioritize short_name matches over full_name.
+
+Hide Present Toggle: * When active: Filters out attendees marked PRESENT.
+
+Presence Badge: Displays a count of "Hidden Matches" (Present attendees matching current search query but hidden by the toggle).
+
+Selection Mode:
+
+Triggered by Long-Tap on any attendee.
+
+Merge Logic: On entry, automatically selects all items currently in the Persistent Queue.
+
+FAB Interaction: Clicking the FAB replaces the Persistent Queue with the current selection and archives the previous queue.
+
+3.3 The Persistent Queue Screen
+Persistence: The queue survives app restarts and navigation.
+
+Display: List of attendees staged for the next action.
+
+Interactions:
+
+Tap: Toast showing full_name.
+
+Swipe: Dequeue (Remove) attendee from the queue.
+
+Long-Tap: Toggle "Exclude" (Soft-removal; attendee stays in list but is ignored by final action).
+
+Action Buttons (Hold-to-Activate):
+
+Primary (Large): Mark Present. Requires 1.5s hold with circular progress border animation.
+
+Secondary (Small): Mark Absent. Requires 1.5s hold.
+
+Post-Action: Archive current queue → Clear queue → Trigger Sync.
+
+3.4 Archive System
+Capacity: Default 25 slots (Minimum), user-configurable in Archive settings.
+
+Retention: FIFO (First-In, First-Out) removal of oldest batches.
+
+Recall: Allows "Restoring" a batch to the active Queue (Append mode).
+
+4. Architecture & Cloud Sync
+4.1 Sync Mechanism: Sequential Local-First
+Offline Mode: Attendance changes are written to the local Attendance table and a SyncJobs queue immediately.
+
+Sequential Upload: A background worker processes SyncJobs one by one to Google Sheets.
+
+Conflict Resolution: Last commit (latest timestamp) wins.
+
+Sync Inhibit: If local SyncJobs are pending, the app must not pull updates from the cloud to avoid stale data overwrites.
+
+4.2 Cloud Provider: Google Sheets Adapter
+Authentication: Google Workspace OAuth via GoogleSignInAccount.
+
+Indicator: Cloud icon in UI header.
+
+Yellow/Alert: Needs Auth (Tap to trigger silent refresh/login prompt).
+
+Indicator Badge: Shows number of pending local commits.
+
+Spreadsheet Layout:
+
+Master_Attendees: (Read-Only) id, full_name, short_name.
+
+Master_Groups: (Read-Only) group_id, attendee_id.
+
+[EventTitle]: (Write-Only/Update) Separate sheet per event title.
+
+5. Technical Stack
+Language: Kotlin.
+
+UI: Jetpack Compose (Declarative UI).
+
+Local DB: Room (SQLite) with Support for JSON TypeConverters for Archives.
+
+Background Tasks: WorkManager (for Sequential Sync).
+
+Network: Retrofit + Google Sheets API v4.
+
+State Management: ViewModel + StateFlow.
+

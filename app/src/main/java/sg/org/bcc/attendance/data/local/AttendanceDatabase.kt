@@ -1,0 +1,28 @@
+package sg.org.bcc.attendance.data.local
+
+import androidx.room.Database
+import androidx.room.RoomDatabase
+import sg.org.bcc.attendance.data.local.dao.*
+import sg.org.bcc.attendance.data.local.entities.*
+
+@Database(
+    entities = [
+        Attendee::class,
+        AttendeeFts::class,
+        Group::class,
+        AttendeeGroupMapping::class,
+        Event::class,
+        AttendanceRecord::class,
+        PersistentQueue::class,
+        SyncJob::class,
+        QueueArchive::class
+    ],
+    version = 1,
+    exportSchema = true
+)
+abstract class AttendanceDatabase : RoomDatabase() {
+    abstract fun attendeeDao(): AttendeeDao
+    abstract fun attendanceDao(): AttendanceDao
+    abstract fun persistentQueueDao(): PersistentQueueDao
+    abstract fun syncJobDao(): SyncJobDao
+}
