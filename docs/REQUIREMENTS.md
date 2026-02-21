@@ -12,7 +12,7 @@ A local-first Android attendance tracking application for ushers. It allows for 
 *   **Groups**: Predefined global categories an attendee can belong to (e.g., "Volunteers", "Youth").
 
 ### Event
-*   **Title**: Unique identifier formatted as `<yymmdd><hhmm>:<event-name>`.
+*   **Title**: Unique identifier formatted as `<yymmdd> <hhmm> <event-name>`.
 *   **Date/Time**: yymmdd and hhmm (24h), no timezone.
 *   **Name**: Short descriptive string (e.g., "sunday service").
 
@@ -24,31 +24,45 @@ A local-first Android attendance tracking application for ushers. It allows for 
 ## Features
 
 ### 1. Event Suggester
-*   Automatically defaults the creation form to **today** if it is Sunday, otherwise the **coming Sunday**.
+*   Automatically defaults the context to **today** if it is Sunday, otherwise the **coming Sunday**.
 *   Default time: **10:30**.
 *   Default name: "**sunday service**".
+*   Users can switch between existing events or create new ones via a context menu in the TopAppBar.
 
 ### 2. Main Listing
+*   **Title**: Displays "Attendance" with the full Event ID as a subtitle.
 *   **Fuzzy Search**: Prioritizes short names over full names.
-*   **Hide Present Toggle**: Filters out attendees marked as `PRESENT`.
-*   **Presence Badge**: Displays the count of hidden attendees who match the current search query.
+    *   **Highlighting**: Matched portions of the name are bolded and use the primary theme color.
+*   **Visibility Toggles**: Centered in the bottom bar. 
+    *   **Present Chip**: Toggles visibility of attendees marked as `PRESENT`.
+    *   **Pending Chip**: Toggles visibility of attendees not yet marked.
+    *   **Safety**: If one category's count drops to zero, the other category is automatically forced visible to prevent an empty list.
+*   **Queue Launcher**: Located on the right of the bottom bar. Uses dynamic icons (`FilterNone` to `Filter9Plus`) to show the current queue count.
 *   **Selection Mode**:
-    *   Activated by **Long-Tap** on an attendee.
-    *   While active: **Single-Tap** toggles selection.
-    *   Initial state: Merges the current Persistent Queue into the selection.
-    *   Action: FAB replaces the Persistent Queue with the selection (archiving the old queue).
+    *   Activated by tapping an attendee's **contact photo** (circle).
+    *   Initial state: Merges the current Queue into the selection.
+    *   Action: `GroupAdd` icon replaces the Queue with the selection and automatically opens the Queue sheet.
+*   **Dynamic Scaling**: A "Large Text" option in the menu scales fonts, contact photos, and item spacing by 50%.
 
-### 3. Persistent Queue
-*   **Persistence**: Survives app restarts and navigation.
+### 3. Queue
+*   **UI**: Card-style Modal Bottom Sheet with a standard 56dp top margin.
+*   **Status Indicators**: Attendees already marked present show a `HowToReg` icon on the right.
 *   **Interactions**:
-    *   **Tap**: Shows a Snack-bar with the full name and hint to long-tap to exclude.
-    *   **Swipe**: Dequeues (removes) the attendee from the staging area.
-    *   **Long-Tap**: Toggles "Excluded" state (greyed out, ignored by commit).
+    *   **Tap**: Toggles "Ready/Set Aside" status.
+    *   **Swipe-to-Remove**:
+        *   Visual distance limited to 30% width.
+        *   **Haptic Pulse** when crossing the 25% threshold.
+        *   **Remove on Lift**: Action only triggers upon finger release while beyond the threshold.
 *   **Commit Actions**:
-    *   **Mark Present**: (Primary) Hold for 1.5s to activate.
-    *   **Mark Absent**: (Secondary) Hold for 1.5s to activate.
+    *   **Mark Present**: (Primary/Pill) Uses `CheckCircle` icon and "Present" text.
+    *   **Mark Pending**: (Secondary/Pill) Uses `PersonOff` icon and secondary theme color.
+    *   **Animation**: 100ms color flash (Pastel Green for Present) followed by a 400ms fade-out and height collapse.
+    *   **Preservation**: Only "Ready" items are cleared on commit; "Set Aside" items remain in the queue.
+*   **Clear Action**: `DeleteSweep` icon in the app bar.
+    *   If only "Set Aside" items exist: Clears immediately.
+    *   If "Ready" items exist: Prompts with a "Clear All / Keep Set Aside" dialog. Background dims during the prompt.
 
 ### 4. Archive System
 *   **Capacity**: Default limit of **25 slots** (configurable, minimum 25).
-*   **Logic**: FIFO (First-In, First-Out) removal of oldest batches.
+*   **Logic**: FIFO removal of oldest batches.
 *   **Recall**: Allows restoring a previously cleared queue (Append mode).

@@ -256,13 +256,13 @@ The Checkpoint: (Implies a final verification before entry.)
 
 The Roster Builder: (Focuses on the task of assembling the group.)
 
-My recommendation: "The Attendance Queue". It’s intuitive—whether you scan a QR code or select from a list, they are "queued" for the final status update.
+My recommendation: "Attendance Staging". It’s intuitive—whether you scan a QR code or select from a list, they are "staged" for the final status update.
 
-2. Refined Feature Set for "The Queue"
+2. Refined Feature Set for "Attendance Staging"
 Now that we know multiple sources can feed into this screen, we need to handle some specific "clash" logic:
 
 Multi-Source Integration
-The "Append" Logic: If the usher has already selected 5 people and then opens the QR scanner, the scanned results should append to the existing Queue, not overwrite it.
+The "Append" Logic: If the usher has already selected 5 people and then opens the QR scanner, the scanned results should append to the existing Staging area, not overwrite it.
 
 De-duplication: If I manually select "John Doe" and then scan "John Doe’s" QR code, the app must recognize they are the same ID and avoid duplicate entries in the list.
 

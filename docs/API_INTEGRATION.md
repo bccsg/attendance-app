@@ -12,7 +12,7 @@
 ### Sheet Structure
 1.  **`Master_Attendees`**: (Read-Only) Columns: `id`, `full_name`, `short_name`.
 2.  **`Master_Groups`**: (Read-Only) Columns: `group_id`, `attendee_id`.
-3.  **`[EventTitle]`**: (Read/Write) Columns: `attendee_id`, `state` (P/A), `commit_time`.
+3.  **`[yyMMdd HHmm Name]`**: (Read/Write) Columns: `attendee_id`, `state` (P/A), `commit_time`.
 
 ### Adapter Operations
 *   **`pushAttendance`**: Appends or updates rows in the specific event sheet.

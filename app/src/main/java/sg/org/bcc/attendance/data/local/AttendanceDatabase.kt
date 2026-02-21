@@ -25,4 +25,5 @@ abstract class AttendanceDatabase : RoomDatabase() {
     abstract fun attendanceDao(): AttendanceDao
     abstract fun persistentQueueDao(): PersistentQueueDao
     abstract fun syncJobDao(): SyncJobDao
+    abstract fun queueArchiveDao(): QueueArchiveDao
 }

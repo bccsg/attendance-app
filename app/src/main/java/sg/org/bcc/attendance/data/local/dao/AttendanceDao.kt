@@ -5,10 +5,14 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
+import kotlinx.coroutines.flow.Flow
 import sg.org.bcc.attendance.data.local.entities.AttendanceRecord
 
 @Dao
 interface AttendanceDao {
+    @Query("SELECT * FROM attendance_records WHERE eventTitle = :eventTitle")
+    fun getAttendanceFlow(eventTitle: String): Flow<List<AttendanceRecord>>
+
     @Query("SELECT * FROM attendance_records WHERE eventTitle = :eventTitle")
     suspend fun getAttendanceForEvent(eventTitle: String): List<AttendanceRecord>
 
@@ -30,4 +34,7 @@ interface AttendanceDao {
     suspend fun upsertAllIfNewer(records: List<AttendanceRecord>) {
         records.forEach { upsertIfNewer(it) }
     }
+
+    @Query("DELETE FROM attendance_records")
+    suspend fun clearAll()
 }

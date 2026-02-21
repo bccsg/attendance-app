@@ -8,6 +8,7 @@ composeBom = "2026.02.00"
 room = "2.8.4"
 hilt = "2.59.1"
 hiltAndroidX = "1.3.0"
+hiltNavigationCompose = "1.2.0"
 kotest = "6.1.3"
 mockk = "1.14.9"
 robolectric = "4.16.1"
@@ -30,6 +31,9 @@ androidxUiToolingPreview = { group = "androidx.compose.ui", name = "ui-tooling-p
 androidxUiTestManifest = { group = "androidx.compose.ui", name = "ui-test-manifest" }
 androidxUiTestJunit4 = { group = "androidx.compose.ui", name = "ui-test-junit4" }
 androidxMaterial3 = { group = "androidx.compose.material3", name = "material3" }
+androidxMaterialIconsExtended = { group = "androidx.compose.material", name = "material-icons-extended" }
+material = { group = "com.google.android.material", name = "material", version = "1.12.0" }
+androidxHiltNavigationCompose = { group = "androidx.hilt", name = "hilt-navigation-compose", version.ref = "hiltNavigationCompose" }
 
 # Room
 roomRuntime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }
@@ -43,6 +47,7 @@ hiltCompiler = { group = "com.google.dagger", name = "hilt-android-compiler", ve
 # Utilities
 kotlinxDatetime = { group = "org.jetbrains.kotlinx", name = "kotlinx-datetime", version.ref = "kotlinxDatetime" }
 kotlinxCoroutinesAndroid = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
+kotlinxCoroutinesTest = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "coroutines" }
 truetime = { group = "com.github.instacart", name = "truetime-android", version.ref = "truetime" }
 
 # Testing

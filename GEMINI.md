@@ -22,9 +22,25 @@ This document is the absolute source of truth for build configuration, architect
 *   **Test-Driven**: Every feature or fix MUST have corresponding tests (Unit or Robolectric).
 *   **Name Priority**: UI always displays `shortName` as primary; fallback to `fullName`.
 *   **Safety Interaction**: "Mark Present/Absent" actions require a 1.5s hold with a clockwise drawing-border animation.
+*   **Icons**: Use **Material Symbols Rounded**. 
+    *   Find icons at: [fonts.google.com/icons](https://fonts.google.com/icons?icon.style=Rounded)
+    *   To install: Download the **Android (XML)** version.
+    *   Location: Save to `app/src/main/res/drawable/` with `ic_` prefix.
+    *   Mapping: Add the resource to `sg.org.bcc.attendance.ui.components.AppIcons`.
 *   **Folder Structure**:
     *   `data/local`: Room schema and DAOs.
     *   `data/remote`: CloudAdapter implementations.
     *   `data/repository`: The single source of truth for ViewModels.
     *   `ui/components`: Reusable Compose widgets.
     *   `util`: Standalone logic (e.g., EventSuggester).
+
+## 4. Development Environment
+*   **Emulator**: Use the **Pixel 6** profile (`pixel_6_demo`).
+    ```bash
+    $ANDROID_HOME/emulator/emulator -avd pixel_6_demo -no-audio -no-snapshot
+    ```
+*   **Build \u0026 Run**:
+    ```bash
+    ./gradlew installDebug
+    adb shell am start -n sg.org.bcc.attendance/.MainActivity
+    ```

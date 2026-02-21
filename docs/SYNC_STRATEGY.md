@@ -23,4 +23,4 @@ The app provides immediate visual feedback. All commits are written to the local
 ## Error Handling (Google Sheets)
 *   **Sheet Deletion/Limits**: If an event sheet is deleted or hits cell limits, the app will:
     1.  Alert the user via a persistent Snack-bar.
-    2.  Recreate the sheet using the original title suffixed with a **UUID** to ensure a fresh, unique write target.
+    2.  Recreate the sheet using the original title (`yyMMdd HHmm Name`) suffixed with a space and a **UUID** to ensure a fresh, unique write target.

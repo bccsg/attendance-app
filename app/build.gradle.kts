@@ -61,6 +61,9 @@ dependencies {
     implementation(libs.androidxUiGraphics)
     implementation(libs.androidxUiToolingPreview)
     implementation(libs.androidxMaterial3)
+    implementation(libs.androidxMaterialIconsExtended)
+    implementation(libs.androidxHiltNavigationCompose)
+    implementation(libs.material)
 
     // Room
     implementation(libs.roomRuntime)
@@ -82,6 +85,7 @@ dependencies {
     testImplementation(libs.robolectric)
     testImplementation(libs.androidxTestCore)
     testImplementation(libs.androidxTestExtJunit)
+    testImplementation(libs.kotlinxCoroutinesTest)
     testImplementation("junit:junit:4.13.2")
     
     androidTestImplementation(libs.mockkAndroid)

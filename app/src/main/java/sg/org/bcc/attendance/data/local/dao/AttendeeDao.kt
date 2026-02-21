@@ -24,4 +24,7 @@ interface AttendeeDao {
 
     @Query("SELECT * FROM attendees WHERE id = :id")
     suspend fun getAttendeeById(id: String): Attendee?
+
+    @Query("DELETE FROM attendees")
+    suspend fun clearAll()
 }

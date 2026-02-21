@@ -2,18 +2,24 @@ package sg.org.bcc.attendance.util
 
 import java.time.DayOfWeek
 import java.time.LocalDate
+import java.time.LocalTime
 import java.time.format.DateTimeFormatter
+import java.time.temporal.TemporalAdjusters
 
 object EventSuggester {
-    private const val DEFAULT_TIME = "1030"
-    private const val DEFAULT_NAME = "sunday service"
-    private val DATE_FORMATTER = DateTimeFormatter.ofPattern("yyMMdd")
-
-    fun suggestEventTitle(today: LocalDate = LocalDate.now()): String {
-        val daysUntilSunday = (DayOfWeek.SUNDAY.value - today.dayOfWeek.value + 7) % 7
-        val defaultDate = if (daysUntilSunday == 0) today else today.plusDays(daysUntilSunday.toLong())
+    fun suggestNextEventTitle(): String {
+        // TODO: Revert to kotlinx-datetime once build environment issue is resolved
+        val today = LocalDate.now()
+        val nextSunday = if (today.dayOfWeek == DayOfWeek.SUNDAY) {
+            today
+        } else {
+            today.with(TemporalAdjusters.next(DayOfWeek.SUNDAY))
+        }
         
-        val datePart = defaultDate.format(DATE_FORMATTER)
-        return "$datePart$DEFAULT_TIME:$DEFAULT_NAME"
+        val datePart = nextSunday.format(DateTimeFormatter.ofPattern("yyMMdd"))
+        val timePart = "1030"
+        val namePart = "sunday service"
+        
+        return "$datePart $timePart $namePart"
     }
 }
