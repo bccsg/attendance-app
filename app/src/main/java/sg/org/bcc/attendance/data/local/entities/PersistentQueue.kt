@@ -6,5 +6,5 @@ import androidx.room.PrimaryKey
 @Entity(tableName = "persistent_queue")
 data class PersistentQueue(
     @PrimaryKey val attendeeId: String,
-    val isExcluded: Boolean = false
+    val isLater: Boolean = false
 )

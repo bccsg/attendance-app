@@ -4,10 +4,10 @@ import androidx.room.Entity
 
 @Entity(
     tableName = "attendance_records",
-    primaryKeys = ["eventTitle", "attendeeId"]
+    primaryKeys = ["eventId", "attendeeId"]
 )
 data class AttendanceRecord(
-    val eventTitle: String,
+    val eventId: String, // UUID of the event
     val attendeeId: String,
     val state: String, // PRESENT or ABSENT
     val timestamp: Long

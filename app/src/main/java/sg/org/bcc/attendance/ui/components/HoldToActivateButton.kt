@@ -1,9 +1,10 @@
 package sg.org.bcc.attendance.ui.components
 
 import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -43,7 +44,7 @@ fun HoldToActivateButton(
     modifier: Modifier = Modifier,
     width: Dp = Dp.Unspecified,
     height: Dp = 64.dp,
-    holdDurationMs: Long = 1500L,
+    holdDurationMs: Long = 1000L,
     color: Color = MaterialTheme.colorScheme.primary,
     enabled: Boolean = true,
     content: @Composable (Color, Float) -> Unit = { tint, alpha ->
@@ -59,21 +60,42 @@ fun HoldToActivateButton(
     var isPressing by remember { mutableStateOf(false) }
     var progress by remember { mutableFloatStateOf(0f) }
     
+    // Track previous enabled state to detect transitions
+    var prevEnabled by remember { mutableStateOf(enabled) }
+    val isEnablingDisabling = enabled != prevEnabled
+    LaunchedEffect(enabled) {
+        prevEnabled = enabled
+        if (!enabled) {
+            isPressing = false
+            progress = 0f
+        }
+    }
+
     val elevation by animateDpAsState(
         targetValue = if (!enabled) 0.dp else if (isPressing) 0.dp else 2.dp,
-        animationSpec = tween(durationMillis = 100),
+        animationSpec = if (isEnablingDisabling) snap() else tween(100),
         label = "Elevation"
     )
     
     val scale by animateFloatAsState(
         targetValue = if (isPressing && enabled) 0.95f else 1f,
-        animationSpec = tween(durationMillis = 100),
+        animationSpec = if (isEnablingDisabling) snap() else tween(100),
         label = "Scale"
+    )
+
+    val buttonColor by animateColorAsState(
+        targetValue = if (enabled) color else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
+        animationSpec = if (isEnablingDisabling) snap() else tween(200),
+        label = "ButtonColor"
     )
 
     val animatedProgress by animateFloatAsState(
         targetValue = if (enabled) progress else 0f,
-        animationSpec = tween(durationMillis = if (isPressing) holdDurationMs.toInt() else 300),
+        animationSpec = if (enabled && isPressing) {
+            tween(durationMillis = holdDurationMs.toInt())
+        } else {
+            snap()
+        },
         label = "HoldProgress"
     )
 
@@ -126,11 +148,11 @@ fun HoldToActivateButton(
 
         Canvas(modifier = canvasModifier) {
             val sw = strokeWidth.toPx()
-            val cornerRadius = height.toPx() / 2f
             
             // Adjust size to account for padding/margin
             val drawSize = if (width.isSpecified) size else size.copy(width = size.width - 12.dp.toPx())
             val offset = if (width.isSpecified) Offset.Zero else Offset(6.dp.toPx(), 0f)
+            val cornerRadius = drawSize.height / 2f
 
             // Background track
             drawRoundRect(
@@ -143,12 +165,43 @@ fun HoldToActivateButton(
             
             if (animatedProgress > 0f) {
                 val path = Path().apply {
-                    addRoundRect(
-                        androidx.compose.ui.geometry.RoundRect(
-                            rect = androidx.compose.ui.geometry.Rect(offset, drawSize),
-                            cornerRadius = CornerRadius(cornerRadius, cornerRadius)
-                        )
+                    val centerX = offset.x + drawSize.width / 2f
+                    val top = offset.y
+                    val right = offset.x + drawSize.width
+                    val bottom = offset.y + drawSize.height
+                    val left = offset.x
+                    val r = cornerRadius
+
+                    moveTo(centerX, top)
+                    lineTo(right - r, top)
+                    arcTo(
+                        rect = androidx.compose.ui.geometry.Rect(right - 2 * r, top, right, top + 2 * r),
+                        startAngleDegrees = 270f,
+                        sweepAngleDegrees = 90f,
+                        forceMoveTo = false
                     )
+                    lineTo(right, bottom - r)
+                    arcTo(
+                        rect = androidx.compose.ui.geometry.Rect(right - 2 * r, bottom - 2 * r, right, bottom),
+                        startAngleDegrees = 0f,
+                        sweepAngleDegrees = 90f,
+                        forceMoveTo = false
+                    )
+                    lineTo(left + r, bottom)
+                    arcTo(
+                        rect = androidx.compose.ui.geometry.Rect(left, bottom - 2 * r, left + 2 * r, bottom),
+                        startAngleDegrees = 90f,
+                        sweepAngleDegrees = 90f,
+                        forceMoveTo = false
+                    )
+                    lineTo(left, top + r)
+                    arcTo(
+                        rect = androidx.compose.ui.geometry.Rect(left, top, left + 2 * r, top + 2 * r),
+                        startAngleDegrees = 180f,
+                        sweepAngleDegrees = 90f,
+                        forceMoveTo = false
+                    )
+                    close()
                 }
                 val pathMeasure = PathMeasure()
                 pathMeasure.setPath(path, false)
@@ -176,7 +229,7 @@ fun HoldToActivateButton(
                 .scale(scale)
                 .shadow(elevation, RoundedCornerShape(height / 2))
                 .clip(RoundedCornerShape(height / 2)),
-            color = if (enabled) color else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
+            color = buttonColor,
             tonalElevation = elevation
         ) {
             Row(

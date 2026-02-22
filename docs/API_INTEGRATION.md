@@ -3,7 +3,7 @@
 ## Google Workspace OAuth
 *   **Authentication**: standard Google OAuth 2.0.
 *   **Silent Handshake**: The Sync Worker attempts silent token refresh.
-*   **User Prompt**: Only occurs if silent refresh fails. Triggered by the user tapping the "Yellow Alert" cloud icon.
+*   **User Prompt**: Triggered by tapping the cloud icon in the top bar to open the **Cloud Status Dialog**. This dialog provides options for login, logout, and detailed synchronization status.
 *   **Storage**: Tokens are stored in **EncryptedSharedPreferences** for security.
 
 ## Google Sheets Adapter

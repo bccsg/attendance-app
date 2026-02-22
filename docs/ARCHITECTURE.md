@@ -16,15 +16,15 @@
 *   **`attendees`**: Stores master list (ID, Full Name, Short Name, etc.). Uses FTS5 virtual table for search.
 *   **`groups`**: Master list of groups.
 *   **`attendee_groups`**: Many-to-Many mapping between attendees and groups.
-*   **`events`**: Metadata for tracked events (Title format: `yyMMdd HHmm Name`).
-*   **`attendance_records`**: Event ID, Attendee ID, State, Timestamp.
-*   **`persistent_queue`**: Attendee ID, isExcluded flag.
+*   **`events`**: ID (UUID), Title (`yyMMdd HHmm Name`), Cloud Event ID, lastSyncTime.
+*   **`attendance_records`**: Event ID (UUID), Attendee ID, State, Timestamp.
+*   **`persistent_queue`**: Attendee ID, isLater flag.
 *   **`sync_jobs`**: Queue for sequential cloud commits (Payload, CreatedAt).
 *   **`queue_archive`**: JSON blob of previous batches, Timestamp, Event ID.
 
 ## MVVM Pattern
 *   **View**: Compose Screens (MainList, Queue, Archive).
-*   **ViewModel**: Manages UI state (Search query, visibility toggles, Selection state, Queue, Text Scaling).
+*   **ViewModel**: Manages UI state (Search query, visibility toggles, Selection state, Show Selected Only Mode, Queue, Text Scaling).
 *   **Repository**: Source of truth merging Room data and Sync state.
 *   **CloudAdapter**: Interface for Google Sheets integration.
 

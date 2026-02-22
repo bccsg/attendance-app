@@ -6,7 +6,7 @@ import androidx.room.PrimaryKey
 @Entity(tableName = "sync_jobs")
 data class SyncJob(
     @PrimaryKey(autoGenerate = true) val jobId: Long = 0,
-    val eventTitle: String,
+    val eventId: String, // UUID of the event
     val payloadJson: String, // List of {attendee_id, state, timestamp}
     val createdAt: Long = System.currentTimeMillis()
 )

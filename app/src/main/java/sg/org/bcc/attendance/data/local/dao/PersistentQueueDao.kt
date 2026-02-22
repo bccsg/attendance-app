@@ -19,8 +19,8 @@ interface PersistentQueueDao {
     @Query("DELETE FROM persistent_queue")
     suspend fun clear()
 
-    @Query("DELETE FROM persistent_queue WHERE isExcluded = 0")
-    suspend fun clearActive()
+    @Query("DELETE FROM persistent_queue WHERE isLater = 0")
+    suspend fun clearReady()
 
     @Transaction
     suspend fun replaceQueue(items: List<PersistentQueue>) {
@@ -31,6 +31,6 @@ interface PersistentQueueDao {
     @Query("DELETE FROM persistent_queue WHERE attendeeId = :attendeeId")
     suspend fun remove(attendeeId: String)
 
-    @Query("UPDATE persistent_queue SET isExcluded = :excluded WHERE attendeeId = :attendeeId")
-    suspend fun toggleExclusion(attendeeId: String, excluded: Boolean)
+    @Query("UPDATE persistent_queue SET isLater = :later WHERE attendeeId = :attendeeId")
+    suspend fun toggleLater(attendeeId: String, later: Boolean)
 }

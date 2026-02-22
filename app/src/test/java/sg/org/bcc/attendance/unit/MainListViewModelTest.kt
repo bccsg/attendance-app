@@ -14,6 +14,7 @@ import org.junit.Before
 import org.junit.Test
 import sg.org.bcc.attendance.data.local.entities.Attendee
 import sg.org.bcc.attendance.data.local.entities.AttendanceRecord
+import sg.org.bcc.attendance.data.local.entities.Event
 import sg.org.bcc.attendance.data.repository.AttendanceRepository
 import sg.org.bcc.attendance.ui.main.MainListViewModel
 
@@ -41,6 +42,14 @@ class MainListViewModelTest {
         every { repository.getAllAttendees() } returns flowOf(attendees)
         every { repository.getQueueItems() } returns flowOf(emptyList())
         every { repository.getAttendanceRecords(any()) } returns flowOf(emptyList())
+        every { repository.getPendingSyncCount() } returns flowOf(0)
+        every { repository.getManageableEvents() } returns flowOf(emptyList())
+        every { repository.getAllEvents() } returns flowOf(emptyList())
+        every { repository.getAllGroups() } returns flowOf(emptyList())
+        every { repository.getAllMappings() } returns flowOf(emptyList())
+        io.mockk.coEvery { repository.syncMasterList() } returns Unit
+        io.mockk.coEvery { repository.isDemoMode() } returns false
+        io.mockk.coEvery { repository.purgeOldEvents() } returns Unit
 
         val viewModel = MainListViewModel(repository)
         
@@ -60,17 +69,70 @@ class MainListViewModelTest {
     }
 
     @Test
+    fun `should not sync master list on init if already in demo mode`() = runTest {
+        val attendees = listOf(Attendee("D1", "Mickey Mouse"))
+        every { repository.getAllAttendees() } returns flowOf(attendees)
+        every { repository.getQueueItems() } returns flowOf(emptyList())
+        every { repository.getPendingSyncCount() } returns flowOf(0)
+        every { repository.getManageableEvents() } returns flowOf(emptyList())
+        every { repository.getAllGroups() } returns flowOf(emptyList())
+        every { repository.getAllMappings() } returns flowOf(emptyList())
+        every { repository.getAllEvents() } returns flowOf(emptyList())
+        
+        io.mockk.coEvery { repository.isDemoMode() } returns true
+        io.mockk.coEvery { repository.purgeOldEvents() } returns Unit
+        io.mockk.coEvery { repository.syncMasterList() } returns Unit
+
+        val viewModel = MainListViewModel(repository)
+        
+        testScheduler.advanceUntilIdle()
+        
+        io.mockk.coVerify(exactly = 0) { repository.syncMasterList() }
+    }
+
+    @Test
+    fun `should sync master list on init if NOT in demo mode`() = runTest {
+        // Case where database is empty (isDemoMode will be false)
+        every { repository.getAllAttendees() } returns flowOf(emptyList())
+        every { repository.getQueueItems() } returns flowOf(emptyList())
+        every { repository.getPendingSyncCount() } returns flowOf(0)
+        every { repository.getManageableEvents() } returns flowOf(emptyList())
+        every { repository.getAllGroups() } returns flowOf(emptyList())
+        every { repository.getAllMappings() } returns flowOf(emptyList())
+        every { repository.getAllEvents() } returns flowOf(emptyList())
+        
+        io.mockk.coEvery { repository.isDemoMode() } returns false
+        io.mockk.coEvery { repository.purgeOldEvents() } returns Unit
+        io.mockk.coEvery { repository.syncMasterList() } returns Unit
+
+        val viewModel = MainListViewModel(repository)
+        
+        testScheduler.advanceUntilIdle()
+        
+        io.mockk.coVerify(exactly = 1) { repository.syncMasterList() }
+    }
+
+    @Test
     fun `hidePresent should filter out present attendees`() = runTest {
         val attendees = listOf(
             Attendee("1", "John"),
             Attendee("2", "Jane")
         )
         val records = listOf(
-            sg.org.bcc.attendance.data.local.entities.AttendanceRecord("Event", "1", "PRESENT", 1000L)
+            AttendanceRecord("Event", "1", "PRESENT", 1000L)
         )
+        val events = listOf(Event("Event", "260223 1030 Sunday Service", "cloudId"))
         every { repository.getAllAttendees() } returns flowOf(attendees)
         every { repository.getQueueItems() } returns flowOf(emptyList())
         every { repository.getAttendanceRecords(any()) } returns flowOf(records)
+        every { repository.getPendingSyncCount() } returns flowOf(0)
+        every { repository.getManageableEvents() } returns flowOf(events)
+        every { repository.getAllEvents() } returns flowOf(events)
+        every { repository.getAllGroups() } returns flowOf(emptyList())
+        every { repository.getAllMappings() } returns flowOf(emptyList())
+        io.mockk.coEvery { repository.syncMasterList() } returns Unit
+        io.mockk.coEvery { repository.isDemoMode() } returns false
+        io.mockk.coEvery { repository.purgeOldEvents() } returns Unit
 
         val viewModel = MainListViewModel(repository)
         
@@ -82,7 +144,7 @@ class MainListViewModelTest {
         viewModel.attendees.value.size shouldBe 2
         
         // Toggle hide
-        viewModel.onHidePresentToggle()
+        viewModel.onShowAbsentToggle()
         viewModel.attendees.value.size shouldBe 1
         viewModel.attendees.value[0].id shouldBe "2"
         
@@ -95,7 +157,15 @@ class MainListViewModelTest {
         every { repository.getAllAttendees() } returns flowOf(attendees)
         every { repository.getQueueItems() } returns flowOf(emptyList())
         every { repository.getAttendanceRecords(any()) } returns flowOf(emptyList())
-        io.mockk.coEvery { repository.addToQueue(any()) } returns Unit
+        every { repository.getPendingSyncCount() } returns flowOf(0)
+        every { repository.getManageableEvents() } returns flowOf(emptyList())
+        every { repository.getAllEvents() } returns flowOf(emptyList())
+        every { repository.getAllGroups() } returns flowOf(emptyList())
+        every { repository.getAllMappings() } returns flowOf(emptyList())
+        io.mockk.coEvery { repository.syncMasterList() } returns Unit
+        io.mockk.coEvery { repository.isDemoMode() } returns false
+        io.mockk.coEvery { repository.purgeOldEvents() } returns Unit
+        io.mockk.coEvery { repository.replaceQueueWithSelection(any()) } returns Unit
 
         val viewModel = MainListViewModel(repository)
         
@@ -105,8 +175,8 @@ class MainListViewModelTest {
         viewModel.selectedIds.value.size shouldBe 1
         viewModel.selectedIds.value.contains("1") shouldBe true
         
-        viewModel.addSelectedToQueue()
-        io.mockk.coVerify { repository.addToQueue("1") }
+        viewModel.confirmSelection()
+        io.mockk.coVerify { repository.replaceQueueWithSelection(listOf("1")) }
         viewModel.selectedIds.value.size shouldBe 0
     }
 }

@@ -8,7 +8,6 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import sg.org.bcc.attendance.data.repository.AttendanceRepository
 import sg.org.bcc.attendance.data.repository.QueueItem
-import sg.org.bcc.attendance.util.EventSuggester
 import javax.inject.Inject
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -17,10 +16,10 @@ class QueueViewModel @Inject constructor(
     private val repository: AttendanceRepository
 ) : ViewModel() {
 
-    private val _currentEventTitle = MutableStateFlow(EventSuggester.suggestNextEventTitle())
+    private val _currentEventId = MutableStateFlow<String?>(null)
     
-    fun setEventTitle(title: String) {
-        _currentEventTitle.value = title
+    fun setEventId(id: String?) {
+        _currentEventId.value = id
     }
 
     val queueItems: StateFlow<List<QueueItem>> = repository.getQueueItems()
@@ -38,8 +37,9 @@ class QueueViewModel @Inject constructor(
             initialValue = false
         )
 
-    val presentIds: StateFlow<Set<String>> = _currentEventTitle.flatMapLatest { title ->
-        repository.getAttendanceRecords(title).map { records ->
+    val presentIds: StateFlow<Set<String>> = _currentEventId.flatMapLatest { id ->
+        if (id == null) flowOf(emptySet())
+        else repository.getAttendanceRecords(id).map { records ->
             records.filter { it.state == "PRESENT" }.map { it.attendeeId }.toSet()
         }
     }.stateIn(
@@ -48,21 +48,24 @@ class QueueViewModel @Inject constructor(
         initialValue = emptySet()
     )
 
+    val manageableEvents: StateFlow<List<sg.org.bcc.attendance.data.local.entities.Event>> = repository.getManageableEvents()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     fun removeFromQueue(attendeeId: String) {
         viewModelScope.launch {
             repository.removeFromQueue(attendeeId)
         }
     }
 
-    fun toggleExclusion(attendeeId: String, currentExclusion: Boolean) {
+    fun toggleLater(attendeeId: String, currentLater: Boolean) {
         viewModelScope.launch {
-            repository.toggleExclusion(attendeeId, !currentExclusion)
+            repository.toggleLater(attendeeId, !currentLater)
         }
     }
 
-    fun syncQueue(eventTitle: String, state: String) {
+    fun syncQueue(eventId: String, state: String) {
         viewModelScope.launch {
-            repository.syncQueue(eventTitle, state)
+            repository.syncQueue(eventId, state)
         }
     }
 
@@ -72,9 +75,9 @@ class QueueViewModel @Inject constructor(
         }
     }
 
-    fun clearActiveQueue() {
+    fun clearReadyQueue() {
         viewModelScope.launch {
-            repository.clearActiveQueue()
+            repository.clearReadyQueue()
         }
     }
 }

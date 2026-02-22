@@ -8,20 +8,19 @@ On the first launch (or if the database is empty), the application automatically
 *   **Logic**: Handled in `MainActivity` using `DemoData` utility.
 
 ## 2. UI Indicators
-*   **Main List**: A banner appears at the top: "DEMO DATA - Sync master list to replace" using the `tertiaryContainer` color scheme.
+*   **Sync Icon**: In demo mode (or if not authenticated), the cloud icon shows **`CloudOff`**. This serves as the primary indicator that the app is in a local-only demo state.
 *   **Queue**: The commit button label changes to "Confirm & Archive (Demo)" or "Mark ... (Demo)".
-*   **Sync Icon**: In demo mode, the cloud icon typically shows `CloudDone` (primary) unless manual actions are taken.
 
 ## 3. Functional Constraints
 *   **No Cloud Sync**: While in demo mode (detected by attendees having `D` prefix IDs), clicking "Mark Present/Pending" will **Archive** the batch but will **NOT** create a `SyncJob`.
 *   **Local-Only**: Changes reflect in the local `attendance_records` table immediately for UI feedback but are not queued for upload.
 
 ## 4. Transition to Real Mode
-Demo mode is exited by tapping the **Cloud Icon** (Sync Master List) in the top bar.
-*   **Replacement**: The `FakeCloudProvider` (or real provider) returns a set of "Real Users".
+Demo mode is exited by tapping the **Cloud Icon** in the top bar and completing the **Login** process in the resulting **Cloud Status Dialog**.
+*   **Replacement**: Upon successful authentication, the `FakeCloudProvider` (or real provider) returns a set of "Real Users".
 *   **Cleanup**: Upon receiving real data, the repository:
     1.  Clears all `attendees`.
     2.  Clears the Attendance Staging queue.
     3.  Clears all pending `sync_jobs`.
     4.  Inserts the new master list.
-*   **Result**: The "DEMO DATA" banner disappears, and standard cloud sync logic is enabled.
+*   **Result**: Standard cloud sync logic is enabled, and the cloud icon status updates based on the new authenticated state.

@@ -7,19 +7,28 @@ import java.time.format.DateTimeFormatter
 import java.time.temporal.TemporalAdjusters
 
 object EventSuggester {
-    fun suggestNextEventTitle(): String {
-        // TODO: Revert to kotlinx-datetime once build environment issue is resolved
-        val today = LocalDate.now()
+    private val dateFormatter = DateTimeFormatter.ofPattern("yyMMdd")
+
+    fun suggestNextEventTitle(today: LocalDate = LocalDate.now()): String {
         val nextSunday = if (today.dayOfWeek == DayOfWeek.SUNDAY) {
             today
         } else {
             today.with(TemporalAdjusters.next(DayOfWeek.SUNDAY))
         }
         
-        val datePart = nextSunday.format(DateTimeFormatter.ofPattern("yyMMdd"))
+        val datePart = nextSunday.format(dateFormatter)
         val timePart = "1030"
-        val namePart = "sunday service"
+        val namePart = "Sunday Service"
         
         return "$datePart $timePart $namePart"
+    }
+
+    fun parseDate(title: String): LocalDate? {
+        return try {
+            val datePart = title.substringBefore(" ")
+            LocalDate.parse(datePart, dateFormatter)
+        } catch (e: Exception) {
+            null
+        }
     }
 }

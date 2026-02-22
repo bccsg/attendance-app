@@ -13,9 +13,9 @@ object AppIcons {
     val PersonCheck = R.drawable.ic_person_check
     val PersonCancel = R.drawable.ic_person_cancel
     val PersonRemove = R.drawable.ic_person_remove
-    val GroupRemove = R.drawable.ic_group_remove
+    val PlaylistRemove = R.drawable.ic_playlist_remove
     val PersonSearch = R.drawable.ic_person_search
-    val GroupAdd = R.drawable.ic_group_add
+    val PlaylistAdd = R.drawable.ic_playlist_add
     val Groups = R.drawable.ic_groups
     val Close = R.drawable.ic_close
     val Check = R.drawable.ic_check
@@ -27,9 +27,16 @@ object AppIcons {
     val CloudDone = R.drawable.ic_cloud_done
     val CloudUpload = R.drawable.ic_cloud_upload
     val CloudOff = R.drawable.ic_cloud_off
+    val Cloud = R.drawable.ic_cloud
+    val CloudAlert = R.drawable.ic_cloud_alert
+    val Warning = R.drawable.ic_warning
+    val QrCodeScanner = R.drawable.ic_qr_code_scanner
     val MoreVert = R.drawable.ic_more_vert
     val TextFields = R.drawable.ic_text_fields
     val PushPin = R.drawable.ic_push_pin
+    val Checklist = R.drawable.ic_checklist
+    val CalendarMonth = R.drawable.ic_calendar_month
+    val Schedule = R.drawable.ic_schedule
     
     object Filter {
         val None = R.drawable.ic_filter_none

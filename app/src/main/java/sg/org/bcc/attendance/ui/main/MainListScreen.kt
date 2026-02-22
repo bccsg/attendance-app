@@ -1,10 +1,8 @@
 package sg.org.bcc.attendance.ui.main
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandHorizontally
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkHorizontally
+import android.app.Activity
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -19,57 +17,114 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
+import androidx.core.view.WindowCompat
 import androidx.hilt.navigation.compose.hiltViewModel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import sg.org.bcc.attendance.data.local.entities.Attendee
+import sg.org.bcc.attendance.data.local.entities.Event
 import sg.org.bcc.attendance.ui.queue.QueueScreen
 import sg.org.bcc.attendance.ui.theme.DeepGreen
 import sg.org.bcc.attendance.ui.theme.PastelGreen
+import sg.org.bcc.attendance.ui.theme.Purple40
 import sg.org.bcc.attendance.ui.components.AppIcon
 import sg.org.bcc.attendance.ui.components.AppIcons
+import sg.org.bcc.attendance.ui.components.DateIcon
+import sg.org.bcc.attendance.util.EventSuggester
+import sg.org.bcc.attendance.util.SetStatusBarIconsColor
+import java.time.LocalTime
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainListScreen(
-    viewModel: MainListViewModel = hiltViewModel()
+    viewModel: MainListViewModel = hiltViewModel(),
+    onNavigateToEventManagement: () -> Unit = {}
 ) {
     val searchQuery by viewModel.searchQuery.collectAsState()
     val attendees by viewModel.attendees.collectAsState()
     val queueCount by viewModel.queueCount.collectAsState()
     val showPresent by viewModel.showPresent.collectAsState()
     val showAbsent by viewModel.showAbsent.collectAsState()
+    val isShowSelectedOnlyMode by viewModel.isShowSelectedOnlyMode.collectAsState()
     val selectedIds by viewModel.selectedIds.collectAsState()
     val isDemoMode by viewModel.isDemoMode.collectAsState()
     val syncPending by viewModel.syncPending.collectAsState()
+    val isAuthed by viewModel.isAuthed.collectAsState()
+    val hasSyncError by viewModel.hasSyncError.collectAsState()
+    val isSyncing by viewModel.isSyncing.collectAsState()
+    val cloudProfile by viewModel.cloudProfile.collectAsState()
+    val syncProgress by viewModel.syncProgress.collectAsState()
+    val showCloudStatusDialog by viewModel.showCloudStatusDialog.collectAsState()
     val presentIds by viewModel.presentIds.collectAsState()
     val pendingIds by viewModel.pendingIds.collectAsState()
     val queueIds by viewModel.queueIds.collectAsState()
-    val presentCategoryCount by viewModel.presentCategoryCount.collectAsState()
-    val pendingCategoryCount by viewModel.pendingCategoryCount.collectAsState()
+    val attendeeGroupsMap by viewModel.attendeeGroupsMap.collectAsState()
+    val presentBadgeCount by viewModel.presentBadgeCount.collectAsState()
+    val pendingBadgeCount by viewModel.pendingBadgeCount.collectAsState()
+    val presentPoolCount by viewModel.presentPoolCount.collectAsState()
+    val pendingPoolCount by viewModel.pendingPoolCount.collectAsState()
+    val currentEventId by viewModel.currentEventId.collectAsState()
+    val currentEvent by viewModel.currentEvent.collectAsState()
     val currentEventTitle by viewModel.currentEventTitle.collectAsState()
     val availableEvents by viewModel.availableEvents.collectAsState()
+    val selectedAttendeeForDetail by viewModel.selectedAttendeeForDetail.collectAsState()
+    val canNavigateBackInDetail by viewModel.canNavigateBackInDetail.collectAsState()
+    val previousAttendeeName by viewModel.previousAttendeeName.collectAsState()
+    val detailAttendeeGroups by viewModel.detailAttendeeGroups.collectAsState()
+    val groupMembersMap by viewModel.groupMembersMap.collectAsState()
+    val showQueueSheet by viewModel.showQueueSheet.collectAsState()
+    val fabState by viewModel.fabState.collectAsState()
     val textScale by viewModel.textScale.collectAsState()
 
     val isSelectionMode = selectedIds.isNotEmpty()
-    var showQueueSheet by remember { mutableStateOf(false) }
     var isSearchActive by remember { mutableStateOf(false) }
+    
     val focusRequester = remember { FocusRequester() }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val detailSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+
+    val infiniteTransition = rememberInfiniteTransition(label = "SyncPulsing")
+    val syncAlpha by infiniteTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = 0.3f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1000, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "SyncAlpha"
+    )
+
+    // Ensure status bar content remains white
+    val view = LocalView.current
+    SideEffect {
+        val window = (view.context as Activity).window
+        WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = false
+    }
 
     LaunchedEffect(isSearchActive) {
         if (isSearchActive) {
@@ -77,44 +132,147 @@ fun MainListScreen(
         }
     }
 
+    if (selectedAttendeeForDetail != null) {
+        ModalBottomSheet(
+            onDismissRequest = {
+                viewModel.dismissAttendeeDetail()
+            },
+            sheetState = detailSheetState,
+            dragHandle = null,
+            containerColor = Color.Transparent,
+            scrimColor = Color.Black.copy(alpha = 0.32f),
+            tonalElevation = 0.dp
+        ) {
+            Scaffold(
+                containerColor = Color.Transparent,
+                floatingActionButton = {
+                    val state = fabState
+                    if (state is MainListViewModel.FabState.AddAttendee) {
+                        ExtendedFloatingActionButton(
+                            text = { Text("Queue ${state.name}") },
+                            icon = { AppIcon(resourceId = AppIcons.PlaylistAdd, contentDescription = null) },
+                            onClick = {
+                                viewModel.addAttendeeToQueue(selectedAttendeeForDetail!!.id)
+                                viewModel.setShowQueueSheet(true)
+                            },
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary,
+                            shape = CircleShape,
+                            modifier = Modifier.padding(bottom = 16.dp)
+                        )
+                    }
+                },
+                floatingActionButtonPosition = FabPosition.End
+            ) { padding ->
+                Column(modifier = Modifier.fillMaxWidth().padding(padding).navigationBarsPadding()) {
+                    Spacer(modifier = Modifier.height(56.dp))
+                    Surface(
+                        modifier = Modifier.fillMaxWidth().weight(1f),
+                        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainerLow,
+                        tonalElevation = 0.dp
+                    ) {
+                        Column(modifier = Modifier.fillMaxSize()) {
+                            // Header area
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(48.dp)
+                                    .background(Color.White),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                BottomSheetDefaults.DragHandle()
+                            }
+                            
+                            SetStatusBarIconsColor(isLight = false)
+                            
+                            // Content extends to bottom
+                            AttendeeDetailContent(
+                                attendee = selectedAttendeeForDetail!!,
+                                groups = detailAttendeeGroups,
+                                groupMembersMap = groupMembersMap,
+                                attendeeGroupsMap = attendeeGroupsMap,
+                                textScale = textScale,
+                                presentIds = presentIds,
+                                queueIds = queueIds,
+                                canNavigateBack = canNavigateBackInDetail,
+                                previousName = previousAttendeeName,
+                                onBack = viewModel::popAttendeeDetail,
+                                onAttendeeClick = viewModel::showAttendeeDetail,
+                                onAddAttendeeToQueue = {
+                                    viewModel.addAttendeeToQueue(selectedAttendeeForDetail!!.id)
+                                    viewModel.setShowQueueSheet(true)
+                                },
+                                onAddGroupToQueue = { groupId ->
+                                    viewModel.addGroupToQueue(groupId)
+                                    viewModel.setShowQueueSheet(true)
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (showCloudStatusDialog) {
+        SetStatusBarIconsColor(isLight = false)
+        CloudStatusDialog(
+            isAuthed = isAuthed,
+            cloudProfile = cloudProfile,
+            syncProgress = syncProgress,
+            isDemoMode = isDemoMode,
+            onLogin = viewModel::onLogin,
+            onLogout = viewModel::onLogout,
+            onDismiss = { viewModel.setShowCloudStatusDialog(false) }
+        )
+    }
+
     if (showQueueSheet) {
         ModalBottomSheet(
-            onDismissRequest = { showQueueSheet = false },
+            onDismissRequest = {
+                viewModel.setShowQueueSheet(false)
+            },
             sheetState = sheetState,
             dragHandle = null,
             containerColor = Color.Transparent,
             scrimColor = Color.Black.copy(alpha = 0.32f),
             tonalElevation = 0.dp
         ) {
-            Column(modifier = Modifier.fillMaxSize()) {
+            Column(modifier = Modifier.fillMaxWidth().navigationBarsPadding()) {
                 Spacer(modifier = Modifier.height(56.dp))
                 Surface(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier.fillMaxWidth().weight(1f),
                     shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
-                    color = MaterialTheme.colorScheme.surface,
-                    tonalElevation = 8.dp
+                    color = MaterialTheme.colorScheme.surfaceContainerLow,
+                    tonalElevation = 0.dp
                 ) {
                     Column {
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(48.dp),
+                                .background(Color.White),
                             contentAlignment = Alignment.Center
                         ) {
                             BottomSheetDefaults.DragHandle()
                         }
-                        QueueScreen(
-                            onBack = { showQueueSheet = false },
-                            onActionComplete = { message ->
-                                showQueueSheet = false
-                                scope.launch {
-                                    snackbarHostState.showSnackbar(message)
-                                }
-                            },
-                            currentEventTitle = currentEventTitle,
-                            textScale = textScale
-                        )
-                    }
+                        
+                        SetStatusBarIconsColor(isLight = false)
+                                                QueueScreen(
+                                                    onBack = {
+                                                        viewModel.setShowQueueSheet(false)
+                                                    },
+                                                    onActionComplete = { message: String, shouldClose: Boolean ->
+                                                        if (shouldClose) {
+                                                            viewModel.setShowQueueSheet(false)
+                                                        }
+                                                        scope.launch {
+                                                            snackbarHostState.showSnackbar(message)
+                                                        }
+                                                    },
+                                                    currentEventId = currentEventId,
+                                                    textScale = textScale
+                                                )                    }
                 }
             }
         }
@@ -122,106 +280,184 @@ fun MainListScreen(
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
+        floatingActionButton = {
+            if (!isSearchActive) {
+                if (isSelectionMode) {
+                    FloatingActionButton(
+                        modifier = Modifier.padding(bottom = 16.dp),
+                        onClick = {
+                            if (selectedIds.isNotEmpty()) {
+                                viewModel.confirmSelection()
+                                viewModel.setShowQueueSheet(true)
+                            }
+                        },
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary,
+                        shape = CircleShape
+                    ) {
+                        AppIcon(resourceId = AppIcons.PlaylistAdd, contentDescription = "Queue selected")
+                    }
+                } else {
+                    ExtendedFloatingActionButton(
+                        modifier = Modifier.padding(bottom = 16.dp),
+                        text = { Text("Scan QR") },
+                        icon = { AppIcon(resourceId = AppIcons.QrCodeScanner, contentDescription = null) },
+                        onClick = {
+                            scope.launch { snackbarHostState.showSnackbar("QR Scanner coming soon") }
+                        },
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                        shape = CircleShape
+                    )
+                }
+            }
+        },
         topBar = {
             Surface(
-                color = if (isSelectionMode) MaterialTheme.colorScheme.primaryContainer 
-                        else MaterialTheme.colorScheme.surface,
-                tonalElevation = if (isSelectionMode) 0.dp else 2.dp
+                color = MaterialTheme.colorScheme.primary,
+                tonalElevation = 4.dp
             ) {
-                Column {
-                    if (isDemoMode) {
-                        Surface(
-                            color = MaterialTheme.colorScheme.tertiaryContainer,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text(
-                                text = "DEMO DATA - Sync master list to replace",
-                                style = MaterialTheme.typography.labelSmall,
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-                                color = MaterialTheme.colorScheme.onTertiaryContainer
-                            )
-                        }
-                    }
+                Column(modifier = Modifier.statusBarsPadding()) {
                     TopAppBar(
                         navigationIcon = {
                             if (isSelectionMode) {
                                 IconButton(onClick = viewModel::clearSelection) {
-                                    AppIcon(resourceId = AppIcons.Close, contentDescription = "Clear Selection")
+                                    AppIcon(resourceId = AppIcons.Close, contentDescription = "Clear Selection", tint = MaterialTheme.colorScheme.onPrimary)
                                 }
                             }
                         },
                         title = {
-                            Column {
-                                Text(if (isSelectionMode) "${selectedIds.size} Selected" else "Attendance")
-                                if (!isSelectionMode) {
-                                    Text(
-                                        text = currentEventTitle,
-                                        style = MaterialTheme.typography.labelMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
+                            if (isSelectionMode) {
+                                Text("${selectedIds.size} Selected", color = MaterialTheme.colorScheme.onPrimary)
+                            } else {
+                                currentEvent?.let { event ->
+                                    val parts = event.title.split(" ", limit = 3)
+                                    val date = if (parts.isNotEmpty()) EventSuggester.parseDate(parts[0]) else null
+                                    val timeStr = if (parts.size > 1) parts[1] else "0000"
+                                    val name = if (parts.size > 2) parts[2] else "Unnamed Event"
+                                    val time = try {
+                                        LocalTime.of(timeStr.take(2).toInt(), timeStr.takeLast(2).toInt())
+                                    } catch (e: Exception) {
+                                        LocalTime.MIDNIGHT
+                                    }
+                                    val formattedTime = time.format(java.time.format.DateTimeFormatter.ofPattern("h:mm a", Locale.ENGLISH))
+
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.clickable { onNavigateToEventManagement() }
+                                    ) {
+                                        DateIcon(date = date, textScale = 0.8f)
+                                        Spacer(modifier = Modifier.width(12.dp))
+                                        Column {
+                                            Text(
+                                                text = name,
+                                                style = MaterialTheme.typography.titleMedium,
+                                                color = MaterialTheme.colorScheme.onPrimary
+                                            )
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Text(
+                                                    text = formattedTime,
+                                                    style = MaterialTheme.typography.labelMedium,
+                                                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
+                                                )
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Text(
+                                                    text = event.cloudEventId ?: event.id.take(8),
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.5f)
+                                                )
+                                            }
+                                        }
+                                    }
+                                } ?: Text("Attendance", color = MaterialTheme.colorScheme.onPrimary)
                             }
                         },
                         actions = {
                             var showMenu by remember { mutableStateOf(false) }
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 if (isSelectionMode) {
-                                    IconButton(onClick = {
-                                        if (selectedIds.isNotEmpty()) {
-                                            viewModel.confirmSelection()
-                                            showQueueSheet = true
-                                        }
-                                    }) {
-                                        AppIcon(resourceId = AppIcons.GroupAdd, contentDescription = "Add to Queue")
+                                    // Checklist Toggle
+                                    IconButton(
+                                        onClick = { 
+                                            viewModel.toggleShowSelectedOnlyMode()
+                                            if (viewModel.isShowSelectedOnlyMode.value) {
+                                                isSearchActive = false
+                                                viewModel.onSearchQueryChange("")
+                                            }
+                                        },
+                                        modifier = if (isShowSelectedOnlyMode) {
+                                            Modifier.background(
+                                                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.2f),
+                                                shape = CircleShape
+                                            )
+                                        } else Modifier
+                                    ) {
+                                        AppIcon(
+                                            resourceId = AppIcons.Checklist, 
+                                            contentDescription = "Show Selected Only",
+                                            tint = MaterialTheme.colorScheme.onPrimary
+                                        )
                                     }
                                 } else {
                                     IconButton(onClick = viewModel::onSyncMasterList) {
-                                        val syncIcon = if (isDemoMode) AppIcons.CloudOff 
-                                                         else if (syncPending) AppIcons.CloudUpload 
-                                                         else AppIcons.CloudDone
+                                        val syncIcon = when {
+                                            hasSyncError -> AppIcons.CloudAlert
+                                            isSyncing -> AppIcons.Cloud
+                                            isDemoMode || !isAuthed -> AppIcons.CloudOff
+                                            else -> AppIcons.CloudDone
+                                        }
                                         AppIcon(
                                             resourceId = syncIcon,
-                                            contentDescription = "Sync Master List",
-                                            tint = if (isDemoMode) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                                                   else if (syncPending) MaterialTheme.colorScheme.error 
-                                                   else MaterialTheme.colorScheme.primary
+                                            contentDescription = "Sync Status",
+                                            tint = when {
+                                                hasSyncError -> MaterialTheme.colorScheme.errorContainer
+                                                else -> MaterialTheme.colorScheme.onPrimary
+                                            },
+                                            modifier = if (isSyncing) Modifier.alpha(syncAlpha) else Modifier
                                         )
                                     }
                                     IconButton(onClick = { showMenu = true }) {
-                                        AppIcon(resourceId = AppIcons.MoreVert, contentDescription = "More Options")
+                                        AppIcon(resourceId = AppIcons.MoreVert, contentDescription = "More Options", tint = MaterialTheme.colorScheme.onPrimary)
                                     }
                                     DropdownMenu(
                                         expanded = showMenu,
                                         onDismissRequest = { showMenu = false }
                                     ) {
-                                        availableEvents.forEach { event ->
-                                            DropdownMenuItem(
-                                                text = { Text(event) },
-                                                onClick = {
-                                                    viewModel.onSwitchEvent(event)
-                                                    showMenu = false
-                                                }
-                                            )
-                                        }
-                                        HorizontalDivider()
                                         DropdownMenuItem(
-                                            text = { Text("New Event...") },
+                                            text = { Text("Text Size", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold) },
+                                            onClick = { },
+                                            enabled = false
+                                        )
+                                        DropdownMenuItem(
+                                            text = {
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    RadioButton(
+                                                        selected = textScale == 1.0f,
+                                                        onClick = null // Handled by item click
+                                                    )
+                                                    Spacer(modifier = Modifier.width(8.dp))
+                                                    Text("Normal")
+                                                }
+                                            },
                                             onClick = {
-                                                viewModel.onCreateEvent("special event")
+                                                viewModel.setTextScale(1.0f)
                                                 showMenu = false
                                             }
                                         )
-                                        HorizontalDivider()
                                         DropdownMenuItem(
-                                            text = { 
-                                                Text(text = if (textScale == 1.0f) "Large Text" else "Normal Text") 
+                                            text = {
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    RadioButton(
+                                                        selected = textScale > 1.0f,
+                                                        onClick = null // Handled by item click
+                                                    )
+                                                    Spacer(modifier = Modifier.width(8.dp))
+                                                    Text("Large")
+                                                }
                                             },
                                             onClick = {
-                                                viewModel.toggleTextScale()
+                                                viewModel.setTextScale(1.5f)
                                                 showMenu = false
-                                            },
-                                            leadingIcon = {
-                                                AppIcon(resourceId = AppIcons.TextFields, contentDescription = null)
                                             }
                                         )
                                     }
@@ -239,20 +475,26 @@ fun MainListScreen(
             BottomAppBar(
                 containerColor = MaterialTheme.colorScheme.surface,
                 tonalElevation = 8.dp,
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp),
                 modifier = Modifier
+                    .windowInsetsPadding(WindowInsets.navigationBars)
                     .windowInsetsPadding(WindowInsets.ime)
-                    .height(if (isSearchActive) 80.dp else 72.dp)
+                    .height(80.dp)
                     .pointerInput(isSelectionMode) {
                         if (isSelectionMode) return@pointerInput
                         detectVerticalDragGestures { _, dragAmount ->
                             if (dragAmount < -20) { // Significant swipe up
-                                showQueueSheet = true
+                                viewModel.setShowQueueSheet(true)
                             }
                         }
                     }
             ) {
-                Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(80.dp),
+                    contentAlignment = Alignment.Center
+                ) {
                     if (isSearchActive) {
                         OutlinedTextField(
                             value = searchQuery,
@@ -286,7 +528,10 @@ fun MainListScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             // Left: Search
-                            IconButton(onClick = { isSearchActive = true }) {
+                            IconButton(onClick = { 
+                                isSearchActive = true 
+                                viewModel.deactivateShowSelectedOnlyMode()
+                            }) {
                                 AppIcon(resourceId = AppIcons.PersonSearch, contentDescription = "Search")
                             }
 
@@ -296,10 +541,33 @@ fun MainListScreen(
                                 horizontalArrangement = Arrangement.Center,
                                 modifier = Modifier.weight(1f)
                             ) {
+                                val isPresentVisible = showPresent && presentPoolCount > 0
+                                val isPendingVisible = showAbsent && pendingPoolCount > 0
+                                val isBranded = isPresentVisible != isPendingVisible
+                                
+                                val brandedChipColors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = MaterialTheme.colorScheme.primary,
+                                    selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
+                                    selectedLeadingIconColor = MaterialTheme.colorScheme.onPrimary
+                                )
+
+                                val presentChipColors = if (isBranded && isPresentVisible) {
+                                    brandedChipColors
+                                } else FilterChipDefaults.filterChipColors()
+
+                                val pendingChipColors = if (isBranded && isPendingVisible) {
+                                    brandedChipColors
+                                } else FilterChipDefaults.filterChipColors()
+
                                 BadgedBox(
                                     badge = {
-                                        if (presentCategoryCount > 0) {
-                                            Badge { Text(presentCategoryCount.toString()) }
+                                        if (presentBadgeCount > 0) {
+                                            Badge(
+                                                containerColor = MaterialTheme.colorScheme.error,
+                                                contentColor = MaterialTheme.colorScheme.onError
+                                            ) { 
+                                                Text(presentBadgeCount.toString()) 
+                                            }
                                         }
                                     }
                                 ) {
@@ -307,7 +575,8 @@ fun MainListScreen(
                                         selected = showPresent,
                                         onClick = { viewModel.onShowPresentToggle() },
                                         label = { Text("Present") },
-                                        enabled = presentCategoryCount > 0,
+                                        enabled = presentPoolCount > 0,
+                                        colors = presentChipColors,
                                         leadingIcon = {
                                             AppIcon(
                                                 resourceId = if (showPresent) AppIcons.Visibility else AppIcons.VisibilityOff,
@@ -317,11 +586,18 @@ fun MainListScreen(
                                         }
                                     )
                                 }
+                                
                                 Spacer(modifier = Modifier.width(8.dp))
+
                                 BadgedBox(
                                     badge = {
-                                        if (pendingCategoryCount > 0) {
-                                            Badge { Text(pendingCategoryCount.toString()) }
+                                        if (pendingBadgeCount > 0) {
+                                            Badge(
+                                                containerColor = MaterialTheme.colorScheme.secondary,
+                                                contentColor = MaterialTheme.colorScheme.onSecondary
+                                            ) { 
+                                                Text(pendingBadgeCount.toString()) 
+                                            }
                                         }
                                     }
                                 ) {
@@ -329,7 +605,8 @@ fun MainListScreen(
                                         selected = showAbsent,
                                         onClick = { viewModel.onShowAbsentToggle() },
                                         label = { Text("Pending") },
-                                        enabled = pendingCategoryCount > 0,
+                                        enabled = pendingPoolCount > 0,
+                                        colors = pendingChipColors,
                                         leadingIcon = {
                                             AppIcon(
                                                 resourceId = if (showAbsent) AppIcons.Visibility else AppIcons.VisibilityOff,
@@ -355,7 +632,7 @@ fun MainListScreen(
                                 9 -> AppIcons.Filter.Nine
                                 else -> AppIcons.Filter.NinePlus
                             }
-                            IconButton(onClick = { showQueueSheet = true }) {
+                            IconButton(onClick = { viewModel.setShowQueueSheet(true) }) {
                                 AppIcon(resourceId = queueIcon, contentDescription = "View Queue")
                             }
                         }
@@ -365,13 +642,18 @@ fun MainListScreen(
         }
     ) { padding ->
         LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(padding)
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .background(MaterialTheme.colorScheme.surface)
         ) {
             items(attendees, key = { it.id }) { attendee ->
                 val isSelected = selectedIds.contains(attendee.id)
                 val isPresent = presentIds.contains(attendee.id)
                 val isPending = pendingIds.contains(attendee.id)
                 val isInQueue = queueIds.contains(attendee.id)
+                val groups = attendeeGroupsMap[attendee.id] ?: emptyList()
+
                 AttendeeListItem(
                     attendee = attendee,
                     searchQuery = searchQuery,
@@ -379,15 +661,25 @@ fun MainListScreen(
                     isSelected = isSelected,
                     isPresent = isPresent,
                     isPending = isPending,
-                    isInQueue = isInQueue,
+                    isInQueue = queueIds.contains(attendee.id),
                     isSelectionMode = isSelectionMode,
+                    groups = groups,
                     onClick = {
                         if (isSelectionMode) {
                             viewModel.toggleSelection(attendee.id)
+                        } else {
+                            viewModel.showAttendeeDetail(attendee)
                         }
                     },
                     onLongClick = {
                         if (!isSelectionMode) {
+                            viewModel.enterSelectionMode(attendee.id)
+                        }
+                    },
+                    onPhotoClick = {
+                        if (isSelectionMode) {
+                            viewModel.toggleSelection(attendee.id)
+                        } else {
                             viewModel.enterSelectionMode(attendee.id)
                         }
                     }
@@ -408,19 +700,25 @@ fun AttendeeListItem(
     isPending: Boolean,
     isInQueue: Boolean,
     isSelectionMode: Boolean,
+    groups: List<String> = emptyList(),
+    backgroundColor: Color = MaterialTheme.colorScheme.surface,
+    showGroupIcon: Boolean = true, // Added to toggle visibility
     onClick: () -> Unit,
-    onLongClick: () -> Unit
+    onLongClick: () -> Unit,
+    onPhotoClick: () -> Unit
 ) {
     val photoSize = 40.dp * textScale
-    val verticalPadding = (8.dp * textScale).coerceAtLeast(8.dp)
 
     Surface(
+        modifier = Modifier.fillMaxWidth(),
+        tonalElevation = 0.dp,
+        shadowElevation = 0.dp,
         color = if (isSelected) {
             MaterialTheme.colorScheme.secondaryContainer
         } else if (isSelectionMode) {
-            MaterialTheme.colorScheme.surface.copy(alpha = 0.6f)
+            Color(0xFFF2F0F7)
         } else {
-            Color.Transparent
+            backgroundColor
         }
     ) {
         ListItem(
@@ -428,15 +726,25 @@ fun AttendeeListItem(
                 .combinedClickable(
                     onClick = onClick,
                     onLongClick = onLongClick
-                )
-                .padding(vertical = verticalPadding - 8.dp), 
+                ),
             headlineContent = {
-                Text(
-                    text = getHighlightedText(attendee.shortName ?: attendee.fullName, searchQuery),
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontSize = MaterialTheme.typography.titleMedium.fontSize * textScale
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = getHighlightedText(attendee.shortName ?: attendee.fullName, searchQuery),
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontSize = MaterialTheme.typography.titleMedium.fontSize * textScale
+                        )
                     )
-                )
+                    if (showGroupIcon && groups.isNotEmpty()) {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        AppIcon(
+                            resourceId = AppIcons.Groups,
+                            contentDescription = "In Groups",
+                            modifier = Modifier.size(16.dp * textScale),
+                            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
+                        )
+                    }
+                }
             },
             supportingContent = {
                 if (attendee.shortName != null) {
@@ -470,30 +778,38 @@ fun AttendeeListItem(
                 }
             },
             leadingContent = {
-                Box(
+                Surface(
+                    shape = CircleShape,
+                    color = when {
+                        isSelected -> MaterialTheme.colorScheme.primary
+                        isPresent -> PastelGreen
+                        else -> MaterialTheme.colorScheme.primaryContainer
+                    },
                     modifier = Modifier
                         .size(photoSize)
                         .clip(CircleShape)
-                        .background(
-                            if (isSelected) MaterialTheme.colorScheme.primary 
-                            else if (!isSelectionMode && isPresent) PastelGreen
-                            else MaterialTheme.colorScheme.surfaceVariant
-                        )
-                        .clickable { 
-                            if (isSelectionMode) {
-                                onClick()
-                            } else {
-                                onLongClick()
-                            }
-                        },
-                    contentAlignment = Alignment.Center
+                        .clickable { onPhotoClick() }
                 ) {
-                    if (isSelectionMode) {
+                    Box(contentAlignment = Alignment.Center) {
                         if (isSelected) {
                             AppIcon(
                                 resourceId = AppIcons.Check,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.onPrimary,
+                                modifier = Modifier.size(photoSize * 0.6f)
+                            )
+                        } else if (isPending) {
+                            AppIcon(
+                                resourceId = AppIcons.Schedule,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(photoSize * 0.6f)
+                            )
+                        } else if (isPresent) {
+                            AppIcon(
+                                resourceId = AppIcons.PersonCheck,
+                                contentDescription = null,
+                                tint = DeepGreen,
                                 modifier = Modifier.size(photoSize * 0.6f)
                             )
                         } else {
@@ -502,57 +818,322 @@ fun AttendeeListItem(
                                 style = MaterialTheme.typography.titleMedium.copy(
                                     fontSize = MaterialTheme.typography.titleMedium.fontSize * textScale
                                 ),
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = if (isPresent) DeepGreen else MaterialTheme.colorScheme.onPrimaryContainer
                             )
                         }
-                    } else if (isPresent) {
-                        AppIcon(
-                            resourceId = AppIcons.PersonCheck,
-                            contentDescription = null,
-                            tint = DeepGreen,
-                            modifier = Modifier.size(photoSize * 0.6f)
-                        )
-                    } else {
-                        Text(
-                            text = (attendee.shortName ?: attendee.fullName).take(1).uppercase(),
-                            style = MaterialTheme.typography.titleMedium.copy(
-                                fontSize = MaterialTheme.typography.titleMedium.fontSize * textScale
-                            ),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
                     }
                 }
-            }
+            },
+            colors = ListItemDefaults.colors(containerColor = Color.Transparent)
         )
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun getHighlightedText(text: String, query: String): AnnotatedString {
-    if (query.isBlank() || !text.contains(query, ignoreCase = true)) {
-        return AnnotatedString(text)
+fun AttendeeDetailContent(
+    attendee: Attendee,
+    groups: List<sg.org.bcc.attendance.data.local.entities.Group>,
+    groupMembersMap: Map<String, List<Attendee>>,
+    attendeeGroupsMap: Map<String, List<String>>,
+    textScale: Float,
+    presentIds: Set<String>,
+    queueIds: Set<String>,
+    canNavigateBack: Boolean = false,
+    previousName: String? = null,
+    onBack: () -> Unit = {},
+    onAttendeeClick: (Attendee) -> Unit,
+    onAddAttendeeToQueue: () -> Unit,
+    onAddGroupToQueue: (String) -> Unit
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        // Profile Header area: WHITE
+        Column(modifier = Modifier.fillMaxWidth().background(Color.White)) {
+            if (canNavigateBack && previousName != null) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onBack() }
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    AppIcon(
+                        resourceId = AppIcons.ArrowBack, 
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp * textScale),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Return to $previousName",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+                HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+            }
+
+            ListItem(
+                leadingContent = {
+                    val isPresent = presentIds.contains(attendee.id)
+                    Surface(
+                        shape = CircleShape,
+                        color = if (isPresent) PastelGreen else MaterialTheme.colorScheme.primaryContainer,
+                        modifier = Modifier.size(56.dp * textScale)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            if (isPresent) {
+                                AppIcon(
+                                    resourceId = AppIcons.PersonCheck,
+                                    contentDescription = null,
+                                    tint = DeepGreen,
+                                    modifier = Modifier.size(32.dp * textScale)
+                                )
+                            } else {
+                                Text(
+                                    text = (attendee.shortName ?: attendee.fullName).take(1).uppercase(),
+                                    style = MaterialTheme.typography.titleLarge.copy(
+                                        fontSize = MaterialTheme.typography.titleLarge.fontSize * textScale
+                                    ),
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            }
+                        }
+                    }
+                },
+                headlineContent = {
+                    Text(
+                        text = attendee.fullName,
+                        style = MaterialTheme.typography.titleLarge.copy(
+                            fontSize = MaterialTheme.typography.titleLarge.fontSize * textScale
+                        )
+                    )
+                },
+                supportingContent = {
+                    Column {
+                        if (attendee.shortName != null) {
+                            Text(
+                                text = attendee.shortName,
+                                style = MaterialTheme.typography.bodyMedium.copy(
+                                    fontSize = MaterialTheme.typography.bodyMedium.fontSize * textScale
+                                ),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "ID: ${attendee.id}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                            )
+                            if (queueIds.contains(attendee.id)) {
+                                Spacer(modifier = Modifier.width(8.dp))
+                                AppIcon(
+                                    resourceId = AppIcons.BookmarkAdded,
+                                    contentDescription = "In Queue",
+                                    modifier = Modifier.size(16.dp * textScale),
+                                    tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
+                                )
+                            }
+                        }
+                    }
+                },
+                colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+            )
+            HorizontalDivider()
+        }
+
+        // List Area: surfaceContainerLow
+        LazyColumn(
+            modifier = Modifier.fillMaxWidth().weight(1f).background(MaterialTheme.colorScheme.surfaceContainerLow)
+        ) {
+            groups.forEach { group ->
+                val members = groupMembersMap[group.groupId]?.filter { it.id != attendee.id } ?: emptyList()
+                
+                stickyHeader {
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.95f),
+                        tonalElevation = 2.dp
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = group.name,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "(${members.size})",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            IconButton(
+                                onClick = { onAddGroupToQueue(group.groupId) },
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                AppIcon(
+                                    resourceId = AppIcons.PlaylistAdd, 
+                                    contentDescription = "Add Group to Queue",
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+                    }
+                }
+
+                items(members, key = { "${group.groupId}_${it.id}" }) { member ->
+                    val memberGroups = attendeeGroupsMap[member.id] ?: emptyList()
+                    AttendeeListItem(
+                        attendee = member,
+                        searchQuery = "",
+                        textScale = textScale,
+                        isSelected = false,
+                        isPresent = presentIds.contains(member.id),
+                        isPending = false,
+                        isInQueue = queueIds.contains(member.id),
+                        isSelectionMode = false,
+                        groups = memberGroups,
+                        backgroundColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                        showGroupIcon = false, // HIDE GROUP ICON IN DETAIL
+                        onClick = { onAttendeeClick(member) },
+                        onLongClick = { },
+                        onPhotoClick = { onAttendeeClick(member) }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun CloudStatusDialog(
+    isAuthed: Boolean,
+    cloudProfile: CloudProfile?,
+    syncProgress: SyncProgress,
+    isDemoMode: Boolean,
+    onLogin: () -> Unit,
+    onLogout: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                AppIcon(resourceId = AppIcons.CloudDone, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Cloud Status")
+            }
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                // Auth Section
+                if (isAuthed && cloudProfile != null) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Surface(
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.primaryContainer,
+                            modifier = Modifier.size(40.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                AppIcon(resourceId = AppIcons.Person, contentDescription = null)
+                            }
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(cloudProfile.displayName, style = MaterialTheme.typography.titleMedium)
+                            Text(cloudProfile.email, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                    Button(
+                        onClick = onLogout,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.errorContainer, contentColor = MaterialTheme.colorScheme.onErrorContainer)
+                    ) {
+                        Text("Logout")
+                    }
+                } else {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Not Authenticated", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.error)
+                        if (isDemoMode) {
+                            Text(
+                                "App is currently in DEMO MODE. Logging in will clear demo data and sync with the cloud master list.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Button(onClick = onLogin, modifier = Modifier.fillMaxWidth()) {
+                            Text("Login with Google (Dummy)")
+                        }
+                    }
+                }
+
+                HorizontalDivider()
+
+                // Sync Info Section
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SyncInfoRow("Pending Sync Jobs", syncProgress.pendingJobs.toString())
+                    SyncInfoRow("Next Pull Scheduled", syncProgress.nextScheduledPull?.let { 
+                        try {
+                            java.time.Instant.ofEpochMilli(it).atZone(java.time.ZoneId.systemDefault()).toLocalTime().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss"))
+                        } catch (e: Exception) {
+                            "Unknown"
+                        }
+                    } ?: "None")
+                    SyncInfoRow("Last Pull Status", syncProgress.lastPullStatus ?: "Unknown")
+                    
+                    if (syncProgress.lastErrors.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text("Recent Errors:", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.error)
+                        syncProgress.lastErrors.take(3).forEach { error ->
+                            Text("- ${error.message}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Close")
+            }
+        }
+    )
+}
+
+@Composable
+fun SyncInfoRow(label: String, value: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(value, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+    }
+}
+
+private fun getHighlightedText(fullText: String, query: String): AnnotatedString {
+    if (query.isEmpty() || !fullText.contains(query, ignoreCase = true)) {
+        return AnnotatedString(fullText)
     }
 
+    val startIndex = fullText.indexOf(query, ignoreCase = true)
+    val endIndex = startIndex + query.length
+
     return buildAnnotatedString {
-        val lowerText = text.lowercase()
-        val lowerQuery = query.lowercase()
-        var currentIndex = 0
-        
-        while (currentIndex < text.length) {
-            val index = lowerText.indexOf(lowerQuery, currentIndex)
-            if (index == -1) {
-                append(text.substring(currentIndex))
-                break
-            }
-            
-            append(text.substring(currentIndex, index))
-            pushStyle(SpanStyle(
-                color = MaterialTheme.colorScheme.primary,
-                fontWeight = FontWeight.Bold
-            ))
-            append(text.substring(index, index + query.length))
-            pop()
-            currentIndex = index + query.length
-        }
+        append(fullText.substring(0, startIndex))
+        pushStyle(SpanStyle(fontWeight = FontWeight.Bold, color = Purple40))
+        append(fullText.substring(startIndex, endIndex))
+        pop()
+        append(fullText.substring(endIndex))
     }
 }

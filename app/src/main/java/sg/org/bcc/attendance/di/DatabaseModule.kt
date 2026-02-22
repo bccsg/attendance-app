@@ -22,7 +22,8 @@ object DatabaseModule {
             context,
             AttendanceDatabase::class.java,
             "attendance.db"
-        ).build()
+        ).fallbackToDestructiveMigration() // For development phase
+        .build()
     }
 
     @Provides
@@ -39,4 +40,13 @@ object DatabaseModule {
 
     @Provides
     fun provideQueueArchiveDao(db: AttendanceDatabase): QueueArchiveDao = db.queueArchiveDao()
+
+    @Provides
+    fun provideEventDao(db: AttendanceDatabase): EventDao = db.eventDao()
+
+    @Provides
+    fun provideGroupDao(db: AttendanceDatabase): GroupDao = db.groupDao()
+
+    @Provides
+    fun provideAttendeeGroupMappingDao(db: AttendanceDatabase): AttendeeGroupMappingDao = db.attendeeGroupMappingDao()
 }

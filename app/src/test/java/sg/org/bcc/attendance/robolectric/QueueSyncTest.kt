@@ -33,7 +33,12 @@ class QueueSyncTest {
             db.attendanceDao(),
             db.persistentQueueDao(),
             db.syncJobDao(),
-            db.queueArchiveDao()
+            db.queueArchiveDao(),
+            db.eventDao(),
+            db.groupDao(),
+            db.attendeeGroupMappingDao(),
+            io.mockk.mockk(relaxed = true),
+            sg.org.bcc.attendance.util.time.TrueTimeProvider()
         )
     }
 
@@ -53,13 +58,13 @@ class QueueSyncTest {
             db.attendeeDao().insertAll(attendees)
             
             db.persistentQueueDao().insertAll(listOf(
-                PersistentQueue("A01", isExcluded = false),
-                PersistentQueue("A02", isExcluded = true)
+                PersistentQueue("A01", isLater = false),
+                PersistentQueue("A02", isLater = true)
             ))
 
             // Act: Sync
-            val eventTitle = "Sunday Service"
-            repository.syncQueue(eventTitle)
+            val eventId = "event-123"
+            repository.syncQueue(eventId)
 
             // Assert: SyncJob created
             db.syncJobDao().getPendingCount() shouldBe 1
@@ -67,7 +72,7 @@ class QueueSyncTest {
             // Assert: Archive created
             val archives = repository.getArchives().first()
             archives.size shouldBe 1
-            archives[0].eventTitle shouldBe eventTitle
+            archives[0].eventId shouldBe eventId
             archives[0].dataJson shouldNotBe null
         }
     }
@@ -75,20 +80,20 @@ class QueueSyncTest {
     @Test
     fun `archive should maintain 25-slot FIFO`() {
         runBlocking {
-            db.attendeeDao().insertAll(listOf(Attendee("A01", "John Doe")))
+            db.attendeeDao().insertAll(listOf(Attendee("A01", "John Doe", "John")))
             
             // Perform 30 syncs
             repeat(30) { i ->
                 db.persistentQueueDao().insertAll(listOf(PersistentQueue("A01")))
-                repository.syncQueue("Event $i")
+                repository.syncQueue("event-$i")
             }
 
             // Assert: Only 25 archives remain
             val archives = repository.getArchives().first()
             archives.size shouldBe 25
-            // Oldest should be "Event 5" because 0-4 were deleted
-            archives.last().eventTitle shouldBe "Event 5"
-            archives.first().eventTitle shouldBe "Event 29"
+            // Oldest should be "event-5" because 0-4 were deleted
+            archives.last().eventId shouldBe "event-5"
+            archives.first().eventId shouldBe "event-29"
         }
     }
 

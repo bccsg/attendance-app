@@ -24,7 +24,7 @@ This document is the absolute source of truth for build configuration, architect
 *   **Safety Interaction**: "Mark Present/Absent" actions require a 1.5s hold with a clockwise drawing-border animation.
 *   **Icons**: Use **Material Symbols Rounded**. 
     *   Find icons at: [fonts.google.com/icons](https://fonts.google.com/icons?icon.style=Rounded)
-    *   To install: Download the **Android (XML)** version.
+    *   To install: Download the **Android (XML)** version or use direct URLs like `https://fonts.gstatic.com/s/i/short-term/release/materialsymbolsrounded/[icon_name]/default/24px.xml`.
     *   Location: Save to `app/src/main/res/drawable/` with `ic_` prefix.
     *   Mapping: Add the resource to `sg.org.bcc.attendance.ui.components.AppIcons`.
 *   **Folder Structure**:

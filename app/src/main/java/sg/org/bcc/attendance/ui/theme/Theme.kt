@@ -10,11 +10,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
+import sg.org.bcc.attendance.util.SetStatusBarIconsColor
 
 private val LightColorScheme = lightColorScheme(
     primary = Purple40,
     secondary = PurpleGrey40,
-    tertiary = Pink40,
+    tertiary = PurpleGrey80,
     background = Color.White,
     surface = Color.White,
     onPrimary = Color.White,
@@ -23,8 +24,7 @@ private val LightColorScheme = lightColorScheme(
     onBackground = Color(0xFF1C1B1F),
     onSurface = Color(0xFF1C1B1F),
     error = DeepRed,
-    onError = Color.White,
-    outline = PastelGreen
+    onError = Color.White
 )
 
 @Composable
@@ -36,10 +36,13 @@ fun AttendanceTheme(
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
-            window.statusBarColor = colorScheme.primary.toArgb()
-            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = false
+            window.statusBarColor = Color.Transparent.toArgb()
+            window.navigationBarColor = Color.Transparent.toArgb()
+            WindowCompat.getInsetsController(window, view).isAppearanceLightNavigationBars = true
         }
     }
+
+    SetStatusBarIconsColor(isLight = false) // White icons
 
     MaterialTheme(
         colorScheme = colorScheme,

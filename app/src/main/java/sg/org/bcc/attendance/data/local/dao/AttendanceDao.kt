@@ -10,21 +10,21 @@ import sg.org.bcc.attendance.data.local.entities.AttendanceRecord
 
 @Dao
 interface AttendanceDao {
-    @Query("SELECT * FROM attendance_records WHERE eventTitle = :eventTitle")
-    fun getAttendanceFlow(eventTitle: String): Flow<List<AttendanceRecord>>
+    @Query("SELECT * FROM attendance_records WHERE eventId = :eventId")
+    fun getAttendanceFlow(eventId: String): Flow<List<AttendanceRecord>>
 
-    @Query("SELECT * FROM attendance_records WHERE eventTitle = :eventTitle")
-    suspend fun getAttendanceForEvent(eventTitle: String): List<AttendanceRecord>
+    @Query("SELECT * FROM attendance_records WHERE eventId = :eventId")
+    suspend fun getAttendanceForEvent(eventId: String): List<AttendanceRecord>
 
-    @Query("SELECT * FROM attendance_records WHERE eventTitle = :eventTitle AND attendeeId = :attendeeId")
-    suspend fun getRecord(eventTitle: String, attendeeId: String): AttendanceRecord?
+    @Query("SELECT * FROM attendance_records WHERE eventId = :eventId AND attendeeId = :attendeeId")
+    suspend fun getRecord(eventId: String, attendeeId: String): AttendanceRecord?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(record: AttendanceRecord)
 
     @Transaction
     suspend fun upsertIfNewer(record: AttendanceRecord) {
-        val existing = getRecord(record.eventTitle, record.attendeeId)
+        val existing = getRecord(record.eventId, record.attendeeId)
         if (existing == null || record.timestamp > existing.timestamp) {
             insert(record)
         }
@@ -37,4 +37,7 @@ interface AttendanceDao {
 
     @Query("DELETE FROM attendance_records")
     suspend fun clearAll()
+
+    @Query("DELETE FROM attendance_records WHERE eventId = :eventId")
+    suspend fun deleteForEvent(eventId: String)
 }

@@ -23,11 +23,12 @@ A local-first Android attendance tracking application for ushers. It allows for 
 
 ## Features
 
-### 1. Event Suggester
+### 1. Event Suggester & Management
 *   Automatically defaults the context to **today** if it is Sunday, otherwise the **coming Sunday**.
 *   Default time: **10:30**.
-*   Default name: "**sunday service**".
-*   Users can switch between existing events or create new ones via a context menu in the TopAppBar.
+*   Default name: "**Sunday Service**".
+*   Users can switch between existing events or create new ones via the **Events** interface (manageable window: last 30 days). See [EVENT_MANAGEMENT.md](EVENT_MANAGEMENT.md) for full details.
+*   **Purge**: Local event data and attendance records older than 30 days are automatically purged from the device.
 
 ### 2. Main Listing
 *   **Title**: Displays "Attendance" with the full Event ID as a subtitle.
@@ -41,26 +42,28 @@ A local-first Android attendance tracking application for ushers. It allows for 
 *   **Selection Mode**:
     *   Activated by tapping an attendee's **contact photo** (circle).
     *   Initial state: Merges the current Queue into the selection.
-    *   Action: `GroupAdd` icon replaces the Queue with the selection and automatically opens the Queue sheet.
-*   **Dynamic Scaling**: A "Large Text" option in the menu scales fonts, contact photos, and item spacing by 50%.
+    *   **Show Selected Only**: A checklist icon in the TopAppBar filters the list to only currently selected items. Activating this closes search and ensures category chips are visible.
+    *   Action: **`PlaylistAdd`** icon replaces the Queue with the selection and automatically opens the Queue sheet.
+*   **Dynamic Scaling**: A "Large Text" option in the menu scales fonts and contact photos by 50%.
 
 ### 3. Queue
 *   **UI**: Card-style Modal Bottom Sheet with a standard 56dp top margin.
-*   **Status Indicators**: Attendees already marked present show a `HowToReg` icon on the right.
+*   **Status Indicators**: Attendees already marked present show a `PersonCheck` icon on the right.
 *   **Interactions**:
-    *   **Tap**: Toggles "Ready/Set Aside" status.
+    *   **Tap**: Toggles "Ready/Later" status.
     *   **Swipe-to-Remove**:
         *   Visual distance limited to 30% width.
         *   **Haptic Pulse** when crossing the 25% threshold.
         *   **Remove on Lift**: Action only triggers upon finger release while beyond the threshold.
+        *   Icon: **`PlaylistRemove`**.
 *   **Commit Actions**:
-    *   **Mark Present**: (Primary/Pill) Uses `CheckCircle` icon and "Present" text.
-    *   **Mark Pending**: (Secondary/Pill) Uses `PersonOff` icon and secondary theme color.
+    *   **Mark Present**: (Primary/Pill) Uses `PersonCheck` icon and "Present" text. Fills remaining width.
+    *   **Mark Pending**: (Secondary/Circle) Uses **`PersonCancel`** icon. Fixed 64dp size.
     *   **Animation**: 100ms color flash (Pastel Green for Present) followed by a 400ms fade-out and height collapse.
-    *   **Preservation**: Only "Ready" items are cleared on commit; "Set Aside" items remain in the queue.
-*   **Clear Action**: `DeleteSweep` icon in the app bar.
-    *   If only "Set Aside" items exist: Clears immediately.
-    *   If "Ready" items exist: Prompts with a "Clear All / Keep Set Aside" dialog. Background dims during the prompt.
+    *   **Preservation**: Only "Ready" items are cleared on commit; "Later" items remain in the queue.
+*   **Clear Action**: **`PlaylistRemove`** icon in the app bar.
+    *   If only "Later" items exist: Clears immediately.
+    *   If "Ready" items exist: Prompts with a "Clear All / Keep Later" dialog. Background dims during the prompt.
 
 ### 4. Archive System
 *   **Capacity**: Default limit of **25 slots** (configurable, minimum 25).

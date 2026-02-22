@@ -1,8 +1,25 @@
 package sg.org.bcc.attendance.util
 
 import sg.org.bcc.attendance.data.local.entities.Attendee
+import sg.org.bcc.attendance.data.local.entities.Group
+import sg.org.bcc.attendance.data.local.entities.AttendeeGroupMapping
 
 object DemoData {
+    val groups = listOf(
+        Group("MICKEY", "Mickey & Friends"),
+        Group("PRINCESS", "Disney Princesses"),
+        Group("FROZEN", "Frozen"),
+        Group("LIONKING", "The Lion King"),
+        Group("TOYSTORY", "Toy Story"),
+        Group("CARS", "Cars"),
+        Group("INSIDEOUT", "Inside Out"),
+        Group("HERO6", "Big Hero 6"),
+        Group("STITCH", "Lilo & Stitch"),
+        Group("PETERPAN", "Peter Pan"),
+        Group("ROYALTY", "Royalty"),
+        Group("VILLAINS", "Villains")
+    )
+
     val disneyCharacters = listOf(
         Attendee("D01", "Mickey Mouse", "Mickey"),
         Attendee("D02", "Minnie Mouse", "Minnie"),
@@ -54,5 +71,77 @@ object DemoData {
         Attendee("D48", "Peter Pan", "Peter"),
         Attendee("D49", "Wendy Darling", "Wendy"),
         Attendee("D50", "Captain Hook", "Hook")
+    )
+
+    val mappings = listOf(
+        // Mickey & Friends
+        AttendeeGroupMapping("D01", "MICKEY"),
+        AttendeeGroupMapping("D02", "MICKEY"),
+        AttendeeGroupMapping("D03", "MICKEY"),
+        AttendeeGroupMapping("D04", "MICKEY"),
+        AttendeeGroupMapping("D05", "MICKEY"),
+        AttendeeGroupMapping("D06", "MICKEY"),
+        AttendeeGroupMapping("D07", "MICKEY"),
+        AttendeeGroupMapping("D08", "MICKEY"),
+
+        // Princesses
+        AttendeeGroupMapping("D09", "PRINCESS"), AttendeeGroupMapping("D09", "ROYALTY"),
+        AttendeeGroupMapping("D10", "PRINCESS"), AttendeeGroupMapping("D10", "ROYALTY"),
+        AttendeeGroupMapping("D11", "PRINCESS"), AttendeeGroupMapping("D11", "ROYALTY"),
+        AttendeeGroupMapping("D12", "PRINCESS"), AttendeeGroupMapping("D12", "ROYALTY"),
+        AttendeeGroupMapping("D13", "PRINCESS"), AttendeeGroupMapping("D13", "ROYALTY"),
+        AttendeeGroupMapping("D14", "PRINCESS"), AttendeeGroupMapping("D14", "ROYALTY"),
+        AttendeeGroupMapping("D15", "PRINCESS"),
+        AttendeeGroupMapping("D16", "PRINCESS"),
+        AttendeeGroupMapping("D17", "PRINCESS"), AttendeeGroupMapping("D17", "ROYALTY"),
+        AttendeeGroupMapping("D18", "PRINCESS"), AttendeeGroupMapping("D18", "ROYALTY"),
+        AttendeeGroupMapping("D19", "PRINCESS"), AttendeeGroupMapping("D19", "ROYALTY"),
+        AttendeeGroupMapping("D22", "PRINCESS"),
+
+        // Frozen
+        AttendeeGroupMapping("D20", "FROZEN"), AttendeeGroupMapping("D20", "ROYALTY"),
+        AttendeeGroupMapping("D21", "FROZEN"), AttendeeGroupMapping("D21", "ROYALTY"),
+
+        // Lion King
+        AttendeeGroupMapping("D23", "LIONKING"), AttendeeGroupMapping("D23", "ROYALTY"),
+        AttendeeGroupMapping("D24", "LIONKING"), AttendeeGroupMapping("D24", "ROYALTY"),
+        AttendeeGroupMapping("D25", "LIONKING"),
+        AttendeeGroupMapping("D26", "LIONKING"),
+        AttendeeGroupMapping("D27", "LIONKING"), AttendeeGroupMapping("D27", "ROYALTY"),
+        AttendeeGroupMapping("D28", "LIONKING"), AttendeeGroupMapping("D28", "ROYALTY"), AttendeeGroupMapping("D28", "VILLAINS"),
+
+        // Toy Story
+        AttendeeGroupMapping("D29", "TOYSTORY"),
+        AttendeeGroupMapping("D30", "TOYSTORY"),
+        AttendeeGroupMapping("D31", "TOYSTORY"),
+        AttendeeGroupMapping("D32", "TOYSTORY"),
+        AttendeeGroupMapping("D33", "TOYSTORY"),
+        AttendeeGroupMapping("D34", "TOYSTORY"),
+
+        // Cars
+        AttendeeGroupMapping("D35", "CARS"),
+        AttendeeGroupMapping("D36", "CARS"),
+        AttendeeGroupMapping("D37", "CARS"),
+        AttendeeGroupMapping("D38", "CARS"),
+
+        // Inside Out
+        AttendeeGroupMapping("D39", "INSIDEOUT"),
+        AttendeeGroupMapping("D40", "INSIDEOUT"),
+        AttendeeGroupMapping("D41", "INSIDEOUT"),
+        AttendeeGroupMapping("D42", "INSIDEOUT"),
+        AttendeeGroupMapping("D43", "INSIDEOUT"),
+
+        // Hero 6
+        AttendeeGroupMapping("D44", "HERO6"),
+        AttendeeGroupMapping("D45", "HERO6"),
+
+        // Stitch
+        AttendeeGroupMapping("D46", "STITCH"),
+        AttendeeGroupMapping("D47", "STITCH"),
+
+        // Peter Pan
+        AttendeeGroupMapping("D48", "PETERPAN"),
+        AttendeeGroupMapping("D49", "PETERPAN"),
+        AttendeeGroupMapping("D50", "PETERPAN"), AttendeeGroupMapping("D50", "VILLAINS")
     )
 }
