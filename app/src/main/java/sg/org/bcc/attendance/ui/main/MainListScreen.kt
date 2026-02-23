@@ -887,7 +887,7 @@ fun AttendeeDetailContent(
                     AppIcon(
                         resourceId = AppIcons.ArrowBack, 
                         contentDescription = null,
-                        modifier = Modifier.size(18.dp * textScale),
+                        modifier = Modifier.size(18.dp),
                         tint = MaterialTheme.colorScheme.primary
                     )
                     Spacer(modifier = Modifier.width(8.dp))
@@ -907,7 +907,7 @@ fun AttendeeDetailContent(
                     Surface(
                         shape = CircleShape,
                         color = if (isPresent) PastelGreen else MaterialTheme.colorScheme.primaryContainer,
-                        modifier = Modifier.size(56.dp * textScale)
+                        modifier = Modifier.size(56.dp)
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             if (isPresent) {
@@ -915,14 +915,12 @@ fun AttendeeDetailContent(
                                     resourceId = AppIcons.PersonCheck,
                                     contentDescription = null,
                                     tint = DeepGreen,
-                                    modifier = Modifier.size(32.dp * textScale)
+                                    modifier = Modifier.size(32.dp)
                                 )
                             } else {
                                 Text(
                                     text = (attendee.shortName ?: attendee.fullName).take(1).uppercase(),
-                                    style = MaterialTheme.typography.titleLarge.copy(
-                                        fontSize = MaterialTheme.typography.titleLarge.fontSize * textScale
-                                    ),
+                                    style = MaterialTheme.typography.titleLarge,
                                     color = MaterialTheme.colorScheme.onPrimaryContainer
                                 )
                             }
@@ -932,9 +930,7 @@ fun AttendeeDetailContent(
                 headlineContent = {
                     Text(
                         text = attendee.fullName,
-                        style = MaterialTheme.typography.titleLarge.copy(
-                            fontSize = MaterialTheme.typography.titleLarge.fontSize * textScale
-                        )
+                        style = MaterialTheme.typography.titleLarge
                     )
                 },
                 supportingContent = {
@@ -942,9 +938,7 @@ fun AttendeeDetailContent(
                         if (attendee.shortName != null) {
                             Text(
                                 text = attendee.shortName,
-                                style = MaterialTheme.typography.bodyMedium.copy(
-                                    fontSize = MaterialTheme.typography.bodyMedium.fontSize * textScale
-                                ),
+                                style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
@@ -959,7 +953,7 @@ fun AttendeeDetailContent(
                                 AppIcon(
                                     resourceId = AppIcons.BookmarkAdded,
                                     contentDescription = "In Queue",
-                                    modifier = Modifier.size(16.dp * textScale),
+                                    modifier = Modifier.size(16.dp),
                                     tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
                                 )
                             }
@@ -1000,19 +994,27 @@ fun AttendeeDetailContent(
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = "(${members.size})",
+                                    text = "${members.size} ${if (members.size == 1) "other" else "others"}",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
-                            IconButton(
+                            TextButton(
                                 onClick = { onAddGroupToQueue(group.groupId) },
-                                modifier = Modifier.size(32.dp)
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                                modifier = Modifier.height(32.dp)
                             ) {
                                 AppIcon(
                                     resourceId = AppIcons.PlaylistAdd, 
-                                    contentDescription = "Add Group to Queue",
-                                    tint = MaterialTheme.colorScheme.primary
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "Queue group",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = MaterialTheme.colorScheme.primary
                                 )
                             }
                         }
