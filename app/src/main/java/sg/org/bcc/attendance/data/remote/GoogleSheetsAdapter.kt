@@ -119,14 +119,28 @@ class GoogleSheetsAdapter @Inject constructor(
             } ?: emptyList()
         } catch (e: Exception) {
             val type = e.javaClass.simpleName
-            android.util.Log.e("AttendanceSync", "Error fetching groups ($type): ${e.message}")
-            throw Exception("[$type] ${e.message ?: "No message"}")
+            val msg = e.message ?: "No message"
+            if (msg.contains("Unable to parse range") || msg.contains("Grid with id")) {
+                 android.util.Log.e("AttendanceSync", "CRITICAL: 'Groups' worksheet not found in master sheet!")
+            }
+            android.util.Log.e("AttendanceSync", "Error fetching groups ($type): $msg")
+            throw Exception("[$type] $msg")
         }
     }
 
     override suspend fun fetchAttendeeGroupMappings(): List<AttendeeGroupMapping> = withContext(Dispatchers.IO) {
         val service = getSheetsService()
         android.util.Log.d("AttendanceSync", "Fetching mappings...")
+        
+        // DEBUG: List all sheets to verify names
+        try {
+            val spreadsheet = service.spreadsheets().get(masterSpreadsheetId).execute()
+            val sheetNames = spreadsheet.sheets.map { it.properties.title }
+            android.util.Log.d("AttendanceSync", "Available sheets: $sheetNames")
+        } catch (e: Exception) {
+            android.util.Log.e("AttendanceSync", "Failed to list sheets: ${e.message}")
+        }
+
         try {
             val response = service.spreadsheets().values()
                 .get(masterSpreadsheetId, "Mappings!A2:B")
@@ -135,16 +149,21 @@ class GoogleSheetsAdapter @Inject constructor(
             val values = response.getValues()
             android.util.Log.d("AttendanceSync", "Raw mapping rows: ${values?.size ?: 0}")
             
+            // User sheet format: Group ID, Attendee ID
             values?.filter { it.size >= 2 }?.map { row ->
                 AttendeeGroupMapping(
-                    attendeeId = row[0].toString(),
-                    groupId = row[1].toString()
+                    groupId = row[0].toString(),    // Column A is Group ID
+                    attendeeId = row[1].toString()  // Column B is Attendee ID
                 )
             } ?: emptyList()
         } catch (e: Exception) {
             val type = e.javaClass.simpleName
-            android.util.Log.e("AttendanceSync", "Error fetching mappings ($type): ${e.message}")
-            throw Exception("[$type] ${e.message ?: "No message"}")
+            val msg = e.message ?: "No message"
+            if (msg.contains("Unable to parse range") || msg.contains("Grid with id")) {
+                 android.util.Log.e("AttendanceSync", "CRITICAL: 'Mappings' worksheet not found in master sheet!")
+            }
+            android.util.Log.e("AttendanceSync", "Error fetching mappings ($type): $msg")
+            throw Exception("[$type] $msg")
         }
     }
 

@@ -100,6 +100,10 @@ fun MainListScreen(
     val fabState by viewModel.fabState.collectAsState()
     val textScale by viewModel.textScale.collectAsState()
 
+    val totalAttendeesCount by viewModel.totalAttendeesCount.collectAsState()
+    val totalGroupsCount by viewModel.totalGroupsCount.collectAsState()
+    val attendeesWithGroupCount by viewModel.attendeesWithGroupCount.collectAsState()
+
     val isSelectionMode = selectedIds.isNotEmpty()
     var isSearchActive by remember { mutableStateOf(false) }
     
@@ -225,6 +229,9 @@ fun MainListScreen(
             syncProgress = syncProgress,
             isDemoMode = isDemoMode,
             loginError = loginError,
+            totalAttendeesCount = totalAttendeesCount,
+            totalGroupsCount = totalGroupsCount,
+            attendeesWithGroupCount = attendeesWithGroupCount,
             onLogin = viewModel::onLoginTrigger,
             onLogout = viewModel::onLogout,
             onDismiss = { viewModel.setShowCloudStatusDialog(false) },
@@ -1115,6 +1122,9 @@ fun CloudStatusDialog(
     syncProgress: SyncProgress,
     isDemoMode: Boolean,
     loginError: String? = null,
+    totalAttendeesCount: Int = 0,
+    totalGroupsCount: Int = 0,
+    attendeesWithGroupCount: Int = 0,
     onLogin: () -> Unit,
     onLogout: () -> Unit,
     onDismiss: () -> Unit,
@@ -1205,6 +1215,16 @@ fun CloudStatusDialog(
                             Text("Login with Google")
                         }
                     }
+                }
+
+                HorizontalDivider()
+
+                // Statistics Section
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Statistics", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                    SyncInfoRow("Total Attendees", totalAttendeesCount.toString())
+                    SyncInfoRow("Total Groups", totalGroupsCount.toString())
+                    SyncInfoRow("Attendees with Group", attendeesWithGroupCount.toString())
                 }
 
                 HorizontalDivider()

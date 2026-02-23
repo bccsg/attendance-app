@@ -301,6 +301,16 @@ class MainListViewModel @Inject constructor(
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
+    // Statistics for Cloud Status Dialog
+    val totalAttendeesCount = allAttendees.map { it.size }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+
+    val totalGroupsCount = repository.getAllGroups().map { it.size }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+        
+    val attendeesWithGroupCount = attendeeGroupsMap.map { it.size }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+
     init {
         // Initial seed of demo data if the database is empty on first launch
         viewModelScope.launch {
