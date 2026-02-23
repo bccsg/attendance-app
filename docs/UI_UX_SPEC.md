@@ -58,10 +58,20 @@
 ### 1. Bottom Bar Navigation
 *   **PersonSearch**: (Left) Expands an animated search pill.
 *   **Filter Chips**: (Center) Toggles for category visibility. 
-    *   If both are on: Clicking one isolates that category.
+    *   If both are on: Clicking one isolates that category (the other becomes invisible).
     *   If one is off: Clicking it adds it back.
     *   Auto-enables the other category if one hits count zero.
-    *   **Branding**: Uses Primary color theme if only one category is visible in the current list pool (e.g. search filters everything else out).
+    *   Activating chips deactivates **"Show Selected Only"** mode.
+    *   **Branding (Non-Selection Mode)**: Uses **Primary** color theme if only one category is visible in the current list pool.
+    *   **Branding (Selection Mode)**: 
+        *   Primary branding for isolated chips is **disabled**.
+        *   Badges use **Secondary** theme colors.
+        *   Counts reflect the number of **currently selected** attendees in each state.
+        *   Chips reset to visible when **"Show Selected Only"** mode is activated.
+    *   **Badges**:
+        *   **Present (Ready)**: Red (`error`) in non-selection mode.
+        *   **Pending (Later)**: Theme Grey (`secondary`) in non-selection mode.
+        *   Both use **Secondary** in selection mode.
 *   **Queue Launcher**: (Right) Uses dynamic **`FilterNone`** to **`Filter9Plus`** icons.
 *   **Adaptive Height**: Snaps instantly between 80dp (keyboard open) and 80dp + navBarPadding (keyboard closed) to maintain a clean aesthetic.
 

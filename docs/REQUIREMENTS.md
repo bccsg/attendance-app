@@ -37,7 +37,16 @@ A local-first Android attendance tracking application for ushers. It allows for 
 *   **Visibility Toggles**: Centered in the bottom bar. 
     *   **Present Chip**: Toggles visibility of attendees marked as `PRESENT`.
     *   **Pending Chip**: Toggles visibility of attendees not yet marked.
+    *   **Isolation Behavior**: When both chips are active and visible, tapping on one will make that one visible only and the other invisible (isolating the category). If only one is active, tapping the other adds it back.
     *   **Safety**: If one category's count drops to zero, the other category is automatically forced visible to prevent an empty list.
+    *   **Badge Counts**: 
+        *   Non-Selection Mode: Displays total present or pending in the current event (not affected by search filters). "Ready" badge (Present) uses red (error), "Later" badge (Pending) uses theme grey (secondary).
+        *   Selection Mode: Displays total present or pending among the **currently selected** attendees. Both badges use secondary theme colors.
+    *   **Selection Mode Integration**:
+        *   Chips reset to visible when "Show Selected Only" mode is active.
+        *   Activating chips manually deactivates "Show Selected Only" mode.
+        *   Chips are disabled only when the total category count is zero (regardless of selection).
+        *   "Branded" primary coloring (when only one chip is active) is disabled in selection mode.
 *   **Queue Launcher**: Located on the right of the bottom bar. Uses dynamic icons (`FilterNone` to `Filter9Plus`) to show the current queue count.
 *   **Selection Mode**:
     *   Activated by tapping an attendee's **contact photo** (circle).

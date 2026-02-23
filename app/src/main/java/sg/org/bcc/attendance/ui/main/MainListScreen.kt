@@ -541,30 +541,57 @@ fun MainListScreen(
                                 horizontalArrangement = Arrangement.Center,
                                 modifier = Modifier.weight(1f)
                             ) {
+                                val isSelectionMode = selectedIds.isNotEmpty()
                                 val isPresentVisible = showPresent && presentPoolCount > 0
                                 val isPendingVisible = showAbsent && pendingPoolCount > 0
-                                val isBranded = isPresentVisible != isPendingVisible
+                                
+                                // No special treatment for only one is set to visible in selection mode
+                                val isBranded = !isSelectionMode && (isPresentVisible != isPendingVisible)
                                 
                                 val brandedChipColors = FilterChipDefaults.filterChipColors(
                                     selectedContainerColor = MaterialTheme.colorScheme.primary,
                                     selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
-                                    selectedLeadingIconColor = MaterialTheme.colorScheme.onPrimary
+                                    selectedLeadingIconColor = MaterialTheme.colorScheme.onPrimary,
+                                    disabledContainerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
+                                    disabledLabelColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+                                    disabledLeadingIconColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                                )
+
+                                val defaultChipColors = FilterChipDefaults.filterChipColors(
+                                    disabledContainerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
+                                    disabledLabelColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+                                    disabledLeadingIconColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
                                 )
 
                                 val presentChipColors = if (isBranded && isPresentVisible) {
                                     brandedChipColors
-                                } else FilterChipDefaults.filterChipColors()
+                                } else defaultChipColors
 
                                 val pendingChipColors = if (isBranded && isPendingVisible) {
                                     brandedChipColors
-                                } else FilterChipDefaults.filterChipColors()
+                                } else defaultChipColors
+
+                                val presentBadgeColor = if (isSelectionMode) {
+                                    MaterialTheme.colorScheme.secondary
+                                } else {
+                                    MaterialTheme.colorScheme.error
+                                }
+
+                                val presentBadgeContentColor = if (isSelectionMode) {
+                                    MaterialTheme.colorScheme.onSecondary
+                                } else {
+                                    MaterialTheme.colorScheme.onError
+                                }
+
+                                val pendingBadgeColor = MaterialTheme.colorScheme.secondary
+                                val pendingBadgeContentColor = MaterialTheme.colorScheme.onSecondary
 
                                 BadgedBox(
                                     badge = {
                                         if (presentBadgeCount > 0) {
                                             Badge(
-                                                containerColor = MaterialTheme.colorScheme.error,
-                                                contentColor = MaterialTheme.colorScheme.onError
+                                                containerColor = presentBadgeColor,
+                                                contentColor = presentBadgeContentColor
                                             ) { 
                                                 Text(presentBadgeCount.toString()) 
                                             }
@@ -593,8 +620,8 @@ fun MainListScreen(
                                     badge = {
                                         if (pendingBadgeCount > 0) {
                                             Badge(
-                                                containerColor = MaterialTheme.colorScheme.secondary,
-                                                contentColor = MaterialTheme.colorScheme.onSecondary
+                                                containerColor = pendingBadgeColor,
+                                                contentColor = pendingBadgeContentColor
                                             ) { 
                                                 Text(pendingBadgeCount.toString()) 
                                             }

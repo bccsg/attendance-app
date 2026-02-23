@@ -179,4 +179,46 @@ class MainListViewModelTest {
         io.mockk.coVerify { repository.replaceQueueWithSelection(listOf("1")) }
         viewModel.selectedIds.value.size shouldBe 0
     }
+
+    @Test
+    fun `visibility chips should exhibit isolation behavior when both are on`() = runTest {
+        val attendees = listOf(Attendee("1", "John"))
+        every { repository.getAllAttendees() } returns flowOf(attendees)
+        every { repository.getQueueItems() } returns flowOf(emptyList())
+        every { repository.getAttendanceRecords(any()) } returns flowOf(emptyList())
+        every { repository.getPendingSyncCount() } returns flowOf(0)
+        every { repository.getManageableEvents() } returns flowOf(emptyList())
+        every { repository.getAllEvents() } returns flowOf(emptyList())
+        every { repository.getAllGroups() } returns flowOf(emptyList())
+        every { repository.getAllMappings() } returns flowOf(emptyList())
+        io.mockk.coEvery { repository.syncMasterList() } returns Unit
+        io.mockk.coEvery { repository.isDemoMode() } returns false
+        io.mockk.coEvery { repository.purgeOldEvents() } returns Unit
+
+        val viewModel = MainListViewModel(repository)
+
+        // Both ON by default
+        viewModel.showPresent.value shouldBe true
+        viewModel.showAbsent.value shouldBe true
+
+        // Click Present -> Should isolate Present (Absent becomes OFF)
+        viewModel.onShowPresentToggle()
+        viewModel.showPresent.value shouldBe true
+        viewModel.showAbsent.value shouldBe false
+
+        // Click Absent -> Should add it back (Both become ON)
+        viewModel.onShowAbsentToggle()
+        viewModel.showPresent.value shouldBe true
+        viewModel.showAbsent.value shouldBe true
+
+        // Click Absent -> Should isolate Absent (Present becomes OFF)
+        viewModel.onShowAbsentToggle()
+        viewModel.showPresent.value shouldBe false
+        viewModel.showAbsent.value shouldBe true
+
+        // Click Present -> Should add it back
+        viewModel.onShowPresentToggle()
+        viewModel.showPresent.value shouldBe true
+        viewModel.showAbsent.value shouldBe true
+    }
 }

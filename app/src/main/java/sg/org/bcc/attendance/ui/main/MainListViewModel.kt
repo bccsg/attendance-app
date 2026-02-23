@@ -249,40 +249,40 @@ class MainListViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.Eagerly, 0)
 
     val presentPoolCount: StateFlow<Int> = combine(
-        searchFilteredAttendees,
+        allAttendees,
         presentIds
-    ) { filtered, presentIds ->
-        filtered.count { it.id in presentIds }
+    ) { all, presentIds ->
+        all.count { it.id in presentIds }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
     val pendingPoolCount: StateFlow<Int> = combine(
-        searchFilteredAttendees,
+        allAttendees,
         presentIds
-    ) { filtered, presentIds ->
-        filtered.count { it.id !in presentIds }
+    ) { all, presentIds ->
+        all.count { it.id !in presentIds }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
     val presentBadgeCount: StateFlow<Int> = combine(
-        searchFilteredAttendees,
+        allAttendees,
         presentIds,
         _selectedIds
-    ) { filtered, presentIds, selectedIds ->
+    ) { all, presentIds, selectedIds ->
         if (selectedIds.isNotEmpty()) {
-            filtered.count { it.id in selectedIds && it.id in presentIds }
+            selectedIds.count { it in presentIds }
         } else {
-            filtered.count { it.id in presentIds }
+            all.count { it.id in presentIds }
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
     val pendingBadgeCount: StateFlow<Int> = combine(
-        searchFilteredAttendees,
+        allAttendees,
         presentIds,
         _selectedIds
-    ) { filtered, presentIds, selectedIds ->
+    ) { all, presentIds, selectedIds ->
         if (selectedIds.isNotEmpty()) {
-            filtered.count { it.id in selectedIds && it.id !in presentIds }
+            selectedIds.count { it !in presentIds }
         } else {
-            filtered.count { it.id !in presentIds }
+            all.count { it.id !in presentIds }
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
