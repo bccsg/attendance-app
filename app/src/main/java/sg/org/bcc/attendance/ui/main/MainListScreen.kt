@@ -680,8 +680,8 @@ fun MainListScreen(
                 }
             }
         ) { padding ->
-            LaunchedEffect(attendees, availableEvents) {
-                if (attendees.isNotEmpty() && availableEvents.isEmpty()) {
+            LaunchedEffect(attendees, availableEvents, isSyncing) {
+                if (!isSyncing && attendees.isNotEmpty() && availableEvents.isEmpty()) {
                     onNavigateToEventManagement()
                 }
             }
@@ -1202,16 +1202,45 @@ fun CloudStatusDialog(
                         Text("Logout")
                     }
                 } else {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Not Authenticated", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.error)
-                        if (isDemoMode) {
-                            Text(
-                                "App is currently in DEMO MODE. Logging in will clear demo data and sync with the cloud master list.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        Surface(
+                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                AppIcon(
+                                    resourceId = AppIcons.CloudOff,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(32.dp)
+                                )
+                                Spacer(modifier = Modifier.width(16.dp))
+                                Column {
+                                    Text(
+                                        "Using Demo Data",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        "Login to establish connectivity with Master and Event Google Sheets.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                                    )
+                                }
+                            }
                         }
-                        Button(onClick = onLogin, modifier = Modifier.fillMaxWidth()) {
+                        
+                        Button(
+                            onClick = onLogin, 
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
                             Text("Login with Google")
                         }
                     }

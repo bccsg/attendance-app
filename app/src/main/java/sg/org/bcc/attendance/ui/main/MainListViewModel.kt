@@ -315,7 +315,12 @@ class MainListViewModel @Inject constructor(
         // Initial seed of demo data if the database is empty on first launch
         viewModelScope.launch {
             if (repository.getAllAttendees().first().isEmpty()) {
-                repository.syncMasterList()
+                isSyncing.value = true
+                try {
+                    repository.syncMasterList()
+                } finally {
+                    isSyncing.value = false
+                }
             }
         }
 
@@ -559,9 +564,14 @@ class MainListViewModel @Inject constructor(
 
     fun onLogout() {
         viewModelScope.launch {
-            authManager.logout()
-            repository.clearAllData()
-            repository.syncMasterList()
+            isSyncing.value = true
+            try {
+                authManager.logout()
+                repository.clearAllData()
+                repository.syncMasterList()
+            } finally {
+                isSyncing.value = false
+            }
         }
     }
 

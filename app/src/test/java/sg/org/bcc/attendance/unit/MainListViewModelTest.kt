@@ -30,11 +30,17 @@ class MainListViewModelTest {
     @Before
     fun setup() {
         Dispatchers.setMain(testDispatcher)
+        io.mockk.mockkStatic(android.util.Log::class)
+        every { android.util.Log.d(any(), any()) } returns 0
+        every { android.util.Log.e(any(), any()) } returns 0
+        every { android.util.Log.e(any(), any(), any()) } returns 0
         every { authManager.isAuthed } returns isAuthedFlow
+        io.mockk.coEvery { repository.syncMasterList() } returns Unit
     }
 
     @After
     fun tearDown() {
+        io.mockk.unmockkStatic(android.util.Log::class)
         Dispatchers.resetMain()
     }
 
@@ -284,10 +290,11 @@ class MainListViewModelTest {
         every { repository.getAllGroups() } returns flowOf(emptyList())
         every { repository.getAllMappings() } returns flowOf(emptyList())
         io.mockk.coEvery { repository.purgeOldEvents() } returns Unit
+        io.mockk.coEvery { repository.clearAllData() } returns Unit
         
         // Mock successful exchange and sync
         io.mockk.coEvery { authManager.exchangeCodeForTokens("test_code") } returns true
-        io.mockk.coEvery { repository.syncMasterListWithResult() } returns true
+        io.mockk.coEvery { repository.syncMasterListWithDetailedResult() } returns (true to "OK")
 
         val viewModel = MainListViewModel(repository, authManager)
         
@@ -297,7 +304,33 @@ class MainListViewModelTest {
         
         viewModel.loginError.value shouldBe null
         io.mockk.coVerify { authManager.exchangeCodeForTokens("test_code") }
-        io.mockk.coVerify { repository.syncMasterListWithResult() }
+        io.mockk.coVerify { repository.clearAllData() }
+        io.mockk.coVerify { repository.syncMasterListWithDetailedResult() }
+    }
+
+    @Test
+    fun `onLogout should set isSyncing correctly`() = runTest {
+        every { repository.getAllAttendees() } returns flowOf(emptyList())
+        every { repository.getQueueItems() } returns flowOf(emptyList())
+        every { repository.getPendingSyncCount() } returns flowOf(0)
+        every { repository.getManageableEvents() } returns flowOf(emptyList())
+        every { repository.getAllEvents() } returns flowOf(emptyList())
+        every { repository.getAllGroups() } returns flowOf(emptyList())
+        every { repository.getAllMappings() } returns flowOf(emptyList())
+        io.mockk.coEvery { repository.purgeOldEvents() } returns Unit
+        io.mockk.coEvery { repository.clearAllData() } returns Unit
+        io.mockk.coEvery { repository.syncMasterList() } returns Unit
+        io.mockk.coEvery { authManager.logout() } returns Unit
+
+        val viewModel = MainListViewModel(repository, authManager)
+        
+        viewModel.onLogout()
+        testScheduler.advanceUntilIdle()
+        
+        io.mockk.coVerify { authManager.logout() }
+        io.mockk.coVerify { repository.clearAllData() }
+        io.mockk.coVerify { repository.syncMasterList() }
+        viewModel.isSyncing.value shouldBe false
     }
 
     @Test

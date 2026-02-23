@@ -43,7 +43,7 @@ android {
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
+                "proguard-rules.pro",
             )
         }
     }
@@ -125,7 +125,7 @@ dependencies {
     testImplementation(libs.androidxTestExtJunit)
     testImplementation(libs.kotlinxCoroutinesTest)
     testImplementation("junit:junit:4.13.2")
-    
+
     androidTestImplementation(libs.mockkAndroid)
     androidTestImplementation(platform(libs.androidxComposeBom))
     androidTestImplementation(libs.androidxUiTestJunit4)
