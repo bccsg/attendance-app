@@ -8,12 +8,14 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import sg.org.bcc.attendance.data.repository.AttendanceRepository
 import sg.org.bcc.attendance.data.repository.QueueItem
+import sg.org.bcc.attendance.data.remote.AuthManager
 import javax.inject.Inject
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class QueueViewModel @Inject constructor(
-    private val repository: AttendanceRepository
+    private val repository: AttendanceRepository,
+    private val authManager: AuthManager
 ) : ViewModel() {
 
     private val _currentEventId = MutableStateFlow<String?>(null)
@@ -29,12 +31,12 @@ class QueueViewModel @Inject constructor(
             initialValue = emptyList()
         )
 
-    val isDemoMode: StateFlow<Boolean> = repository.getAllAttendees()
-        .map { attendees -> attendees.isEmpty() || attendees.any { it.id.startsWith("D") } }
+    val isDemoMode: StateFlow<Boolean> = authManager.isAuthed
+        .map { !it }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
-            initialValue = false
+            initialValue = true
         )
 
     val presentIds: StateFlow<Set<String>> = _currentEventId.flatMapLatest { id ->

@@ -33,4 +33,7 @@ interface QueueArchiveDao {
     
     @Query("SELECT * FROM queue_archive WHERE id = :id")
     suspend fun getArchiveById(id: Long): QueueArchive?
+
+    @Query("DELETE FROM queue_archive")
+    suspend fun clearAll()
 }

@@ -8,6 +8,7 @@ import kotlinx.coroutines.launch
 import sg.org.bcc.attendance.data.local.entities.Attendee
 import sg.org.bcc.attendance.data.local.entities.Event
 import sg.org.bcc.attendance.data.repository.AttendanceRepository
+import sg.org.bcc.attendance.data.remote.AuthManager
 import sg.org.bcc.attendance.util.FuzzySearchScorer
 import sg.org.bcc.attendance.util.EventSuggester
 import java.time.LocalDate
@@ -35,7 +36,8 @@ data class SyncProgress(
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class MainListViewModel @Inject constructor(
-    private val repository: AttendanceRepository
+    private val repository: AttendanceRepository,
+    private val authManager: AuthManager
 ) : ViewModel() {
 
     private val _searchQuery = MutableStateFlow("")
@@ -60,16 +62,22 @@ class MainListViewModel @Inject constructor(
         _textScale.value = scale
     }
 
-    val isDemoMode = flow {
-        emit(repository.isDemoMode())
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, false)
+    val isAuthed = authManager.isAuthed
 
-    val isAuthed = MutableStateFlow(false)
+    val isDemoMode = isAuthed.map { !it }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, true)
+
     val hasSyncError = MutableStateFlow(false)
     val isSyncing = MutableStateFlow(false)
 
-    private val _cloudProfile = MutableStateFlow<CloudProfile?>(null)
-    val cloudProfile: StateFlow<CloudProfile?> = _cloudProfile.asStateFlow()
+    val cloudProfile: StateFlow<CloudProfile?> = isAuthed.map { authed ->
+        if (authed) {
+            CloudProfile(
+                email = authManager.getEmail() ?: "",
+                displayName = authManager.getDisplayName() ?: ""
+            )
+        } else null
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     private val _syncProgress = MutableStateFlow(SyncProgress(
         pendingJobs = 0,
@@ -289,7 +297,7 @@ class MainListViewModel @Inject constructor(
     init {
         // Initial sync to populate data if not in demo mode or if database is empty
         viewModelScope.launch {
-            if (!repository.isDemoMode()) {
+            if (isAuthed.value) {
                 repository.syncMasterList()
             }
         }
@@ -456,16 +464,17 @@ class MainListViewModel @Inject constructor(
 
     fun onLogin() {
         viewModelScope.launch {
-            _cloudProfile.value = CloudProfile("usher@bcc.org.sg", "Main Usher", null)
-            isAuthed.value = true
+            authManager.login("usher@bcc.org.sg", "Main Usher")
             // Exiting demo mode happens via syncMasterList
             repository.syncMasterList()
         }
     }
 
     fun onLogout() {
-        _cloudProfile.value = null
-        isAuthed.value = false
+        viewModelScope.launch {
+            authManager.logout()
+            repository.clearAllData()
+        }
     }
 
     fun onSwitchEvent(eventId: String) {

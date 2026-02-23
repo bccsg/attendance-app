@@ -38,7 +38,8 @@ While background processing is currently mocked, the application is designed to 
 
 | Scenario | UX Handling | System Action |
 | :--- | :--- | :--- |
-| **Auth Expired** | Cloud icon: `CloudAlert`. Dialog shows "Not Authenticated". | Pause queue. Attempt silent refresh; wait for user login if fail. |
+| **Auth Expired** | Cloud icon: `CloudAlert`. Dialog shows "Not Authenticated". | Pause queue. Attempt silent refresh; wait for user login if fail. **Data is preserved.** |
+| **Logout** | Cloud icon: `CloudOff`. | Purge all local data tables via `clearAllData()`. Enter Demo Mode. |
 | **Offline** | Cloud icon: `CloudOff` or dot. | Queue jobs locally. WorkManager retries on connectivity. |
 | **Concurrent Edit** | Silent (Last Commit Wins). | Merge cloud state using synchronized NTP timestamps. |
 | **API Rate Limit (429)** | Cloud icon pulses/dot. | Enter backoff (up to 30s). Pause all pull operations. |

@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.map
 import sg.org.bcc.attendance.data.local.dao.*
 import sg.org.bcc.attendance.data.local.entities.*
 import sg.org.bcc.attendance.data.remote.AttendanceCloudProvider
+import sg.org.bcc.attendance.data.remote.AuthManager
 import sg.org.bcc.attendance.util.EventSuggester
 import sg.org.bcc.attendance.util.time.TimeProvider
 import java.time.LocalDate
@@ -29,6 +30,7 @@ class AttendanceRepository @Inject constructor(
     private val groupDao: GroupDao,
     private val attendeeGroupMappingDao: AttendeeGroupMappingDao,
     private val cloudProvider: AttendanceCloudProvider,
+    private val authManager: AuthManager,
     private val timeProvider: TimeProvider
 ) {
     fun getQueueItems(): Flow<List<QueueItem>> {
@@ -93,10 +95,8 @@ class AttendanceRepository @Inject constructor(
     fun getAllAttendees(): Flow<List<Attendee>> = attendeeDao.getAllAttendees()
 
     suspend fun isDemoMode(): Boolean {
-        // Demo mode is active if we haven't synced real data yet.
-        // Once logged in, syncMasterList() clears all tables and pulls real data.
-        val attendees = attendeeDao.getAllAttendees().first()
-        return attendees.isEmpty() || attendees.any { it.id.startsWith("D") }
+        // Demo mode is active when the user is not authenticated.
+        return !authManager.isAuthed.value
     }
 
     suspend fun syncMasterList() {
@@ -123,6 +123,17 @@ class AttendanceRepository @Inject constructor(
             syncJobDao.clearAll()
             attendanceDao.clearAll()
         }
+    }
+
+    suspend fun clearAllData() {
+        attendeeDao.clearAll()
+        attendanceDao.clearAll()
+        persistentQueueDao.clear()
+        syncJobDao.clearAll()
+        queueArchiveDao.clearAll()
+        eventDao.clearAll()
+        groupDao.clearAll()
+        attendeeGroupMappingDao.clearAll()
     }
 
     suspend fun syncRecentEvents() {

@@ -11,19 +11,15 @@ On the first launch (or if the database is empty), the application automatically
 *   **Queue**: The commit button label changes to "Confirm & Archive (Demo)" or "Mark ... (Demo)".
 
 ## 3. Functional Constraints
-*   **Demo State Detection**: Demo mode is active whenever the user is **not logged in**. 
+*   **Demo State Detection**: Demo mode is active whenever the user is **not logged in**. This state is determined by the absence of a valid authentication session in `AuthManager`.
 *   **Mock Processing**: While not authenticated, clicking "Mark Present/Pending" will:
     1.  Commit the record to local storage for immediate UI feedback.
     2.  Create a **`SyncJob`** in the local database (though background sync is inactive until login).
     3.  Archive the batch in the `queue_archive` table.
 
 ## 4. Transition to Real Mode
-Demo mode is exited by tapping the **Cloud Icon** in the top bar and completing the **Login** process in the resulting **Cloud Status Dialog**.
-*   **Replacement**: Upon successful authentication, the `DemoCloudProvider` (see [CLOUD_PROVIDERS.md](CLOUD_PROVIDERS.md)) is swapped for a real provider (e.g., `GoogleSheetsProvider`).
-*   **Cleanup**: Upon receiving real data, the repository:
-    1.  Clears all `attendees`.
-    2.  Clears the Attendance Staging queue.
-    3.  Clears all pending `sync_jobs`.
-    4.  Clears all `attendance_records`.
-    5.  Inserts the new master list.
-*   **Result**: Standard cloud sync logic is enabled (see [CLOUD_SYNC.md](CLOUD_SYNC.md)), and the cloud icon status updates based on the new authenticated state.
+Demo mode is exited by completing the **Login** process in the **Cloud Status Dialog**.
+*   **Replacement**: Upon successful authentication, the `DemoCloudProvider` is swapped for a real provider (e.g., `GoogleSheetsProvider`).
+*   **Cleanup**: Upon receiving real data, the repository clears all local tables and inserts the new master list.
+*   **Logout**: Logging out via the Cloud Status Dialog will **purge all local data** (attendees, events, attendance records, sync jobs) to ensure security and a clean state.
+*   **Token Expiry**: If an authentication token expires or becomes invalid, the application enters an "Action Required" state (`CloudAlert`). This is **not** a logout; local data is preserved, but synchronization is paused until the user re-authenticates.
