@@ -144,4 +144,28 @@ object DemoData {
         AttendeeGroupMapping("D49", "PETERPAN"),
         AttendeeGroupMapping("D50", "PETERPAN"), AttendeeGroupMapping("D50", "VILLAINS")
     )
+    
+    fun generateRecentEvents(days: Int): List<sg.org.bcc.attendance.data.local.entities.Event> {
+        val today = java.time.LocalDate.now()
+        val dateFormatter = java.time.format.DateTimeFormatter.ofPattern("yyMMdd")
+        val eventNames = listOf(
+            "Mickey's Celebration",
+            "Magic Kingdom Gathering",
+            "Princess Royal Ball",
+            "Frozen Adventure",
+            "Lion King Pride Meeting",
+            "Toy Story Playtime"
+        )
+
+        return (0..days step 7).mapIndexed { index, daysAgo ->
+            val date = today.minusDays(daysAgo.toLong())
+            val dateStr = date.format(dateFormatter)
+            val name = eventNames[index % eventNames.size]
+            sg.org.bcc.attendance.data.local.entities.Event(
+                id = "demo-event-$daysAgo",
+                title = "$dateStr 1030 $name",
+                cloudEventId = (100000000 + index * 12345).toString()
+            )
+        }
+    }
 }

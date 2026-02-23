@@ -7,6 +7,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.*
 import org.junit.After
@@ -16,16 +17,20 @@ import sg.org.bcc.attendance.data.local.entities.Attendee
 import sg.org.bcc.attendance.data.local.entities.AttendanceRecord
 import sg.org.bcc.attendance.data.local.entities.Event
 import sg.org.bcc.attendance.data.repository.AttendanceRepository
+import sg.org.bcc.attendance.data.remote.AuthManager
 import sg.org.bcc.attendance.ui.main.MainListViewModel
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class MainListViewModelTest {
     private val repository = mockk<AttendanceRepository>()
+    private val authManager = mockk<AuthManager>()
+    private val isAuthedFlow = MutableStateFlow(false)
     private val testDispatcher = UnconfinedTestDispatcher()
 
     @Before
     fun setup() {
         Dispatchers.setMain(testDispatcher)
+        every { authManager.isAuthed } returns isAuthedFlow
     }
 
     @After
@@ -51,7 +56,7 @@ class MainListViewModelTest {
         io.mockk.coEvery { repository.isDemoMode() } returns false
         io.mockk.coEvery { repository.purgeOldEvents() } returns Unit
 
-        val viewModel = MainListViewModel(repository)
+        val viewModel = MainListViewModel(repository, authManager)
         
         // Start collecting to activate stateIn
         val job = launch(UnconfinedTestDispatcher(testScheduler)) {
@@ -83,7 +88,7 @@ class MainListViewModelTest {
         io.mockk.coEvery { repository.purgeOldEvents() } returns Unit
         io.mockk.coEvery { repository.syncMasterList() } returns Unit
 
-        val viewModel = MainListViewModel(repository)
+        val viewModel = MainListViewModel(repository, authManager)
         
         testScheduler.advanceUntilIdle()
         
@@ -92,6 +97,7 @@ class MainListViewModelTest {
 
     @Test
     fun `should sync master list on init if NOT in demo mode`() = runTest {
+        isAuthedFlow.value = true
         // Case where database is empty (isDemoMode will be false)
         every { repository.getAllAttendees() } returns flowOf(emptyList())
         every { repository.getQueueItems() } returns flowOf(emptyList())
@@ -105,7 +111,7 @@ class MainListViewModelTest {
         io.mockk.coEvery { repository.purgeOldEvents() } returns Unit
         io.mockk.coEvery { repository.syncMasterList() } returns Unit
 
-        val viewModel = MainListViewModel(repository)
+        val viewModel = MainListViewModel(repository, authManager)
         
         testScheduler.advanceUntilIdle()
         
@@ -134,7 +140,7 @@ class MainListViewModelTest {
         io.mockk.coEvery { repository.isDemoMode() } returns false
         io.mockk.coEvery { repository.purgeOldEvents() } returns Unit
 
-        val viewModel = MainListViewModel(repository)
+        val viewModel = MainListViewModel(repository, authManager)
         
         val job = launch(UnconfinedTestDispatcher(testScheduler)) {
             viewModel.attendees.collect()
@@ -167,7 +173,7 @@ class MainListViewModelTest {
         io.mockk.coEvery { repository.purgeOldEvents() } returns Unit
         io.mockk.coEvery { repository.replaceQueueWithSelection(any()) } returns Unit
 
-        val viewModel = MainListViewModel(repository)
+        val viewModel = MainListViewModel(repository, authManager)
         
         viewModel.selectedIds.value.size shouldBe 0
         
@@ -182,20 +188,33 @@ class MainListViewModelTest {
 
     @Test
     fun `visibility chips should exhibit isolation behavior when both are on`() = runTest {
-        val attendees = listOf(Attendee("1", "John"))
+        val attendees = listOf(
+            Attendee("1", "John"),
+            Attendee("2", "Jane")
+        )
+        val records = listOf(
+            AttendanceRecord("Event", "1", "PRESENT", 1000L)
+        )
+        val events = listOf(Event("Event", "260223 1030 Sunday Service", "cloudId"))
         every { repository.getAllAttendees() } returns flowOf(attendees)
         every { repository.getQueueItems() } returns flowOf(emptyList())
-        every { repository.getAttendanceRecords(any()) } returns flowOf(emptyList())
+        every { repository.getAttendanceRecords(any()) } returns flowOf(records)
         every { repository.getPendingSyncCount() } returns flowOf(0)
-        every { repository.getManageableEvents() } returns flowOf(emptyList())
-        every { repository.getAllEvents() } returns flowOf(emptyList())
+        every { repository.getManageableEvents() } returns flowOf(events)
+        every { repository.getAllEvents() } returns flowOf(events)
         every { repository.getAllGroups() } returns flowOf(emptyList())
         every { repository.getAllMappings() } returns flowOf(emptyList())
         io.mockk.coEvery { repository.syncMasterList() } returns Unit
         io.mockk.coEvery { repository.isDemoMode() } returns false
         io.mockk.coEvery { repository.purgeOldEvents() } returns Unit
 
-        val viewModel = MainListViewModel(repository)
+        val viewModel = MainListViewModel(repository, authManager)
+        
+        // Start collection for reactive flows
+        val job = launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.attendees.collect()
+        }
+        testScheduler.advanceUntilIdle()
 
         // Both ON by default
         viewModel.showPresent.value shouldBe true
@@ -220,5 +239,87 @@ class MainListViewModelTest {
         viewModel.onShowPresentToggle()
         viewModel.showPresent.value shouldBe true
         viewModel.showAbsent.value shouldBe true
+        
+        job.cancel()
+    }
+
+    @Test
+    fun `login error should be cleared when dialog is dismissed or login is triggered`() = runTest {
+        every { repository.getAllAttendees() } returns flowOf(emptyList())
+        every { repository.getQueueItems() } returns flowOf(emptyList())
+        every { repository.getPendingSyncCount() } returns flowOf(0)
+        every { repository.getManageableEvents() } returns flowOf(emptyList())
+        every { repository.getAllEvents() } returns flowOf(emptyList())
+        every { repository.getAllGroups() } returns flowOf(emptyList())
+        every { repository.getAllMappings() } returns flowOf(emptyList())
+        io.mockk.coEvery { repository.purgeOldEvents() } returns Unit
+        io.mockk.coEvery { repository.syncMasterList() } returns Unit
+
+        val viewModel = MainListViewModel(repository, authManager)
+
+        // Set an error
+        viewModel.onLoginError("Test error")
+        viewModel.loginError.value shouldBe "Test error"
+
+        // Dismiss dialog -> Should clear error
+        viewModel.setShowCloudStatusDialog(false)
+        viewModel.loginError.value shouldBe null
+
+        // Set error again
+        viewModel.onLoginError("Another error")
+        viewModel.loginError.value shouldBe "Another error"
+
+        // Trigger login -> Should clear error
+        viewModel.onLoginTrigger()
+        viewModel.loginError.value shouldBe null
+    }
+
+    @Test
+    fun `handleOAuthCode should exchange code and sync`() = runTest {
+        every { repository.getAllAttendees() } returns flowOf(emptyList())
+        every { repository.getQueueItems() } returns flowOf(emptyList())
+        every { repository.getPendingSyncCount() } returns flowOf(0)
+        every { repository.getManageableEvents() } returns flowOf(emptyList())
+        every { repository.getAllEvents() } returns flowOf(emptyList())
+        every { repository.getAllGroups() } returns flowOf(emptyList())
+        every { repository.getAllMappings() } returns flowOf(emptyList())
+        io.mockk.coEvery { repository.purgeOldEvents() } returns Unit
+        
+        // Mock successful exchange and sync
+        io.mockk.coEvery { authManager.exchangeCodeForTokens("test_code") } returns true
+        io.mockk.coEvery { repository.syncMasterListWithResult() } returns true
+
+        val viewModel = MainListViewModel(repository, authManager)
+        
+        viewModel.handleOAuthCode("test_code")
+        
+        testScheduler.advanceUntilIdle()
+        
+        viewModel.loginError.value shouldBe null
+        io.mockk.coVerify { authManager.exchangeCodeForTokens("test_code") }
+        io.mockk.coVerify { repository.syncMasterListWithResult() }
+    }
+
+    @Test
+    fun `handleOAuthCode should show error if exchange fails`() = runTest {
+        every { repository.getAllAttendees() } returns flowOf(emptyList())
+        every { repository.getQueueItems() } returns flowOf(emptyList())
+        every { repository.getPendingSyncCount() } returns flowOf(0)
+        every { repository.getManageableEvents() } returns flowOf(emptyList())
+        every { repository.getAllEvents() } returns flowOf(emptyList())
+        every { repository.getAllGroups() } returns flowOf(emptyList())
+        every { repository.getAllMappings() } returns flowOf(emptyList())
+        io.mockk.coEvery { repository.purgeOldEvents() } returns Unit
+        
+        // Mock failed exchange
+        io.mockk.coEvery { authManager.exchangeCodeForTokens("test_code") } returns false
+
+        val viewModel = MainListViewModel(repository, authManager)
+        
+        viewModel.handleOAuthCode("test_code")
+        
+        testScheduler.advanceUntilIdle()
+        
+        viewModel.loginError.value?.contains("Failed to exchange code") shouldBe true
     }
 }

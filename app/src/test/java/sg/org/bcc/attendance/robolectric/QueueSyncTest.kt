@@ -37,8 +37,10 @@ class QueueSyncTest {
             db.eventDao(),
             db.groupDao(),
             db.attendeeGroupMappingDao(),
-            io.mockk.mockk(relaxed = true),
-            sg.org.bcc.attendance.util.time.TrueTimeProvider()
+            io.mockk.mockk(relaxed = true), // cloudProvider
+            io.mockk.mockk(relaxed = true), // authManager
+            sg.org.bcc.attendance.util.time.TrueTimeProvider(),
+            io.mockk.mockk(relaxed = true) // syncScheduler
         )
     }
 

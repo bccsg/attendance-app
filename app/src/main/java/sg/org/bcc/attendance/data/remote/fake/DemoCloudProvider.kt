@@ -56,44 +56,9 @@ class DemoCloudProvider @Inject constructor(
 
     override suspend fun fetchRecentEvents(days: Int): List<Event> {
         val localEvents = eventDao.getAllEvents().first()
-        val cutoff = LocalDate.now().minusDays(days.toLong())
-        
-        // Filter local events within the window
-        val validLocalEvents = localEvents.filter { event ->
-            val datePart = event.title.substringBefore(" ")
-            try {
-                val date = LocalDate.parse(datePart, DateTimeFormatter.ofPattern("yyMMdd"))
-                date.isAfter(cutoff) || date.isEqual(cutoff)
-            } catch (e: Exception) {
-                false
-            }
+        if (localEvents.isNotEmpty()) {
+            return localEvents
         }
-
-        if (validLocalEvents.isNotEmpty()) {
-            return validLocalEvents
-        }
-
-        // If no valid local events exist (e.g. fresh install or purge), generate deterministic ones
-        val today = LocalDate.now()
-        val dateFormatter = DateTimeFormatter.ofPattern("yyMMdd")
-        val eventNames = listOf(
-            "Mickey's Celebration",
-            "Magic Kingdom Gathering",
-            "Princess Royal Ball",
-            "Frozen Adventure",
-            "Lion King Pride Meeting",
-            "Toy Story Playtime"
-        )
-
-        return (0..days step 7).mapIndexed { index, daysAgo ->
-            val date = today.minusDays(daysAgo.toLong())
-            val dateStr = date.format(dateFormatter)
-            val name = eventNames[index % eventNames.size]
-            Event(
-                id = "demo-event-$daysAgo",
-                title = "$dateStr 1030 $name",
-                cloudEventId = (100000000 + index * 12345).toString()
-            )
-        }
+        return DemoData.generateRecentEvents(days)
     }
 }

@@ -21,7 +21,7 @@ This document is the absolute source of truth for build configuration, architect
 ## 3. Engineering & UX Standards
 *   **Test-Driven**: Every feature or fix MUST have corresponding tests (Unit or Robolectric).
 *   **Name Priority**: UI always displays `shortName` as primary; fallback to `fullName`.
-*   **Safety Interaction**: "Mark Present/Absent" actions require a 1.5s hold with a clockwise drawing-border animation.
+*   **Safety Interaction**: "Mark Present/Absent" actions require a 1.0s hold with a clockwise drawing-border animation.
 *   **Icons**: Use **Material Symbols Rounded**. 
     *   Find icons at: [fonts.google.com/icons](https://fonts.google.com/icons?icon.style=Rounded)
     *   To install: Download the **Android (XML)** version or use direct URLs like `https://fonts.gstatic.com/s/i/short-term/release/materialsymbolsrounded/[icon_name]/default/24px.xml`.
@@ -29,7 +29,7 @@ This document is the absolute source of truth for build configuration, architect
     *   Mapping: Add the resource to `sg.org.bcc.attendance.ui.components.AppIcons`.
 *   **Folder Structure**:
     *   `data/local`: Room schema and DAOs.
-    *   `data/remote`: CloudAdapter implementations.
+    *   `data/remote`: AttendanceCloudProvider implementations.
     *   `data/repository`: The single source of truth for ViewModels.
     *   `ui/components`: Reusable Compose widgets.
     *   `util`: Standalone logic (e.g., EventSuggester).

@@ -5,7 +5,7 @@ import dagger.Module
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import sg.org.bcc.attendance.data.remote.AttendanceCloudProvider
-import sg.org.bcc.attendance.data.remote.fake.DemoCloudProvider
+import sg.org.bcc.attendance.data.remote.DelegatingCloudProvider
 import javax.inject.Singleton
 
 @Module
@@ -14,5 +14,5 @@ abstract class NetworkModule {
 
     @Binds
     @Singleton
-    abstract fun bindCloudProvider(demo: DemoCloudProvider): AttendanceCloudProvider
+    abstract fun bindCloudProvider(impl: DelegatingCloudProvider): AttendanceCloudProvider
 }

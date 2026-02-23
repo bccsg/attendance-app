@@ -16,7 +16,6 @@ import javax.inject.Inject
 
 data class CloudProfile(
     val email: String,
-    val displayName: String,
     val profileImageUrl: String? = null
 )
 
@@ -73,8 +72,7 @@ class MainListViewModel @Inject constructor(
     val cloudProfile: StateFlow<CloudProfile?> = isAuthed.map { authed ->
         if (authed) {
             CloudProfile(
-                email = authManager.getEmail() ?: "",
-                displayName = authManager.getDisplayName() ?: ""
+                email = authManager.getEmail() ?: ""
             )
         } else null
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
@@ -91,8 +89,17 @@ class MainListViewModel @Inject constructor(
     private val _showCloudStatusDialog = MutableStateFlow(false)
     val showCloudStatusDialog: StateFlow<Boolean> = _showCloudStatusDialog.asStateFlow()
 
+    private val _loginError = MutableStateFlow<String?>(null)
+    val loginError: StateFlow<String?> = _loginError.asStateFlow()
+
+    val requiredDomain = AuthManager.REQUIRED_DOMAIN
+
     private val _showQueueSheet = MutableStateFlow(false)
     val showQueueSheet: StateFlow<Boolean> = _showQueueSheet.asStateFlow()
+
+    // Events for MainActivity to observe
+    private val _loginRequestEvent = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val loginRequestEvent = _loginRequestEvent.asSharedFlow()
 
     fun setShowQueueSheet(show: Boolean) {
         _showQueueSheet.value = show
@@ -295,9 +302,9 @@ class MainListViewModel @Inject constructor(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
     init {
-        // Initial sync to populate data if not in demo mode or if database is empty
+        // Initial seed of demo data if the database is empty on first launch
         viewModelScope.launch {
-            if (isAuthed.value) {
+            if (repository.getAllAttendees().first().isEmpty()) {
                 repository.syncMasterList()
             }
         }
@@ -352,6 +359,7 @@ class MainListViewModel @Inject constructor(
     fun onShowPresentToggle() {
         _isShowSelectedOnlyMode.value = false
         if (_showPresent.value && _showAbsent.value) {
+            _showPresent.value = true
             _showAbsent.value = false
         } else if (!_showPresent.value) {
             _showPresent.value = true
@@ -362,6 +370,7 @@ class MainListViewModel @Inject constructor(
         _isShowSelectedOnlyMode.value = false
         if (_showPresent.value && _showAbsent.value) {
             _showPresent.value = false
+            _showAbsent.value = true
         } else if (!_showAbsent.value) {
             _showAbsent.value = true
         }
@@ -458,15 +467,83 @@ class MainListViewModel @Inject constructor(
         setShowCloudStatusDialog(true)
     }
 
-    fun setShowCloudStatusDialog(show: Boolean) {
-        _showCloudStatusDialog.value = show
+    fun doManualSync() {
+        viewModelScope.launch {
+            isSyncing.value = true
+            try {
+                val (syncSuccess, detailedStatus) = repository.syncMasterListWithDetailedResult()
+                if (!syncSuccess) {
+                    _loginError.value = detailedStatus
+                } else {
+                    _loginError.value = null // Clear any previous errors on success
+                }
+            } catch (e: Exception) {
+                _loginError.value = "Sync failed: ${e.message}"
+            } finally {
+                isSyncing.value = false
+            }
+        }
     }
 
-    fun onLogin() {
+    fun setShowCloudStatusDialog(show: Boolean) {
+        _showCloudStatusDialog.value = show
+        if (!show) {
+            _loginError.value = null
+        }
+    }
+
+    fun clearLoginError() {
+        _loginError.value = null
+    }
+
+    fun onLoginError(message: String) {
+        _loginError.value = message
+    }
+
+    fun onLoginTrigger() {
+        _loginError.value = null
         viewModelScope.launch {
-            authManager.login("usher@bcc.org.sg", "Main Usher")
-            // Exiting demo mode happens via syncMasterList
-            repository.syncMasterList()
+            _loginRequestEvent.emit(Unit)
+        }
+    }
+
+    fun getAuthUrl(): String = authManager.getAuthUrl()
+
+    fun handleOAuthCode(code: String) {
+        android.util.Log.d("AttendanceAuth", "ViewModel handling OAuth code: ${code.take(5)}...")
+        viewModelScope.launch {
+            isSyncing.value = true
+            try {
+                // 1. Exchange code for tokens
+                android.util.Log.d("AttendanceAuth", "Exchanging code for tokens...")
+                val exchangeSuccess = authManager.exchangeCodeForTokens(code)
+                if (!exchangeSuccess) {
+                    android.util.Log.e("AttendanceAuth", "Token exchange FAILED!")
+                    _loginError.value = "Failed to exchange code for tokens. Ensure you use a @${AuthManager.REQUIRED_DOMAIN} account."
+                    return@launch
+                }
+
+                android.util.Log.d("AttendanceAuth", "Exchange success! Clearing old data and attempting master sync...")
+                // 2. Clear all local data before syncing with the cloud
+                repository.clearAllData()
+                
+                // 3. Attempt sync with new tokens
+                val (syncSuccess, detailedStatus) = repository.syncMasterListWithDetailedResult()
+                android.util.Log.d("AttendanceAuth", "Sync success: $syncSuccess, status:\n$detailedStatus")
+                
+                if (syncSuccess) {
+                    _loginError.value = null
+                } else {
+                    // For now, logout to ensure clean state if sync fails
+                    authManager.logout()
+                    _loginError.value = detailedStatus
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("AttendanceAuth", "Error during OAuth flow: ${e.message}", e)
+                _loginError.value = "Login error: ${e.message}"
+            } finally {
+                isSyncing.value = false
+            }
         }
     }
 
@@ -474,6 +551,7 @@ class MainListViewModel @Inject constructor(
         viewModelScope.launch {
             authManager.logout()
             repository.clearAllData()
+            repository.syncMasterList()
         }
     }
 

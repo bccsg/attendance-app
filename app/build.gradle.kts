@@ -1,4 +1,5 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import java.util.Properties
 
 plugins {
     alias(libs.plugins.androidApplication)
@@ -20,6 +21,21 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // Load secrets from local.properties
+        val properties = Properties()
+        val localPropertiesFile = project.rootProject.file("local.properties")
+        if (localPropertiesFile.exists()) {
+            properties.load(localPropertiesFile.inputStream())
+        }
+
+        val googleClientSecretsJson = properties.getProperty("GOOGLE_CLIENT_SECRETS_JSON") ?: ""
+        val masterSheetId = properties.getProperty("MASTER_SHEET_ID") ?: ""
+        val eventSheetId = properties.getProperty("EVENT_SHEET_ID") ?: ""
+
+        buildConfigField("String", "GOOGLE_CLIENT_SECRETS_JSON", "\"${googleClientSecretsJson.replace("\"", "\\\"")}\"")
+        buildConfigField("String", "MASTER_SHEET_ID", "\"$masterSheetId\"")
+        buildConfigField("String", "EVENT_SHEET_ID", "\"$eventSheetId\"")
     }
 
     buildTypes {
@@ -42,9 +58,19 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
     room {
         schemaDirectory("$projectDir/schemas")
+    }
+
+    packaging {
+        resources {
+            excludes += "/META-INF/{AL2.0,LGPL2.1}"
+            excludes += "META-INF/DEPENDENCIES"
+            excludes += "META-INF/LICENSE"
+            excludes += "META-INF/NOTICE"
+        }
     }
 }
 
@@ -64,6 +90,18 @@ dependencies {
     implementation(libs.androidxMaterialIconsExtended)
     implementation(libs.androidxHiltNavigationCompose)
     implementation(libs.material)
+    implementation(libs.androidxWorkRuntimeKtx)
+    implementation(libs.androidxHiltWork)
+    implementation(libs.androidxSecurityCrypto)
+    implementation(libs.androidxBrowser)
+    implementation(libs.googleApiClientAndroid)
+    implementation(libs.googleSheetsApi)
+    implementation(libs.googleAuthLibrary)
+    implementation(libs.googleHttpJson)
+    implementation(libs.androidxCredentials)
+    implementation(libs.androidxCredentialsPlayServices)
+    implementation(libs.googleId)
+    ksp(libs.androidxHiltCompiler)
 
     // Room
     implementation(libs.roomRuntime)

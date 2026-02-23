@@ -39,7 +39,8 @@ fun EventManagementScreen(
     currentEventId: String?,
     textScale: Float = 1.0f,
     onEventSelected: (String) -> Unit,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onLogout: () -> Unit
 ) {
     val events by viewModel.manageableEvents.collectAsState()
     val isDemoMode by viewModel.isDemoMode.collectAsState()
@@ -97,8 +98,49 @@ fun EventManagementScreen(
         }
 
         if (events.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                Text("No events within the last 30 days.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Box(
+                modifier = Modifier.fillMaxSize().padding(padding), 
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    modifier = Modifier.padding(32.dp)
+                ) {
+                    AppIcon(
+                        resourceId = AppIcons.Schedule,
+                        contentDescription = null,
+                        modifier = Modifier.size(64.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
+                    )
+                    Text(
+                        text = "No recent events",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "Create a new event to begin taking attendance.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                        textAlign = TextAlign.Center
+                    )
+                    Button(
+                        onClick = { showCreateDialog = true },
+                        modifier = Modifier.padding(top = 8.dp)
+                    ) {
+                        AppIcon(resourceId = AppIcons.PlaylistAdd, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Create Event")
+                    }
+                    TextButton(onClick = { 
+                        viewModel.logout(onLogoutComplete = {
+                            onBack()
+                            onLogout()
+                        }) 
+                    }) {
+                        Text("Logout")
+                    }
+                }
             }
         } else {
             LazyColumn(

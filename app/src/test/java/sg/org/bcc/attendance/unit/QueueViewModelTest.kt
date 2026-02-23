@@ -7,6 +7,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.*
 import org.junit.After
@@ -14,16 +15,20 @@ import org.junit.Before
 import org.junit.Test
 import sg.org.bcc.attendance.data.local.entities.AttendanceRecord
 import sg.org.bcc.attendance.data.repository.AttendanceRepository
+import sg.org.bcc.attendance.data.remote.AuthManager
 import sg.org.bcc.attendance.ui.queue.QueueViewModel
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class QueueViewModelTest {
     private val repository = mockk<AttendanceRepository>()
+    private val authManager = mockk<AuthManager>()
+    private val isAuthedFlow = MutableStateFlow(false)
     private val testDispatcher = UnconfinedTestDispatcher()
 
     @Before
     fun setup() {
         Dispatchers.setMain(testDispatcher)
+        every { authManager.isAuthed } returns isAuthedFlow
     }
 
     @After
@@ -45,7 +50,7 @@ class QueueViewModelTest {
         every { repository.getAttendanceRecords(eventId) } returns flowOf(records)
         every { repository.getManageableEvents() } returns flowOf(emptyList())
 
-        val viewModel = QueueViewModel(repository)
+        val viewModel = QueueViewModel(repository, authManager)
         
         val job = launch(UnconfinedTestDispatcher(testScheduler)) {
             viewModel.presentIds.collect { }
@@ -74,7 +79,7 @@ class QueueViewModelTest {
         every { repository.getAttendanceRecords(any()) } returns flowOf(records)
         every { repository.getManageableEvents() } returns flowOf(emptyList())
 
-        val viewModel = QueueViewModel(repository)
+        val viewModel = QueueViewModel(repository, authManager)
         
         val job = launch(UnconfinedTestDispatcher(testScheduler)) {
             viewModel.presentIds.collect { }
@@ -99,7 +104,7 @@ class QueueViewModelTest {
         every { repository.getAllAttendees() } returns flowOf(emptyList())
         every { repository.getManageableEvents() } returns flowOf(emptyList())
 
-        val viewModel = QueueViewModel(repository)
+        val viewModel = QueueViewModel(repository, authManager)
         viewModel.syncQueue(eventId, state)
         
         io.mockk.coVerify { repository.syncQueue(eventId, state) }
@@ -113,7 +118,7 @@ class QueueViewModelTest {
         every { repository.getAllAttendees() } returns flowOf(emptyList())
         every { repository.getManageableEvents() } returns flowOf(emptyList())
 
-        val viewModel = QueueViewModel(repository)
+        val viewModel = QueueViewModel(repository, authManager)
         viewModel.clearQueue()
         
         io.mockk.coVerify { repository.clearQueue() }

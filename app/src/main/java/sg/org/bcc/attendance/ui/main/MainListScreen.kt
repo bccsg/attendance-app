@@ -77,6 +77,8 @@ fun MainListScreen(
     val cloudProfile by viewModel.cloudProfile.collectAsState()
     val syncProgress by viewModel.syncProgress.collectAsState()
     val showCloudStatusDialog by viewModel.showCloudStatusDialog.collectAsState()
+    val loginError by viewModel.loginError.collectAsState()
+    val requiredDomain = viewModel.requiredDomain
     val presentIds by viewModel.presentIds.collectAsState()
     val pendingIds by viewModel.pendingIds.collectAsState()
     val queueIds by viewModel.queueIds.collectAsState()
@@ -222,9 +224,11 @@ fun MainListScreen(
             cloudProfile = cloudProfile,
             syncProgress = syncProgress,
             isDemoMode = isDemoMode,
-            onLogin = viewModel::onLogin,
+            loginError = loginError,
+            onLogin = viewModel::onLoginTrigger,
             onLogout = viewModel::onLogout,
-            onDismiss = { viewModel.setShowCloudStatusDialog(false) }
+            onDismiss = { viewModel.setShowCloudStatusDialog(false) },
+            onManualSync = viewModel::doManualSync
         )
     }
 
@@ -278,440 +282,499 @@ fun MainListScreen(
         }
     }
 
-    Scaffold(
-        snackbarHost = { SnackbarHost(snackbarHostState) },
-        floatingActionButton = {
-            if (!isSearchActive) {
-                if (isSelectionMode) {
-                    FloatingActionButton(
-                        modifier = Modifier.padding(bottom = 16.dp),
-                        onClick = {
-                            if (selectedIds.isNotEmpty()) {
-                                viewModel.confirmSelection()
-                                viewModel.setShowQueueSheet(true)
-                            }
-                        },
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary,
-                        shape = CircleShape
-                    ) {
-                        AppIcon(resourceId = AppIcons.PlaylistAdd, contentDescription = "Queue selected")
-                    }
-                } else {
-                    ExtendedFloatingActionButton(
-                        modifier = Modifier.padding(bottom = 16.dp),
-                        text = { Text("Scan QR") },
-                        icon = { AppIcon(resourceId = AppIcons.QrCodeScanner, contentDescription = null) },
-                        onClick = {
-                            scope.launch { snackbarHostState.showSnackbar("QR Scanner coming soon") }
-                        },
-                        containerColor = MaterialTheme.colorScheme.primaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                        shape = CircleShape
-                    )
-                }
-            }
-        },
-        topBar = {
-            Surface(
-                color = MaterialTheme.colorScheme.primary,
-                tonalElevation = 4.dp
-            ) {
-                Column(modifier = Modifier.statusBarsPadding()) {
-                    TopAppBar(
-                        navigationIcon = {
-                            if (isSelectionMode) {
-                                IconButton(onClick = viewModel::clearSelection) {
-                                    AppIcon(resourceId = AppIcons.Close, contentDescription = "Clear Selection", tint = MaterialTheme.colorScheme.onPrimary)
-                                }
-                            }
-                        },
-                        title = {
-                            if (isSelectionMode) {
-                                Text("${selectedIds.size} Selected", color = MaterialTheme.colorScheme.onPrimary)
-                            } else {
-                                currentEvent?.let { event ->
-                                    val parts = event.title.split(" ", limit = 3)
-                                    val date = if (parts.isNotEmpty()) EventSuggester.parseDate(parts[0]) else null
-                                    val timeStr = if (parts.size > 1) parts[1] else "0000"
-                                    val name = if (parts.size > 2) parts[2] else "Unnamed Event"
-                                    val time = try {
-                                        LocalTime.of(timeStr.take(2).toInt(), timeStr.takeLast(2).toInt())
-                                    } catch (e: Exception) {
-                                        LocalTime.MIDNIGHT
-                                    }
-                                    val formattedTime = time.format(java.time.format.DateTimeFormatter.ofPattern("h:mm a", Locale.ENGLISH))
-
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        modifier = Modifier.clickable { onNavigateToEventManagement() }
-                                    ) {
-                                        DateIcon(date = date, textScale = 0.8f)
-                                        Spacer(modifier = Modifier.width(12.dp))
-                                        Column {
-                                            Text(
-                                                text = name,
-                                                style = MaterialTheme.typography.titleMedium,
-                                                color = MaterialTheme.colorScheme.onPrimary
-                                            )
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Text(
-                                                    text = formattedTime,
-                                                    style = MaterialTheme.typography.labelMedium,
-                                                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
-                                                )
-                                                Spacer(modifier = Modifier.width(8.dp))
-                                                Text(
-                                                    text = event.cloudEventId ?: event.id.take(8),
-                                                    style = MaterialTheme.typography.labelSmall,
-                                                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.5f)
-                                                )
-                                            }
-                                        }
-                                    }
-                                } ?: Text("Attendance", color = MaterialTheme.colorScheme.onPrimary)
-                            }
-                        },
-                        actions = {
-                            var showMenu by remember { mutableStateOf(false) }
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                if (isSelectionMode) {
-                                    // Checklist Toggle
-                                    IconButton(
-                                        onClick = { 
-                                            viewModel.toggleShowSelectedOnlyMode()
-                                            if (viewModel.isShowSelectedOnlyMode.value) {
-                                                isSearchActive = false
-                                                viewModel.onSearchQueryChange("")
-                                            }
-                                        },
-                                        modifier = if (isShowSelectedOnlyMode) {
-                                            Modifier.background(
-                                                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.2f),
-                                                shape = CircleShape
-                                            )
-                                        } else Modifier
-                                    ) {
-                                        AppIcon(
-                                            resourceId = AppIcons.Checklist, 
-                                            contentDescription = "Show Selected Only",
-                                            tint = MaterialTheme.colorScheme.onPrimary
-                                        )
-                                    }
-                                } else {
-                                    IconButton(onClick = viewModel::onSyncMasterList) {
-                                        val syncIcon = when {
-                                            hasSyncError -> AppIcons.CloudAlert
-                                            isSyncing -> AppIcons.Cloud
-                                            isDemoMode || !isAuthed -> AppIcons.CloudOff
-                                            else -> AppIcons.CloudDone
-                                        }
-                                        AppIcon(
-                                            resourceId = syncIcon,
-                                            contentDescription = "Sync Status",
-                                            tint = when {
-                                                hasSyncError -> MaterialTheme.colorScheme.errorContainer
-                                                else -> MaterialTheme.colorScheme.onPrimary
-                                            },
-                                            modifier = if (isSyncing) Modifier.alpha(syncAlpha) else Modifier
-                                        )
-                                    }
-                                    IconButton(onClick = { showMenu = true }) {
-                                        AppIcon(resourceId = AppIcons.MoreVert, contentDescription = "More Options", tint = MaterialTheme.colorScheme.onPrimary)
-                                    }
-                                    DropdownMenu(
-                                        expanded = showMenu,
-                                        onDismissRequest = { showMenu = false }
-                                    ) {
-                                        DropdownMenuItem(
-                                            text = { Text("Text Size", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold) },
-                                            onClick = { },
-                                            enabled = false
-                                        )
-                                        DropdownMenuItem(
-                                            text = {
-                                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                                    RadioButton(
-                                                        selected = textScale == 1.0f,
-                                                        onClick = null // Handled by item click
-                                                    )
-                                                    Spacer(modifier = Modifier.width(8.dp))
-                                                    Text("Normal")
-                                                }
-                                            },
-                                            onClick = {
-                                                viewModel.setTextScale(1.0f)
-                                                showMenu = false
-                                            }
-                                        )
-                                        DropdownMenuItem(
-                                            text = {
-                                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                                    RadioButton(
-                                                        selected = textScale > 1.0f,
-                                                        onClick = null // Handled by item click
-                                                    )
-                                                    Spacer(modifier = Modifier.width(8.dp))
-                                                    Text("Large")
-                                                }
-                                            },
-                                            onClick = {
-                                                viewModel.setTextScale(1.5f)
-                                                showMenu = false
-                                            }
-                                        )
-                                    }
-                                }
-                            }
-                        },
-                        colors = TopAppBarDefaults.topAppBarColors(
-                            containerColor = Color.Transparent
-                        )
-                    )
-                }
-            }
-        },
-        bottomBar = {
-            BottomAppBar(
-                containerColor = MaterialTheme.colorScheme.surface,
-                tonalElevation = 8.dp,
-                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp),
-                modifier = Modifier
-                    .windowInsetsPadding(WindowInsets.navigationBars)
-                    .windowInsetsPadding(WindowInsets.ime)
-                    .height(80.dp)
-                    .pointerInput(isSelectionMode) {
-                        if (isSelectionMode) return@pointerInput
-                        detectVerticalDragGestures { _, dragAmount ->
-                            if (dragAmount < -20) { // Significant swipe up
-                                viewModel.setShowQueueSheet(true)
-                            }
-                        }
-                    }
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(80.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (isSearchActive) {
-                        OutlinedTextField(
-                            value = searchQuery,
-                            onValueChange = viewModel::onSearchQueryChange,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .focusRequester(focusRequester)
-                                .padding(horizontal = 8.dp),
-                            placeholder = { Text("Search attendees...") },
-                            leadingIcon = { AppIcon(resourceId = AppIcons.PersonSearch, contentDescription = null) },
-                            trailingIcon = {
-                                IconButton(onClick = { 
-                                    isSearchActive = false 
-                                    viewModel.onSearchQueryChange("")
-                                }) {
-                                    AppIcon(resourceId = AppIcons.Close, contentDescription = "Close Search")
+    Box(modifier = Modifier.fillMaxSize()) {
+        Scaffold(
+            snackbarHost = { SnackbarHost(snackbarHostState) },
+            floatingActionButton = {
+                if (!isSearchActive) {
+                    if (isSelectionMode) {
+                        FloatingActionButton(
+                            modifier = Modifier.padding(bottom = 16.dp),
+                            onClick = {
+                                if (selectedIds.isNotEmpty()) {
+                                    viewModel.confirmSelection()
+                                    viewModel.setShowQueueSheet(true)
                                 }
                             },
-                            singleLine = true,
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                                focusedBorderColor = Color.Transparent,
-                                unfocusedBorderColor = Color.Transparent
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary,
+                            shape = CircleShape
+                        ) {
+                            AppIcon(resourceId = AppIcons.PlaylistAdd, contentDescription = "Queue selected")
+                        }
+                    } else {
+                        ExtendedFloatingActionButton(
+                            modifier = Modifier.padding(bottom = 16.dp),
+                            text = { Text("Scan QR") },
+                            icon = { AppIcon(resourceId = AppIcons.QrCodeScanner, contentDescription = null) },
+                            onClick = {
+                                scope.launch { snackbarHostState.showSnackbar("QR Scanner coming soon") }
+                            },
+                            containerColor = MaterialTheme.colorScheme.primaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                            shape = CircleShape
+                        )
+                    }
+                }
+            },
+            topBar = {
+                Surface(
+                    color = MaterialTheme.colorScheme.primary,
+                    tonalElevation = 4.dp
+                ) {
+                    Column(modifier = Modifier.statusBarsPadding()) {
+                        TopAppBar(
+                            navigationIcon = {
+                                if (isSelectionMode) {
+                                    IconButton(onClick = viewModel::clearSelection) {
+                                        AppIcon(resourceId = AppIcons.Close, contentDescription = "Clear Selection", tint = MaterialTheme.colorScheme.onPrimary)
+                                    }
+                                }
+                            },
+                            title = {
+                                if (isSelectionMode) {
+                                    Text("${selectedIds.size} Selected", color = MaterialTheme.colorScheme.onPrimary)
+                                } else {
+                                    currentEvent?.let { event ->
+                                        val parts = event.title.split(" ", limit = 3)
+                                        val date = if (parts.isNotEmpty()) EventSuggester.parseDate(parts[0]) else null
+                                        val timeStr = if (parts.size > 1) parts[1] else "0000"
+                                        val name = if (parts.size > 2) parts[2] else "Unnamed Event"
+                                        val time = try {
+                                            LocalTime.of(timeStr.take(2).toInt(), timeStr.takeLast(2).toInt())
+                                        } catch (e: Exception) {
+                                            LocalTime.MIDNIGHT
+                                        }
+                                        val formattedTime = time.format(java.time.format.DateTimeFormatter.ofPattern("h:mm a", Locale.ENGLISH))
+    
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier.clickable { onNavigateToEventManagement() }
+                                        ) {
+                                            DateIcon(date = date, textScale = 0.8f)
+                                            Spacer(modifier = Modifier.width(12.dp))
+                                            Column {
+                                                Text(
+                                                    text = name,
+                                                    style = MaterialTheme.typography.titleMedium,
+                                                    color = MaterialTheme.colorScheme.onPrimary
+                                                )
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Text(
+                                                        text = formattedTime,
+                                                        style = MaterialTheme.typography.labelMedium,
+                                                        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
+                                                    )
+                                                    Spacer(modifier = Modifier.width(8.dp))
+                                                    Text(
+                                                        text = event.cloudEventId ?: event.id.take(8),
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.5f)
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    } ?: Text("Attendance", color = MaterialTheme.colorScheme.onPrimary)
+                                }
+                            },
+                            actions = {
+                                var showMenu by remember { mutableStateOf(false) }
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    if (isSelectionMode) {
+                                        // Checklist Toggle
+                                        IconButton(
+                                            onClick = { 
+                                                viewModel.toggleShowSelectedOnlyMode()
+                                                if (viewModel.isShowSelectedOnlyMode.value) {
+                                                    isSearchActive = false
+                                                    viewModel.onSearchQueryChange("")
+                                                }
+                                            },
+                                            modifier = if (isShowSelectedOnlyMode) {
+                                                Modifier.background(
+                                                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.2f),
+                                                    shape = CircleShape
+                                                )
+                                            } else Modifier
+                                        ) {
+                                            AppIcon(
+                                                resourceId = AppIcons.Checklist, 
+                                                contentDescription = "Show Selected Only",
+                                                tint = MaterialTheme.colorScheme.onPrimary
+                                            )
+                                        }
+                                    } else {
+                                        IconButton(onClick = viewModel::onSyncMasterList) {
+                                            val syncIcon = when {
+                                                hasSyncError -> AppIcons.CloudAlert
+                                                isSyncing -> AppIcons.Cloud
+                                                isDemoMode || !isAuthed -> AppIcons.CloudOff
+                                                else -> AppIcons.CloudDone
+                                            }
+                                            AppIcon(
+                                                resourceId = syncIcon,
+                                                contentDescription = "Sync Status",
+                                                tint = when {
+                                                    hasSyncError -> MaterialTheme.colorScheme.errorContainer
+                                                    else -> MaterialTheme.colorScheme.onPrimary
+                                                },
+                                                modifier = if (isSyncing) Modifier.alpha(syncAlpha) else Modifier
+                                            )
+                                        }
+                                        IconButton(onClick = { showMenu = true }) {
+                                            AppIcon(resourceId = AppIcons.MoreVert, contentDescription = "More Options", tint = MaterialTheme.colorScheme.onPrimary)
+                                        }
+                                        DropdownMenu(
+                                            expanded = showMenu,
+                                            onDismissRequest = { showMenu = false }
+                                        ) {
+                                            DropdownMenuItem(
+                                                text = { Text("Text Size", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold) },
+                                                onClick = { },
+                                                enabled = false
+                                            )
+                                            DropdownMenuItem(
+                                                text = {
+                                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                                        RadioButton(
+                                                            selected = textScale == 1.0f,
+                                                            onClick = null // Handled by item click
+                                                        )
+                                                        Spacer(modifier = Modifier.width(8.dp))
+                                                        Text("Normal")
+                                                    }
+                                                },
+                                                onClick = {
+                                                    viewModel.setTextScale(1.0f)
+                                                    showMenu = false
+                                                }
+                                            )
+                                            DropdownMenuItem(
+                                                text = {
+                                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                                        RadioButton(
+                                                            selected = textScale > 1.0f,
+                                                            onClick = null // Handled by item click
+                                                        )
+                                                        Spacer(modifier = Modifier.width(8.dp))
+                                                        Text("Large")
+                                                    }
+                                                },
+                                                onClick = {
+                                                    viewModel.setTextScale(1.5f)
+                                                    showMenu = false
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+                            },
+                            colors = TopAppBarDefaults.topAppBarColors(
+                                containerColor = Color.Transparent
                             )
                         )
-                    } else {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            // Left: Search
-                            IconButton(onClick = { 
-                                isSearchActive = true 
-                                viewModel.deactivateShowSelectedOnlyMode()
-                            }) {
-                                AppIcon(resourceId = AppIcons.PersonSearch, contentDescription = "Search")
-                            }
-
-                            // Center: Filter Chips
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.Center,
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                val isSelectionMode = selectedIds.isNotEmpty()
-                                val isPresentVisible = showPresent && presentPoolCount > 0
-                                val isPendingVisible = showAbsent && pendingPoolCount > 0
-                                
-                                // No special treatment for only one is set to visible in selection mode
-                                val isBranded = !isSelectionMode && (isPresentVisible != isPendingVisible)
-                                
-                                val brandedChipColors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = MaterialTheme.colorScheme.primary,
-                                    selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
-                                    selectedLeadingIconColor = MaterialTheme.colorScheme.onPrimary,
-                                    disabledContainerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
-                                    disabledLabelColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
-                                    disabledLeadingIconColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
-                                )
-
-                                val defaultChipColors = FilterChipDefaults.filterChipColors(
-                                    disabledContainerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
-                                    disabledLabelColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
-                                    disabledLeadingIconColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
-                                )
-
-                                val presentChipColors = if (isBranded && isPresentVisible) {
-                                    brandedChipColors
-                                } else defaultChipColors
-
-                                val pendingChipColors = if (isBranded && isPendingVisible) {
-                                    brandedChipColors
-                                } else defaultChipColors
-
-                                val presentBadgeColor = if (isSelectionMode) {
-                                    MaterialTheme.colorScheme.secondary
-                                } else {
-                                    MaterialTheme.colorScheme.error
+                    }
+                }
+            },
+            bottomBar = {
+                BottomAppBar(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    tonalElevation = 8.dp,
+                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp),
+                    modifier = Modifier
+                        .windowInsetsPadding(WindowInsets.navigationBars)
+                        .windowInsetsPadding(WindowInsets.ime)
+                        .height(80.dp)
+                        .pointerInput(isSelectionMode) {
+                            if (isSelectionMode) return@pointerInput
+                            detectVerticalDragGestures { _, dragAmount ->
+                                if (dragAmount < -20) { // Significant swipe up
+                                    viewModel.setShowQueueSheet(true)
                                 }
-
-                                val presentBadgeContentColor = if (isSelectionMode) {
-                                    MaterialTheme.colorScheme.onSecondary
-                                } else {
-                                    MaterialTheme.colorScheme.onError
-                                }
-
-                                val pendingBadgeColor = MaterialTheme.colorScheme.secondary
-                                val pendingBadgeContentColor = MaterialTheme.colorScheme.onSecondary
-
-                                BadgedBox(
-                                    badge = {
-                                        if (presentBadgeCount > 0) {
-                                            Badge(
-                                                containerColor = presentBadgeColor,
-                                                contentColor = presentBadgeContentColor
-                                            ) { 
-                                                Text(presentBadgeCount.toString()) 
-                                            }
-                                        }
-                                    }
-                                ) {
-                                    FilterChip(
-                                        selected = showPresent,
-                                        onClick = { viewModel.onShowPresentToggle() },
-                                        label = { Text("Present") },
-                                        enabled = presentPoolCount > 0,
-                                        colors = presentChipColors,
-                                        leadingIcon = {
-                                            AppIcon(
-                                                resourceId = if (showPresent) AppIcons.Visibility else AppIcons.VisibilityOff,
-                                                contentDescription = null,
-                                                modifier = Modifier.size(18.dp)
-                                            )
-                                        }
-                                    )
-                                }
-                                
-                                Spacer(modifier = Modifier.width(8.dp))
-
-                                BadgedBox(
-                                    badge = {
-                                        if (pendingBadgeCount > 0) {
-                                            Badge(
-                                                containerColor = pendingBadgeColor,
-                                                contentColor = pendingBadgeContentColor
-                                            ) { 
-                                                Text(pendingBadgeCount.toString()) 
-                                            }
-                                        }
-                                    }
-                                ) {
-                                    FilterChip(
-                                        selected = showAbsent,
-                                        onClick = { viewModel.onShowAbsentToggle() },
-                                        label = { Text("Pending") },
-                                        enabled = pendingPoolCount > 0,
-                                        colors = pendingChipColors,
-                                        leadingIcon = {
-                                            AppIcon(
-                                                resourceId = if (showAbsent) AppIcons.Visibility else AppIcons.VisibilityOff,
-                                                contentDescription = null,
-                                                modifier = Modifier.size(18.dp)
-                                            )
-                                        }
-                                    )
-                                }
-                            }
-
-                            // Right: Queue Launcher with dynamic count icons
-                            val queueIcon = when (queueCount) {
-                                0 -> AppIcons.Filter.None
-                                1 -> AppIcons.Filter.One
-                                2 -> AppIcons.Filter.Two
-                                3 -> AppIcons.Filter.Three
-                                4 -> AppIcons.Filter.Four
-                                5 -> AppIcons.Filter.Five
-                                6 -> AppIcons.Filter.Six
-                                7 -> AppIcons.Filter.Seven
-                                8 -> AppIcons.Filter.Eight
-                                9 -> AppIcons.Filter.Nine
-                                else -> AppIcons.Filter.NinePlus
-                            }
-                            IconButton(onClick = { viewModel.setShowQueueSheet(true) }) {
-                                AppIcon(resourceId = queueIcon, contentDescription = "View Queue")
                             }
                         }
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(80.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (isSearchActive) {
+                            OutlinedTextField(
+                                value = searchQuery,
+                                onValueChange = viewModel::onSearchQueryChange,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .focusRequester(focusRequester)
+                                    .padding(horizontal = 8.dp),
+                                placeholder = { Text("Search attendees...") },
+                                leadingIcon = { AppIcon(resourceId = AppIcons.PersonSearch, contentDescription = null) },
+                                trailingIcon = {
+                                    IconButton(onClick = { 
+                                        isSearchActive = false 
+                                        viewModel.onSearchQueryChange("")
+                                    }) {
+                                        AppIcon(resourceId = AppIcons.Close, contentDescription = "Close Search")
+                                    }
+                                },
+                                singleLine = true,
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                    focusedBorderColor = Color.Transparent,
+                                    unfocusedBorderColor = Color.Transparent
+                                )
+                            )
+                        } else {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                // Left: Search
+                                IconButton(onClick = { 
+                                    isSearchActive = true 
+                                    viewModel.deactivateShowSelectedOnlyMode()
+                                }) {
+                                    AppIcon(resourceId = AppIcons.PersonSearch, contentDescription = "Search")
+                                }
+    
+                                // Center: Filter Chips
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center,
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    val isSelectionMode = selectedIds.isNotEmpty()
+                                    val isPresentVisible = showPresent && presentPoolCount > 0
+                                    val isPendingVisible = showAbsent && pendingPoolCount > 0
+                                    
+                                    // No special treatment for only one is set to visible in selection mode
+                                    val isBranded = !isSelectionMode && (isPresentVisible != isPendingVisible)
+                                    
+                                    val brandedChipColors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = MaterialTheme.colorScheme.primary,
+                                        selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
+                                        selectedLeadingIconColor = MaterialTheme.colorScheme.onPrimary,
+                                        disabledContainerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
+                                        disabledLabelColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+                                        disabledLeadingIconColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                                    )
+    
+                                    val defaultChipColors = FilterChipDefaults.filterChipColors(
+                                        disabledContainerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
+                                        disabledLabelColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+                                        disabledLeadingIconColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                                    )
+    
+                                    val presentChipColors = if (isBranded && isPresentVisible) {
+                                        brandedChipColors
+                                    } else defaultChipColors
+    
+                                    val pendingChipColors = if (isBranded && isPendingVisible) {
+                                        brandedChipColors
+                                    } else defaultChipColors
+    
+                                    val presentBadgeColor = if (isSelectionMode) {
+                                        MaterialTheme.colorScheme.secondary
+                                    } else {
+                                        MaterialTheme.colorScheme.error
+                                    }
+    
+                                    val presentBadgeContentColor = if (isSelectionMode) {
+                                        MaterialTheme.colorScheme.onSecondary
+                                    } else {
+                                        MaterialTheme.colorScheme.onError
+                                    }
+    
+                                    val pendingBadgeColor = MaterialTheme.colorScheme.secondary
+                                    val pendingBadgeContentColor = MaterialTheme.colorScheme.onSecondary
+    
+                                    BadgedBox(
+                                        badge = {
+                                            if (presentBadgeCount > 0) {
+                                                Badge(
+                                                    containerColor = presentBadgeColor,
+                                                    contentColor = presentBadgeContentColor
+                                                ) { 
+                                                    Text(presentBadgeCount.toString()) 
+                                                }
+                                            }
+                                        }
+                                    ) {
+                                        FilterChip(
+                                            selected = showPresent,
+                                            onClick = { viewModel.onShowPresentToggle() },
+                                            label = { Text("Present") },
+                                            enabled = presentPoolCount > 0,
+                                            colors = presentChipColors,
+                                            leadingIcon = {
+                                                AppIcon(
+                                                    resourceId = if (showPresent) AppIcons.Visibility else AppIcons.VisibilityOff,
+                                                    contentDescription = null,
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                            }
+                                        )
+                                    }
+                                    
+                                    Spacer(modifier = Modifier.width(8.dp))
+    
+                                    BadgedBox(
+                                        badge = {
+                                            if (pendingBadgeCount > 0) {
+                                                Badge(
+                                                    containerColor = pendingBadgeColor,
+                                                    contentColor = pendingBadgeContentColor
+                                                ) { 
+                                                    Text(pendingBadgeCount.toString()) 
+                                                }
+                                            }
+                                        }
+                                    ) {
+                                        FilterChip(
+                                            selected = showAbsent,
+                                            onClick = { viewModel.onShowAbsentToggle() },
+                                            label = { Text("Pending") },
+                                            enabled = pendingPoolCount > 0,
+                                            colors = pendingChipColors,
+                                            leadingIcon = {
+                                                AppIcon(
+                                                    resourceId = if (showAbsent) AppIcons.Visibility else AppIcons.VisibilityOff,
+                                                    contentDescription = null,
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                            }
+                                        )
+                                    }
+                                }
+    
+                                // Right: Queue Launcher with dynamic count icons
+                                val queueIcon = when (queueCount) {
+                                    0 -> AppIcons.Filter.None
+                                    1 -> AppIcons.Filter.One
+                                    2 -> AppIcons.Filter.Two
+                                    3 -> AppIcons.Filter.Three
+                                    4 -> AppIcons.Filter.Four
+                                    5 -> AppIcons.Filter.Five
+                                    6 -> AppIcons.Filter.Six
+                                    7 -> AppIcons.Filter.Seven
+                                    8 -> AppIcons.Filter.Eight
+                                    9 -> AppIcons.Filter.Nine
+                                    else -> AppIcons.Filter.NinePlus
+                                }
+                                IconButton(onClick = { viewModel.setShowQueueSheet(true) }) {
+                                    AppIcon(resourceId = queueIcon, contentDescription = "View Queue")
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        ) { padding ->
+            LaunchedEffect(attendees, availableEvents) {
+                if (attendees.isNotEmpty() && availableEvents.isEmpty()) {
+                    onNavigateToEventManagement()
+                }
+            }
+    
+            if (attendees.isEmpty() && searchQuery.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding)
+                        .background(MaterialTheme.colorScheme.surface),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                        modifier = Modifier.padding(32.dp)
+                    ) {
+                        AppIcon(
+                            resourceId = AppIcons.PersonSearch,
+                            contentDescription = null,
+                            modifier = Modifier.size(64.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
+                        )
+                        Text(
+                            text = "No attendees found",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = "Try syncing with the master list to download data.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                            textAlign = TextAlign.Center
+                        )
+                        Button(
+                            onClick = viewModel::onSyncMasterList,
+                            modifier = Modifier.padding(top = 8.dp)
+                        ) {
+                            AppIcon(resourceId = AppIcons.Cloud, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Sync Master List")
+                        }
+                    }
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding)
+                        .background(MaterialTheme.colorScheme.surface)
+                ) {
+                    items(attendees, key = { it.id }) { attendee ->
+                        val isSelected = selectedIds.contains(attendee.id)
+                        val isPresent = presentIds.contains(attendee.id)
+                        val isPending = pendingIds.contains(attendee.id)
+                        val isInQueue = queueIds.contains(attendee.id)
+                        val groups = attendeeGroupsMap[attendee.id] ?: emptyList()
+    
+                        AttendeeListItem(
+                            attendee = attendee,
+                            searchQuery = searchQuery,
+                            textScale = textScale,
+                            isSelected = isSelected,
+                            isPresent = isPresent,
+                            isPending = isPending,
+                            isInQueue = queueIds.contains(attendee.id),
+                            isSelectionMode = isSelectionMode,
+                            groups = groups,
+                            onClick = {
+                                if (isSelectionMode) {
+                                    viewModel.toggleSelection(attendee.id)
+                                } else {
+                                    viewModel.showAttendeeDetail(attendee)
+                                }
+                            },
+                            onLongClick = {
+                                if (!isSelectionMode) {
+                                    viewModel.enterSelectionMode(attendee.id)
+                                }
+                            },
+                            onPhotoClick = {
+                                if (isSelectionMode) {
+                                    viewModel.toggleSelection(attendee.id)
+                                } else {
+                                    viewModel.enterSelectionMode(attendee.id)
+                                }
+                            }
+                        )
                     }
                 }
             }
         }
-    ) { padding ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .background(MaterialTheme.colorScheme.surface)
-        ) {
-            items(attendees, key = { it.id }) { attendee ->
-                val isSelected = selectedIds.contains(attendee.id)
-                val isPresent = presentIds.contains(attendee.id)
-                val isPending = pendingIds.contains(attendee.id)
-                val isInQueue = queueIds.contains(attendee.id)
-                val groups = attendeeGroupsMap[attendee.id] ?: emptyList()
-
-                AttendeeListItem(
-                    attendee = attendee,
-                    searchQuery = searchQuery,
-                    textScale = textScale,
-                    isSelected = isSelected,
-                    isPresent = isPresent,
-                    isPending = isPending,
-                    isInQueue = queueIds.contains(attendee.id),
-                    isSelectionMode = isSelectionMode,
-                    groups = groups,
-                    onClick = {
-                        if (isSelectionMode) {
-                            viewModel.toggleSelection(attendee.id)
-                        } else {
-                            viewModel.showAttendeeDetail(attendee)
-                        }
-                    },
-                    onLongClick = {
-                        if (!isSelectionMode) {
-                            viewModel.enterSelectionMode(attendee.id)
-                        }
-                    },
-                    onPhotoClick = {
-                        if (isSelectionMode) {
-                            viewModel.toggleSelection(attendee.id)
-                        } else {
-                            viewModel.enterSelectionMode(attendee.id)
-                        }
-                    }
-                )
-            }
+    
+        if (showCloudStatusDialog) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.32f))
+                    .pointerInput(Unit) {} // Consume touches
+            )
         }
     }
 }
@@ -1051,10 +1114,18 @@ fun CloudStatusDialog(
     cloudProfile: CloudProfile?,
     syncProgress: SyncProgress,
     isDemoMode: Boolean,
+    loginError: String? = null,
     onLogin: () -> Unit,
     onLogout: () -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onManualSync: () -> Unit
 ) {
+    LaunchedEffect(isAuthed) {
+        if (isAuthed) {
+            onManualSync()
+        }
+    }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
@@ -1066,6 +1137,33 @@ fun CloudStatusDialog(
         },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                // Login Error Section
+                if (loginError != null) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.errorContainer,
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            AppIcon(
+                                resourceId = AppIcons.Warning,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onErrorContainer,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text(
+                                text = loginError,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                        }
+                    }
+                }
+
                 // Auth Section
                 if (isAuthed && cloudProfile != null) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1080,14 +1178,16 @@ fun CloudStatusDialog(
                         }
                         Spacer(modifier = Modifier.width(12.dp))
                         Column {
-                            Text(cloudProfile.displayName, style = MaterialTheme.typography.titleMedium)
-                            Text(cloudProfile.email, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(cloudProfile.email, style = MaterialTheme.typography.titleMedium)
                         }
                     }
                     Button(
                         onClick = onLogout,
                         modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.errorContainer, contentColor = MaterialTheme.colorScheme.onErrorContainer)
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
                     ) {
                         Text("Logout")
                     }
@@ -1102,7 +1202,7 @@ fun CloudStatusDialog(
                             )
                         }
                         Button(onClick = onLogin, modifier = Modifier.fillMaxWidth()) {
-                            Text("Login with Google (Dummy)")
+                            Text("Login with Google")
                         }
                     }
                 }
@@ -1134,6 +1234,13 @@ fun CloudStatusDialog(
         confirmButton = {
             TextButton(onClick = onDismiss) {
                 Text("Close")
+            }
+        },
+        dismissButton = {
+            if (isAuthed) {
+                TextButton(onClick = onManualSync) {
+                    Text("Sync Now")
+                }
             }
         }
     )

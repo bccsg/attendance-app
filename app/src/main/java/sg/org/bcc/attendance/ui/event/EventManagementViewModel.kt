@@ -6,13 +6,15 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import sg.org.bcc.attendance.data.local.entities.Event
+import sg.org.bcc.attendance.data.remote.AuthManager
 import sg.org.bcc.attendance.data.repository.AttendanceRepository
 import java.time.LocalDate
 import javax.inject.Inject
 
 @HiltViewModel
 class EventManagementViewModel @Inject constructor(
-    private val repository: AttendanceRepository
+    private val repository: AttendanceRepository,
+    private val authManager: AuthManager
 ) : ViewModel() {
 
     private val _events = repository.getAllEvents()
@@ -29,6 +31,15 @@ class EventManagementViewModel @Inject constructor(
 
     fun clearError() {
         _uiError.value = null
+    }
+
+    fun logout(onLogoutComplete: () -> Unit) {
+        viewModelScope.launch {
+            authManager.logout()
+            repository.clearAllData()
+            repository.syncMasterList()
+            onLogoutComplete()
+        }
     }
 
     fun onCreateEvent(name: String, date: LocalDate, time: String, onCreated: (Event) -> Unit = {}) {

@@ -8,6 +8,7 @@ import sg.org.bcc.attendance.data.local.dao.*
 import sg.org.bcc.attendance.data.local.entities.*
 import sg.org.bcc.attendance.data.remote.AttendanceCloudProvider
 import sg.org.bcc.attendance.data.remote.AuthManager
+import sg.org.bcc.attendance.sync.SyncScheduler
 import sg.org.bcc.attendance.util.EventSuggester
 import sg.org.bcc.attendance.util.time.TimeProvider
 import java.time.LocalDate
@@ -31,7 +32,8 @@ class AttendanceRepository @Inject constructor(
     private val attendeeGroupMappingDao: AttendeeGroupMappingDao,
     private val cloudProvider: AttendanceCloudProvider,
     private val authManager: AuthManager,
-    private val timeProvider: TimeProvider
+    private val timeProvider: TimeProvider,
+    private val syncScheduler: SyncScheduler
 ) {
     fun getQueueItems(): Flow<List<QueueItem>> {
         return combine(
@@ -88,6 +90,13 @@ class AttendanceRepository @Inject constructor(
 
         // Only clear the items that were actually committed
         persistentQueueDao.clearReady()
+
+        // Trigger background sync
+        syncScheduler.scheduleSync()
+    }
+
+    suspend fun retrySync() {
+        syncScheduler.scheduleSync()
     }
 
     fun getArchives(): Flow<List<QueueArchive>> = queueArchiveDao.getAllArchives()
@@ -99,29 +108,84 @@ class AttendanceRepository @Inject constructor(
         return !authManager.isAuthed.value
     }
 
+    private suspend fun checkAuthAndRefresh(): Boolean {
+        if (isDemoMode()) return true
+        if (authManager.isTokenExpired()) {
+            return authManager.silentRefresh()
+        }
+        return true
+    }
+
     suspend fun syncMasterList() {
-        val remoteAttendees = cloudProvider.fetchMasterAttendees()
-        if (remoteAttendees.isNotEmpty()) {
-            attendeeDao.clearAll()
+        syncMasterListWithDetailedResult()
+    }
+
+    suspend fun syncMasterListWithResult(): Boolean {
+        return syncMasterListWithDetailedResult().first
+    }
+
+    suspend fun syncMasterListWithDetailedResult(): Pair<Boolean, String> {
+        if (!checkAuthAndRefresh()) return false to "Authentication failed or token expired."
+
+        val status = mutableListOf<String>()
+        try {
+            android.util.Log.d("AttendanceSync", "Starting master list sync...")
+            
+            // 1. Fetch Attendees (Critical gatekeeper)
+            val remoteAttendees = try {
+                cloudProvider.fetchMasterAttendees().also {
+                    status.add("Attendees: OK (${it.size})")
+                }
+            } catch (e: Exception) {
+                status.add("Attendees: FAILED (${e.message})")
+                throw e // Critical failure, abort sync
+            }
+
+            // At this point, we have a valid connection. The ViewModel is responsible
+            // for clearing data upon initial login.
             attendeeDao.insertAll(remoteAttendees)
-            
-            // Sync groups
-            val remoteGroups = cloudProvider.fetchMasterGroups()
-            groupDao.clearAll()
-            groupDao.insertAll(remoteGroups)
 
-            // Sync mappings
-            val remoteMappings = cloudProvider.fetchAttendeeGroupMappings()
-            attendeeGroupMappingDao.clearAll()
-            attendeeGroupMappingDao.insertAll(remoteMappings)
+            // 2. Groups (Non-critical)
+            try {
+                val remoteGroups = cloudProvider.fetchMasterGroups()
+                groupDao.clearAll()
+                if (remoteGroups.isNotEmpty()) {
+                    groupDao.insertAll(remoteGroups)
+                }
+                status.add("Groups: OK (${remoteGroups.size})")
+            } catch (e: Exception) {
+                status.add("Groups: FAILED ([${e.javaClass.simpleName}] ${e.message})")
+            }
 
-            // Re-sync events
-            syncRecentEvents()
+            // 3. Mappings (Non-critical)
+            try {
+                val remoteMappings = cloudProvider.fetchAttendeeGroupMappings()
+                attendeeGroupMappingDao.clearAll()
+                if (remoteMappings.isNotEmpty()) {
+                    attendeeGroupMappingDao.insertAll(remoteMappings)
+                }
+                status.add("Mappings: OK (${remoteMappings.size})")
+            } catch (e: Exception) {
+                status.add("Mappings: FAILED ([${e.javaClass.simpleName}] ${e.message})")
+            }
+
+            // 4. Events
+            try {
+                val recentEvents = cloudProvider.fetchRecentEvents(30)
+                if (recentEvents.isNotEmpty()) {
+                    eventDao.insertAll(recentEvents)
+                }
+                status.add("Events: OK (${recentEvents.size})")
+            } catch (e: Exception) {
+                status.add("Events: FAILED ([${e.javaClass.simpleName}] ${e.message})")
+            }
             
-            // Clear transient states
-            persistentQueueDao.clear()
-            syncJobDao.clearAll()
-            attendanceDao.clearAll()
+            android.util.Log.d("AttendanceSync", "Master list sync COMPLETED: ${status.joinToString(", ")}")
+            return true to status.joinToString("\n")
+        } catch (e: Exception) {
+            val errorMsg = "Master list sync FAILED:\n${status.joinToString("\n")}"
+            android.util.Log.e("AttendanceSync", errorMsg, e)
+            return false to errorMsg
         }
     }
 
@@ -136,10 +200,19 @@ class AttendanceRepository @Inject constructor(
         attendeeGroupMappingDao.clearAll()
     }
 
-    suspend fun syncRecentEvents() {
-        val recentEvents = cloudProvider.fetchRecentEvents(30)
-        if (recentEvents.isNotEmpty()) {
-            eventDao.insertAll(recentEvents)
+    suspend fun syncRecentEvents(clearFirst: Boolean = false) {
+        if (!checkAuthAndRefresh()) return
+        
+        try {
+            val recentEvents = cloudProvider.fetchRecentEvents(30)
+            if (clearFirst) {
+                eventDao.clearAll()
+            }
+            if (recentEvents.isNotEmpty()) {
+                eventDao.insertAll(recentEvents)
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("AttendanceSync", "Failed to sync recent events: ${e.message}")
         }
     }
 
