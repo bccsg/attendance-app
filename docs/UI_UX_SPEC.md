@@ -16,7 +16,6 @@
     *   **Search**: Matched text is **bold** and **Primary Colored**.
     *   **Removal**: 100ms flash (Pastel Green for Present, Secondary for Absent) -> 400ms fade-out + height collapse.
     *   **Scaling**: Transition between "Normal" and "Large" text sizes.
-    *   **FAB Morph**: Fluid transition (fade + scale) when the button changes its role.
 *   **Cloud Icon**: Dynamic indicator of sync health and connectivity.
     *   **`CloudOff`**: Demo mode active, or user is not authenticated.
     *   **`CloudAlert`**: Error with cloud operations or authentication session has expired.
@@ -51,7 +50,7 @@
 *   **Navigation**:
     *   **Group Peer Discovery**: Lists other members of the attendee's groups.
     *   **Breadcrumb Back Action**: A "Return to [Name]" line at the top for navigating between group members.
-*   **Action**: Global FAB morphs to "Add to Queue" if the attendee isn't staged.
+*   **Action**: A screen-local FAB labeled "Add to Queue" (icon: `PlaylistAdd`) appears if the attendee isn't staged.
 
 ## Interaction Patterns
 
@@ -75,16 +74,13 @@
 *   **Queue Launcher**: (Right) Uses dynamic **`FilterNone`** to **`Filter9Plus`** icons.
 *   **Adaptive Height**: Snaps instantly between 80dp (keyboard open) and 80dp + navBarPadding (keyboard closed) to maintain a clean aesthetic.
 
-### 2. Global Floating Action Button
-*   **Layering**: Pins above all content by being injected into the window layer of active Modal Bottom Sheets and Dialogs.
-*   **Transitions**: Automatically hides during the start of a sheet opening/closing animation and reappears only after the surface is stable to prevent "sliding" artifacts.
-*   **Morphing**:
-    *   **Default/Queue**: QR Scanner icon (PrimaryContainer).
-    *   **Selection/Detail**: Add to Queue icon (Primary).
-*   **Positioning**: 
-    *   **Main List**: 112dp from bottom (above bottom bar).
-    *   **Attendee Sheet**: 16dp from bottom (above navigation handle).
-    *   **Queue Sheet**: 168dp from bottom (above commit buttons).
+### 2. Screen-Local Floating Action Button
+*   **Main List**: 
+    *   **Default**: QR Scanner icon (`QrCodeScanner`) in `PrimaryContainer`. Positioned 112dp from bottom (above bottom bar).
+    *   **Selection Mode**: Replaced by an "Add to Queue" icon (`PlaylistAdd`) in `Primary`. Replaces the current queue with the selected subset and opens the queue sheet.
+*   **Attendee Sheet**: "Add to Queue" icon (`PlaylistAdd`) in `Primary`. Positioned 16dp from bottom (above navigation handle).
+*   **Behavior**:
+    *   **Visibility**: Automatically hides during sheet transitions to prevent "sliding" artifacts.
     *   **Handle Awareness**: Always adds `navigationBarsPadding` to the base offset when the keyboard is hidden.
 
 ### 3. Hold-to-Activate (Queue)
@@ -97,7 +93,7 @@
 *   **Entry**: Tap an attendee's **contact photo** or long-tap an item.
 *   **Toggling**: Single-tap to add/remove attendees.
 *   **Auditing**: A **"Show Selected Only"** checklist icon in the TopAppBar filters the list. 
-*   **Confirmation**: Global FAB replaces the Queue with the selection and opens the sheet.
+*   **Confirmation**: The screen-local FAB (`PlaylistAdd`) replaces the Queue with the selection and opens the sheet.
 
 ### 5. Queue Management
 *   **Tap**: Toggles "Ready/Later" status.

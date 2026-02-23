@@ -30,7 +30,7 @@ class QueueViewModel @Inject constructor(
         )
 
     val isDemoMode: StateFlow<Boolean> = repository.getAllAttendees()
-        .map { attendees -> attendees.any { it.id.startsWith("D") } }
+        .map { attendees -> attendees.isEmpty() || attendees.any { it.id.startsWith("D") } }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),

@@ -93,7 +93,10 @@ class AttendanceRepository @Inject constructor(
     fun getAllAttendees(): Flow<List<Attendee>> = attendeeDao.getAllAttendees()
 
     suspend fun isDemoMode(): Boolean {
-        return attendeeDao.getAllAttendees().first().any { it.id.startsWith("D") }
+        // Demo mode is active if we haven't synced real data yet.
+        // Once logged in, syncMasterList() clears all tables and pulls real data.
+        val attendees = attendeeDao.getAllAttendees().first()
+        return attendees.isEmpty() || attendees.any { it.id.startsWith("D") }
     }
 
     suspend fun syncMasterList() {

@@ -26,11 +26,12 @@
 *   **View**: Compose Screens (MainList, Queue, Archive).
 *   **ViewModel**: Manages UI state (Search query, visibility toggles, Selection state, Show Selected Only Mode, Queue, Text Scaling).
 *   **Repository**: Source of truth merging Room data and Sync state.
-*   **CloudAdapter**: Interface for Google Sheets integration.
+*   **AttendanceCloudProvider**: Interface for remote synchronization. See [CLOUD_PROVIDERS.md](CLOUD_PROVIDERS.md).
+*   **Sync Logic**: Managed by WorkManager. See [CLOUD_SYNC.md](CLOUD_SYNC.md).
 
 ## Demo Mode & Seeding
 *   **Seeding**: `DemoData` utility provides initial data (Disney characters).
-*   **Mocking**: `FakeCloudProvider` is used to simulate master list replacement.
+*   **Mocking**: `DemoCloudProvider` is used to simulate master list replacement.
 *   **Cleanup**: The repository handles the purge of demo state upon first real sync. See [DEMO_MODE.md](DEMO_MODE.md).
 
 ## Fuzzy Search Implementation
