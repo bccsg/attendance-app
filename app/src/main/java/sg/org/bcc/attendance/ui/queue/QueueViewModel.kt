@@ -51,33 +51,23 @@ class QueueViewModel @Inject constructor(
     val manageableEvents: StateFlow<List<sg.org.bcc.attendance.data.local.entities.Event>> = repository.getManageableEvents()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    fun removeFromQueue(attendeeId: String) {
-        viewModelScope.launch {
-            repository.removeFromQueue(attendeeId)
-        }
+    suspend fun removeFromQueue(attendeeId: String) {
+        repository.removeFromQueue(attendeeId)
     }
 
-    fun toggleLater(attendeeId: String, currentLater: Boolean) {
-        viewModelScope.launch {
-            repository.toggleLater(attendeeId, !currentLater)
-        }
+    suspend fun toggleLater(attendeeId: String, currentLater: Boolean) {
+        repository.toggleLater(attendeeId, !currentLater)
     }
 
-    fun syncQueue(eventId: String, state: String) {
-        viewModelScope.launch {
-            repository.syncQueue(eventId, state)
-        }
+    suspend fun syncQueue(eventId: String, state: String) {
+        repository.syncQueue(eventId, state)
     }
 
-    fun clearQueue() {
-        viewModelScope.launch {
-            repository.clearQueue()
-        }
+    suspend fun clearQueue() {
+        repository.clearQueue()
     }
 
-    fun clearReadyQueue() {
-        viewModelScope.launch {
-            repository.clearReadyQueue()
-        }
+    suspend fun clearReadyQueue() {
+        repository.clearReadyQueue()
     }
 }

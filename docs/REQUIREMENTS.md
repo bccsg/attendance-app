@@ -57,6 +57,7 @@ A local-first Android attendance tracking application for ushers. It allows for 
 
 ### 3. Queue
 *   **UI**: Card-style Modal Bottom Sheet with a standard 56dp top margin.
+*   **Footer Status Chips**: Displays "Ready" and "Later" count chips. Both use a theme grey (`secondaryContainer`) background. "Ready" badge uses `primary` color; "Later" badge uses `secondary`.
 *   **Status Indicators**: Attendees already marked present show a `PersonCheck` icon on the right.
 *   **Interactions**:
     *   **Tap**: Toggles "Ready/Later" status.
@@ -71,8 +72,8 @@ A local-first Android attendance tracking application for ushers. It allows for 
     *   **Animation**: 100ms color flash (Pastel Green for Present) followed by a 400ms fade-out and height collapse.
     *   **Preservation**: Only "Ready" items are cleared on commit; "Later" items remain in the queue.
 *   **Clear Action**: **`PlaylistRemove`** icon in the app bar.
-    *   If only "Later" items exist: Clears immediately.
-    *   If "Ready" items exist: Prompts with a "Clear All / Keep Later" dialog. Background dims during the prompt.
+    *   If only "Ready" items exist: Clears immediately.
+    *   If "Later" items exist: Prompts with a "Clear All / Keep those set aside for later" dialog. Background dims during the prompt.
 
 ### 4. Archive System
 *   **Capacity**: Default limit of **25 slots** (configurable, minimum 25).

@@ -79,6 +79,9 @@ fun QueueScreen(
             viewModel.syncQueue(currentEventId, state)
             val message = "Marked ${itemsToSync.size} as ${if (state == "PRESENT") "Present" else "Pending"}"
             onActionComplete(message, laterCount == 0)
+            
+            // To prevent flashing, wait for StateFlow to update before clearing processingIds
+            delay(300)
             processingIds = emptySet()
             processingState = ""
         }
@@ -90,7 +93,13 @@ fun QueueScreen(
                 title = { Text("Queue", style = MaterialTheme.typography.titleLarge) },
                 actions = {
                     if (queueItems.isNotEmpty()) {
-                        IconButton(onClick = { showClearDialog = true }) {
+                        IconButton(onClick = { 
+                            if (laterCount > 0) {
+                                showClearDialog = true 
+                            } else {
+                                scope.launch { viewModel.clearReadyQueue() }
+                            }
+                        }) {
                             AppIcon(
                                 resourceId = AppIcons.PlaylistRemove, 
                                 contentDescription = "Clear Queue",
@@ -121,14 +130,14 @@ fun QueueScreen(
                             badge = {
                                 if (readyCount > 0) {
                                     Badge(
-                                        containerColor = MaterialTheme.colorScheme.error,
-                                        contentColor = MaterialTheme.colorScheme.onError
+                                        containerColor = MaterialTheme.colorScheme.primary,
+                                        contentColor = MaterialTheme.colorScheme.onPrimary
                                     ) { Text(readyCount.toString()) }
                                 }
                             }
                         ) {
                             Surface(
-                                color = if (readyCount > 0) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                                color = if (readyCount > 0) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.4f),
                                 shape = RoundedCornerShape(12.dp),
                                 tonalElevation = 0.dp
                             ) {
@@ -140,13 +149,13 @@ fun QueueScreen(
                                         resourceId = AppIcons.Checklist,
                                         contentDescription = null,
                                         modifier = Modifier.size(18.dp),
-                                        tint = if (readyCount > 0) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                                        tint = if (readyCount > 0) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.4f)
                                     )
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Text(
                                         text = "Ready",
                                         style = MaterialTheme.typography.labelLarge,
-                                        color = if (readyCount > 0) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                                        color = if (readyCount > 0) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.4f)
                                     )
                                 }
                             }
@@ -164,7 +173,7 @@ fun QueueScreen(
                             }
                         ) {
                             Surface(
-                                color = if (laterCount > 0) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                                color = if (laterCount > 0) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.4f),
                                 shape = RoundedCornerShape(12.dp),
                                 tonalElevation = 0.dp
                             ) {
@@ -176,13 +185,13 @@ fun QueueScreen(
                                         resourceId = AppIcons.PushPin,
                                         contentDescription = null,
                                         modifier = Modifier.size(16.dp),
-                                        tint = if (laterCount > 0) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                                        tint = if (laterCount > 0) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.4f)
                                     )
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Text(
                                         text = "Later",
                                         style = MaterialTheme.typography.labelLarge,
-                                        color = if (laterCount > 0) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                                        color = if (laterCount > 0) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.4f)
                                     )
                                 }
                             }
@@ -345,7 +354,9 @@ fun QueueScreen(
                                             textScale = textScale,
                                             onToggle = { 
                                                 if (swipeOffset.value == 0f) {
-                                                    viewModel.toggleLater(item.attendee.id, item.isLater) 
+                                                    scope.launch {
+                                                        viewModel.toggleLater(item.attendee.id, item.isLater) 
+                                                    }
                                                 }
                                             }
                                         )
@@ -384,23 +395,16 @@ fun QueueScreen(
         AlertDialog(
             onDismissRequest = { showClearDialog = false },
             title = { Text("Clear Queue") },
-            text = { 
-                if (laterCount > 0) {
-                    Text("Clear all items or keep those marked as 'Later'?")
-                } else {
-                    Text("Are you sure you want to clear the queue?")
-                }
-            },
+            text = { Text("Clear all items or keep those set aside for later?") },
             confirmButton = {
                 Row {
-                    if (laterCount > 0) {
-                        TextButton(onClick = {
-                            viewModel.clearReadyQueue()
-                            showClearDialog = false
-                        }) { Text("Keep") }
-                    }
                     TextButton(onClick = {
-                        viewModel.clearQueue()
+                        scope.launch { viewModel.clearReadyQueue() }
+                        showClearDialog = false
+                    }) { Text("Keep") }
+                    
+                    TextButton(onClick = {
+                        scope.launch { viewModel.clearQueue() }
                         showClearDialog = false
                     }) { Text("Clear All") }
                 }

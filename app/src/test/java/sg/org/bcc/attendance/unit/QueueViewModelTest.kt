@@ -88,4 +88,34 @@ class QueueViewModelTest {
         
         job.cancel()
     }
+
+    @Test
+    fun `syncQueue should call repository syncQueue`() = runTest {
+        val eventId = "event-123"
+        val state = "PRESENT"
+        io.mockk.coEvery { repository.syncQueue(eventId, state) } returns Unit
+        
+        every { repository.getQueueItems() } returns flowOf(emptyList())
+        every { repository.getAllAttendees() } returns flowOf(emptyList())
+        every { repository.getManageableEvents() } returns flowOf(emptyList())
+
+        val viewModel = QueueViewModel(repository)
+        viewModel.syncQueue(eventId, state)
+        
+        io.mockk.coVerify { repository.syncQueue(eventId, state) }
+    }
+
+    @Test
+    fun `clearQueue should call repository clearQueue`() = runTest {
+        io.mockk.coEvery { repository.clearQueue() } returns Unit
+        
+        every { repository.getQueueItems() } returns flowOf(emptyList())
+        every { repository.getAllAttendees() } returns flowOf(emptyList())
+        every { repository.getManageableEvents() } returns flowOf(emptyList())
+
+        val viewModel = QueueViewModel(repository)
+        viewModel.clearQueue()
+        
+        io.mockk.coVerify { repository.clearQueue() }
+    }
 }

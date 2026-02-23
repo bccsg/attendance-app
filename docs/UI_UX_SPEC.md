@@ -101,13 +101,14 @@
 
 ### 5. Queue Management
 *   **Tap**: Toggles "Ready/Later" status.
+*   **Footer Status Chips**: Both "Ready" and "Later" chips use a theme grey (`secondaryContainer`) background. The "Ready" badge uses `primary` color, while the "Later" badge uses `secondary`.
 *   **Swipe-to-Remove**:
     *   Threshold at 25% width.
     *   Icon: **`PlaylistRemove`**.
     *   **"Remove on Lift"**: Removal only activates when the user releases their finger while in the armed state.
 *   **Clear Logic**:
-    *   Immediate clear if only "Later" items exist.
-    *   "Clear All / Keep Later" dialog if "Ready" items exist.
+    *   Immediate clear if only "Ready" items exist.
+    *   "Clear All / Keep those set aside for later" dialog if any "Later" items exist.
 
 ## Accessibility
 *   **Text Size**: Configurable via a radio-button selection in the overflow menu (Normal/Large). Scales UI elements (fonts, icons, photos) by 50%.
