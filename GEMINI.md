@@ -51,3 +51,7 @@ This document is the absolute source of truth for build configuration, architect
     ./gradlew installDebug
     adb shell am start -n sg.org.bcc.attendance/.MainActivity
     ```
+
+## 5. Task Tracking & Repository Files
+*   **Repository Isolation**: The `.beads/` directory and all its contents (Dolt databases, JSONL files) are for project-level task tracking and MUST NOT be read or indexed as source code.
+*   **CLI Mandate**: All interactions with the task tracker (listing issues, updating status, creating epics/tasks) MUST be performed EXCLUSIVELY via the `bd` CLI. 
