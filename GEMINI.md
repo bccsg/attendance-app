@@ -17,6 +17,8 @@ This document is the absolute source of truth for build configuration, architect
 *   **Sequential Cloud Sync**: No direct cloud writes. Changes must be queued in `SyncJob` and processed one-at-a-time by WorkManager.
 *   **Last Commit Wins**: Conflict resolution uses NTP-synchronized timestamps to determine the current state.
 *   **Adapter Pattern**: All remote operations are defined by the `AttendanceCloudProvider` interface to remain backend-agnostic.
+*   **Demo Mode Exclusivity**: Demo Mode is active **only** when no user identity exists. It MUST NEVER be active while a user is logged in. 
+*   **Provider-Side Switching**: The application must never switch between Demo and Real modes on the client side of the provider interface. Any mode transition must be handled by the `DelegatingCloudProvider` based on the `AuthManager` state. Manual transitions must be performed via explicit Logout (purging all local state) or Login.
 
 ## 3. Engineering & UX Standards
 *   **Test-Driven**: Every feature or fix MUST have corresponding tests (Unit or Robolectric).

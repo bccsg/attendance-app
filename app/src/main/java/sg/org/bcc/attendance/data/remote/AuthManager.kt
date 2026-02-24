@@ -71,8 +71,15 @@ class AuthManager @Inject constructor(
     private val _isAuthed = MutableStateFlow(calculateInitialIsAuthed())
     val isAuthed: StateFlow<Boolean> = _isAuthed.asStateFlow()
 
+    private val _isDemoMode = MutableStateFlow(calculateInitialIsDemoMode())
+    val isDemoMode: StateFlow<Boolean> = _isDemoMode.asStateFlow()
+
     private fun calculateInitialIsAuthed(): Boolean {
-        return getEmail() != null && (getRefreshToken() != null || getAccessToken() == "demo_token")
+        return getEmail() != null && getRefreshToken() != null
+    }
+
+    private fun calculateInitialIsDemoMode(): Boolean {
+        return getAccessToken() == "demo_token"
     }
 
     private fun calculateInitialAuthState(): AuthState {
@@ -80,6 +87,7 @@ class AuthManager @Inject constructor(
         android.util.Log.d("AttendanceAuth", "Restoring auth state. Token present: ${accessToken != null}")
         
         if (accessToken == null) return AuthState.UNAUTHENTICATED
+        if (accessToken == "demo_token") return AuthState.AUTHENTICATED
         
         val expired = isTokenExpired()
         android.util.Log.d("AttendanceAuth", "Token expired: $expired")
@@ -89,6 +97,7 @@ class AuthManager @Inject constructor(
 
     private fun updateLegacyIsAuthed() {
         _isAuthed.value = calculateInitialIsAuthed()
+        _isDemoMode.value = calculateInitialIsDemoMode()
     }
 
     fun getAuthUrl(): String {

@@ -11,8 +11,9 @@ On the first launch (or if the database is empty), the application automatically
 *   **Queue**: The commit button label changes to "Confirm & Archive (Demo)" or "Mark ... (Demo)".
 
 ## 3. Functional Constraints
-*   **Demo State Detection**: Demo mode is active whenever the user is **not logged in**. This state is determined by the absence of a valid authentication session in `AuthManager`.
-*   **Mock Processing**: While not authenticated, clicking "Mark Present/Pending" will:
+*   **Demo State Detection**: Demo mode is active **only** when no real user identity exists. If an authentication session exists (even if expired), the application remains in "Real Mode" with synchronization paused.
+*   **Exclusivity**: It is impossible to enter Demo Mode while a user is logged in. Transitions only occur via explicit login (Demo -> Real) or logout (Real -> Demo).
+*   **Mock Processing**: While in Demo Mode, clicking "Mark Present/Pending" will:
     1.  Commit the record to local storage for immediate UI feedback.
     2.  Create a **`SyncJob`** in the local database (though background sync is inactive until login).
     3.  Archive the batch in the `queue_archive` table.

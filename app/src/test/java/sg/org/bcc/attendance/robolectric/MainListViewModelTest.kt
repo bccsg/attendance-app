@@ -39,6 +39,7 @@ class MainListViewModelTest {
     private lateinit var context: Context
     private val isAuthedFlow = MutableStateFlow(false)
     private val authStateFlow = MutableStateFlow(sg.org.bcc.attendance.data.remote.AuthState.UNAUTHENTICATED)
+    private val isDemoModeFlow = MutableStateFlow(true)
     private val testDispatcher = UnconfinedTestDispatcher()
 
     @Before
@@ -54,6 +55,7 @@ class MainListViewModelTest {
         every { android.util.Log.e(any(), any(), any()) } returns 0
         every { authManager.isAuthed } returns isAuthedFlow
         every { authManager.authState } returns authStateFlow
+        every { authManager.isDemoMode } returns isDemoModeFlow
         
         every { repository.getAllAttendees() } returns flowOf(emptyList())
         every { repository.getQueueItems() } returns flowOf(emptyList())
@@ -109,6 +111,7 @@ class MainListViewModelTest {
         val attendees = listOf(Attendee("D1", "Mickey Mouse"))
         every { repository.getAllAttendees() } returns flowOf(attendees)
         
+        isDemoModeFlow.value = true
         io.mockk.coEvery { repository.isDemoMode() } returns true
 
         val viewModel = MainListViewModel(repository, authManager, context)
@@ -121,6 +124,7 @@ class MainListViewModelTest {
     @Test
     fun `should sync master list on init if NOT in demo mode`() = runTest {
         isAuthedFlow.value = true
+        isDemoModeFlow.value = false
         // Case where database is empty (isDemoMode will be false)
         every { repository.getAllAttendees() } returns flowOf(emptyList())
         
@@ -310,6 +314,7 @@ class MainListViewModelTest {
     @Test
     fun `isDemoMode should be false when identity exists even if token is expired`() = runTest {
         isAuthedFlow.value = true
+        isDemoModeFlow.value = false
         authStateFlow.value = sg.org.bcc.attendance.data.remote.AuthState.EXPIRED
         
         val viewModel = MainListViewModel(repository, authManager, context)
@@ -324,6 +329,7 @@ class MainListViewModelTest {
     @Test
     fun `isDemoMode should be true only when no identity exists`() = runTest {
         isAuthedFlow.value = false
+        isDemoModeFlow.value = true
         authStateFlow.value = sg.org.bcc.attendance.data.remote.AuthState.UNAUTHENTICATED
         
         val viewModel = MainListViewModel(repository, authManager, context)

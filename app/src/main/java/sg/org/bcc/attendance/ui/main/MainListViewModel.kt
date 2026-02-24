@@ -109,9 +109,7 @@ class MainListViewModel @Inject constructor(
 
     val isAuthed = authManager.isAuthed
     val authState = authManager.authState
-
-    val isDemoMode = isAuthed.map { !it }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, true)
+    val isDemoMode = authManager.isDemoMode
 
     val hasSyncError = MutableStateFlow(false)
     val isSyncing = MutableStateFlow(false)

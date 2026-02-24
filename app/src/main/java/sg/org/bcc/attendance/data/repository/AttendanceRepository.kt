@@ -111,8 +111,8 @@ class AttendanceRepository @Inject constructor(
     fun getAllAttendees(): Flow<List<Attendee>> = attendeeDao.getAllAttendees()
 
     suspend fun isDemoMode(): Boolean {
-        // Demo mode is active when the user is not authenticated.
-        return !authManager.isAuthed.value
+        // Demo mode is active when the user is not authenticated and is explicitly in demo mode.
+        return authManager.isDemoMode.value
     }
 
     private suspend fun checkAuthAndRefresh(): Boolean {

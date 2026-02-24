@@ -33,6 +33,7 @@
 *   **Seeding**: `DemoData` utility provides initial data (Disney characters).
 *   **Mocking**: `DemoCloudProvider` is used to simulate master list replacement.
 *   **Cleanup**: The repository handles the purge of demo state upon first real sync. See [DEMO_MODE.md](DEMO_MODE.md).
+*   **State Separation**: Demo mode is mutually exclusive with any authenticated identity. Token expiry does *not* trigger fallback to Demo Mode; it triggers an "Action Required" state.
 
 ## Fuzzy Search Implementation
 *   **Engine**: SQLite FTS5 for high-speed indexing.
