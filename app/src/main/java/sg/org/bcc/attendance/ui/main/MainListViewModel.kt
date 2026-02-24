@@ -22,6 +22,7 @@ import android.net.NetworkCapabilities
 import android.net.NetworkRequest
 import java.time.LocalDate
 import javax.inject.Inject
+import androidx.core.content.edit
 
 data class CloudProfile(
     val email: String,
@@ -96,7 +97,7 @@ class MainListViewModel @Inject constructor(
 
     fun setSortMode(mode: SortMode) {
         _sortMode.value = mode
-        prefs.edit().putString("sort_mode", mode.name).apply()
+        prefs.edit { putString("sort_mode", mode.name) }
     }
 
     private val _textScale = MutableStateFlow(1.0f)
@@ -518,9 +519,9 @@ class MainListViewModel @Inject constructor(
                 val newId = suggestedEvent?.id
                 _currentEventId.value = newId
                 if (newId != null) {
-                    prefs.edit().putString("selected_event_id", newId).apply()
+                    prefs.edit { putString("selected_event_id", newId) }
                 } else {
-                    prefs.edit().remove("selected_event_id").apply()
+                    prefs.edit { remove("selected_event_id") }
                 }
             }
         }
@@ -721,7 +722,7 @@ class MainListViewModel @Inject constructor(
                 
                 // Clear selection on new login
                 _currentEventId.value = null
-                prefs.edit().remove("selected_event_id").apply()
+                prefs.edit { remove("selected_event_id") }
                 
                 // 3. Attempt sync with new tokens
                 val (syncSuccess, detailedStatus) = repository.syncMasterListWithDetailedResult()
@@ -752,7 +753,7 @@ class MainListViewModel @Inject constructor(
                 
                 // Clear selection on logout
                 _currentEventId.value = null
-                prefs.edit().remove("selected_event_id").apply()
+                prefs.edit { remove("selected_event_id") }
                 
                 repository.syncMasterList()
             } finally {
@@ -763,7 +764,7 @@ class MainListViewModel @Inject constructor(
 
     fun onSwitchEvent(eventId: String) {
         _currentEventId.value = eventId
-        prefs.edit().putString("selected_event_id", eventId).apply()
+        prefs.edit { putString("selected_event_id", eventId) }
         
         viewModelScope.launch {
             repository.getEventById(eventId)?.let { event ->

@@ -767,7 +767,7 @@ fun MainListScreen(
                                     viewModel.enterSelectionMode(attendee.id)
                                 }
                             },
-                            onPhotoClick = {
+                            onAvatarClick = {
                                 if (isSelectionMode) {
                                     viewModel.toggleSelection(attendee.id)
                                 } else {
@@ -807,9 +807,9 @@ fun AttendeeListItem(
     showGroupIcon: Boolean = true, // Added to toggle visibility
     onClick: () -> Unit,
     onLongClick: () -> Unit,
-    onPhotoClick: () -> Unit
+    onAvatarClick: () -> Unit
 ) {
-    val photoSize = 40.dp * textScale
+    val avatarSize = 40.dp * textScale
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -884,13 +884,13 @@ fun AttendeeListItem(
                     shape = CircleShape,
                     color = when {
                         isSelected -> MaterialTheme.colorScheme.primary
-                        isPresent -> PastelGreen
+                        isPresent && !isSelectionMode -> PastelGreen
                         else -> MaterialTheme.colorScheme.primaryContainer
                     },
                     modifier = Modifier
-                        .size(photoSize)
+                        .size(avatarSize)
                         .clip(CircleShape)
-                        .clickable { onPhotoClick() }
+                        .clickable { onAvatarClick() }
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         if (isSelected) {
@@ -898,21 +898,21 @@ fun AttendeeListItem(
                                 resourceId = AppIcons.Check,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.onPrimary,
-                                modifier = Modifier.size(photoSize * 0.6f)
+                                modifier = Modifier.size(avatarSize * 0.6f)
                             )
-                        } else if (isPending) {
+                        } else if (isPending && !isSelectionMode) {
                             AppIcon(
                                 resourceId = AppIcons.Schedule,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(photoSize * 0.6f)
+                                modifier = Modifier.size(avatarSize * 0.6f)
                             )
-                        } else if (isPresent) {
+                        } else if (isPresent && !isSelectionMode) {
                             AppIcon(
                                 resourceId = AppIcons.PersonCheck,
                                 contentDescription = null,
                                 tint = DeepGreen,
-                                modifier = Modifier.size(photoSize * 0.6f)
+                                modifier = Modifier.size(avatarSize * 0.6f)
                             )
                         } else {
                             Text(
@@ -920,7 +920,7 @@ fun AttendeeListItem(
                                 style = MaterialTheme.typography.titleMedium.copy(
                                     fontSize = MaterialTheme.typography.titleMedium.fontSize * textScale
                                 ),
-                                color = if (isPresent) DeepGreen else MaterialTheme.colorScheme.onPrimaryContainer
+                                color = if (isPresent && !isSelectionMode) DeepGreen else MaterialTheme.colorScheme.onPrimaryContainer
                             )
                         }
                     }
@@ -1117,7 +1117,7 @@ fun AttendeeDetailContent(
                         showGroupIcon = false, // HIDE GROUP ICON IN DETAIL
                         onClick = { onAttendeeClick(member) },
                         onLongClick = { },
-                        onPhotoClick = { onAttendeeClick(member) }
+                        onAvatarClick = { onAttendeeClick(member) }
                     )
                 }
             }

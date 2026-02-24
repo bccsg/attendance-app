@@ -51,11 +51,11 @@ A local-first Android attendance tracking application for ushers. It allows for 
         *   "Branded" primary coloring (when only one chip is active) is disabled in selection mode.
 *   **Queue Launcher**: Located on the right of the bottom bar. Uses dynamic icons (`FilterNone` to `Filter9Plus`) to show the current queue count.
 *   **Selection Mode**:
-    *   Activated by tapping an attendee's **contact photo** (circle).
+    *   Activated by tapping an attendee's **Attendee Avatar** (circle).
     *   Initial state: Merges the current Queue into the selection.
     *   **Show Selected Only**: A checklist icon in the TopAppBar filters the list to only currently selected items. Activating this closes search and ensures category chips are visible.
     *   Action: **`PlaylistAdd`** icon replaces the Queue with the selection and automatically opens the Queue sheet.
-*   **Dynamic Scaling**: Fonts and contact photos can be scaled by 50% using a **pinch-to-scale gesture** on any list view (pinch-out for Large, pinch-in for Normal) or via the "Text Size" option in the menu.
+*   **Dynamic Scaling**: Fonts and Attendee Avatars can be scaled by 50% using a **pinch-to-scale gesture** on any list view (pinch-out for Large, pinch-in for Normal) or via the "Text Size" option in the menu.
 
 ### 3. Queue
 *   **UI**: Card-style Modal Bottom Sheet with a standard 56dp top margin.

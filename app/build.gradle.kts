@@ -70,6 +70,7 @@ android {
             excludes += "META-INF/DEPENDENCIES"
             excludes += "META-INF/LICENSE"
             excludes += "META-INF/NOTICE"
+            excludes += "META-INF/INDEX.LIST"
         }
     }
 }
@@ -125,8 +126,8 @@ dependencies {
     testImplementation(libs.androidxTestCore)
     testImplementation(libs.androidxTestExtJunit)
     testImplementation(libs.kotlinxCoroutinesTest)
-    testImplementation("junit:junit:4.13.2")
-    testImplementation("androidx.work:work-testing:2.10.0")
+    testImplementation(libs.junit)
+    testImplementation(libs.androidxWorkTesting)
 
     androidTestImplementation(libs.mockkAndroid)
     androidTestImplementation(platform(libs.androidxComposeBom))

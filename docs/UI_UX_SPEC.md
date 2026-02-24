@@ -90,7 +90,7 @@
 *   **Safety**: Displays a "Note: You are editing a past event" bar if the event date is in the past.
 
 ### 4. Selection Mode
-*   **Entry**: Tap an attendee's **contact photo** or long-tap an item.
+*   **Entry**: Tap an attendee's **Attendee Avatar** or long-tap an item.
 *   **Toggling**: Single-tap to add/remove attendees.
 *   **Auditing**: A **"Show Selected Only"** checklist icon in the TopAppBar filters the list. 
 *   **Confirmation**: The screen-local FAB (`PlaylistAdd`) replaces the Queue with the selection and opens the sheet.
@@ -107,4 +107,4 @@
     *   "Clear All / Keep those set aside for later" dialog if any "Later" items exist.
 
 ## Accessibility
-*   **Text Size**: Configurable via a radio-button selection in the overflow menu (Normal/Large) or by using a **pinch gesture** (pinch-out for Large, pinch-in for Normal) on any list view. Scales UI elements (fonts, icons, photos) by 50%.
+*   **Text Size**: Configurable via a radio-button selection in the overflow menu (Normal/Large) or by using a **pinch gesture** (pinch-out for Large, pinch-in for Normal) on any list view. Scales UI elements (fonts, icons, avatars) by 50%.

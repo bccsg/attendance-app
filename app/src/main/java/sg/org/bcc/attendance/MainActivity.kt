@@ -2,6 +2,7 @@ package sg.org.bcc.attendance
 
 import android.content.Intent
 import android.net.Uri
+import androidx.core.net.toUri
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
@@ -114,6 +115,6 @@ class MainActivity : ComponentActivity() {
         val customTabsIntent = CustomTabsIntent.Builder()
             .setShowTitle(true)
             .build()
-        customTabsIntent.launchUrl(this, Uri.parse(authUrl))
+        customTabsIntent.launchUrl(this, authUrl.toUri())
     }
 }

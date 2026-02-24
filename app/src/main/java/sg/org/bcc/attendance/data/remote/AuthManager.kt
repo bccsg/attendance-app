@@ -19,6 +19,7 @@ import sg.org.bcc.attendance.util.time.TimeProvider
 import java.io.StringReader
 import javax.inject.Inject
 import javax.inject.Singleton
+import androidx.core.content.edit
 
 enum class AuthState {
     AUTHENTICATED,
@@ -134,14 +135,13 @@ class AuthManager @Inject constructor(
         refreshToken: String?,
         expiryTime: Long
     ) {
-        prefs.edit().apply {
+        prefs.edit {
             putString("email", email)
             putString("access_token", accessToken)
             if (refreshToken != null) {
                 putString("refresh_token", refreshToken)
             }
             putLong("expiry_time", expiryTime)
-            apply()
         }
         _authState.value = AuthState.AUTHENTICATED
         updateLegacyIsAuthed()
@@ -149,18 +149,18 @@ class AuthManager @Inject constructor(
 
     fun login(email: String) {
         // Fallback for demo mode
-        prefs.edit()
-            .putString("email", email)
-            .putString("access_token", "demo_token")
-            .putLong("expiry_time", Long.MAX_VALUE)
-            .apply()
+        prefs.edit {
+            putString("email", email)
+            putString("access_token", "demo_token")
+            putLong("expiry_time", Long.MAX_VALUE)
+        }
         
         _authState.value = AuthState.AUTHENTICATED
         updateLegacyIsAuthed()
     }
 
     fun logout() {
-        prefs.edit().clear().apply()
+        prefs.edit { clear() }
         _authState.value = AuthState.UNAUTHENTICATED
         updateLegacyIsAuthed()
     }

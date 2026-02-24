@@ -431,7 +431,7 @@ fun QueueListItem(
     onToggle: () -> Unit
 ) {
     val alpha = if (item.isLater) 0.5f else 1f
-    val photoSize = 40.dp * textScale
+    val avatarSize = 40.dp * textScale
 
     Surface(
         modifier = Modifier
@@ -490,7 +490,7 @@ fun QueueListItem(
                 Surface(
                     shape = CircleShape,
                     color = if (!item.isLater) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
-                    modifier = Modifier.size(photoSize)
+                    modifier = Modifier.size(avatarSize)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         if (!item.isLater) {
@@ -498,7 +498,7 @@ fun QueueListItem(
                                 resourceId = AppIcons.Check,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.onPrimary,
-                                modifier = Modifier.size(photoSize * 0.6f)
+                                modifier = Modifier.size(avatarSize * 0.6f)
                             )
                         } else {
                             Text(
