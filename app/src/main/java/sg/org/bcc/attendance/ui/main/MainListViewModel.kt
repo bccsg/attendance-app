@@ -705,6 +705,9 @@ class MainListViewModel @Inject constructor(
         viewModelScope.launch {
             isSyncing.value = true
             try {
+                val oldEmail = authManager.getEmail()
+                val oldIsDemo = authManager.isDemoMode.value
+
                 // 1. Exchange code for tokens
                 android.util.Log.d("AttendanceAuth", "Exchanging code for tokens...")
                 val exchangeSuccess = authManager.exchangeCodeForTokens(code)
@@ -714,13 +717,22 @@ class MainListViewModel @Inject constructor(
                     return@launch
                 }
 
-                android.util.Log.d("AttendanceAuth", "Exchange success! Clearing old data and attempting master sync...")
-                // 2. Clear all local data before syncing with the cloud
-                repository.clearAllData()
+                val newEmail = authManager.getEmail()
+                val identityChanged = oldEmail != newEmail || oldIsDemo
+
+                android.util.Log.d("AttendanceAuth", "Exchange success! Identity changed: $identityChanged")
                 
-                // Clear selection on new login
-                _currentEventId.value = null
-                prefs.edit { remove("selected_event_id") }
+                if (identityChanged) {
+                    android.util.Log.d("AttendanceAuth", "New identity or transitioned from demo. Clearing local data.")
+                    // 2. Clear all local data before syncing with the cloud
+                    repository.clearAllData()
+                    
+                    // Clear selection on new identity
+                    _currentEventId.value = null
+                    prefs.edit { remove("selected_event_id") }
+                } else {
+                    android.util.Log.d("AttendanceAuth", "Re-authentication of same user. Preserving local data and selection.")
+                }
                 
                 // 3. Attempt sync with new tokens
                 val (syncSuccess, detailedStatus) = repository.syncMasterListWithDetailedResult()

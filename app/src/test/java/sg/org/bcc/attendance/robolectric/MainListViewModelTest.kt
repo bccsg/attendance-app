@@ -263,6 +263,10 @@ class MainListViewModelTest {
 
     @Test
     fun `handleOAuthCode should exchange code and sync`() = runTest {
+        // Transition from null to real email
+        every { authManager.getEmail() } returnsMany listOf(null, "new@user.com")
+        isDemoModeFlow.value = false
+        
         io.mockk.coEvery { repository.clearAllData() } returns Unit
         
         // Mock successful exchange and sync
@@ -299,6 +303,8 @@ class MainListViewModelTest {
 
     @Test
     fun `handleOAuthCode should show error if exchange fails`() = runTest {
+        every { authManager.getEmail() } returns null
+        
         // Mock failed exchange
         io.mockk.coEvery { authManager.exchangeCodeForTokens("test_code") } returns false
 
@@ -309,6 +315,26 @@ class MainListViewModelTest {
         testScheduler.advanceUntilIdle()
         
         viewModel.loginError.value?.contains("Failed to exchange code") shouldBe true
+    }
+
+    @Test
+    fun `handleOAuthCode should preserve data if the same user re-authenticates`() = runTest {
+        // Mock existing identity
+        every { authManager.getEmail() } returnsMany listOf("same@user.com", "same@user.com")
+        isDemoModeFlow.value = false
+        
+        io.mockk.coEvery { authManager.exchangeCodeForTokens("test_code") } returns true
+        io.mockk.coEvery { repository.syncMasterListWithDetailedResult() } returns (true to "OK")
+
+        val viewModel = MainListViewModel(repository, authManager, context)
+        
+        viewModel.handleOAuthCode("test_code")
+        
+        testScheduler.advanceUntilIdle()
+        
+        // Should NOT call clearAllData
+        io.mockk.coVerify(exactly = 0) { repository.clearAllData() }
+        io.mockk.coVerify { repository.syncMasterListWithDetailedResult() }
     }
 
     @Test
