@@ -70,11 +70,25 @@ class SyncWorker @AssistedInject constructor(
 
             when (result) {
                 is PushResult.Success -> {
+                    // Gap-Aware Update: If N == M + K, no one else inserted in between
+                    val m = event.lastProcessedRowIndex
+                    val k = records.size
+                    val n = result.lastRowIndex
+                    if (n == m + k) {
+                        eventDao.updateLastProcessedRowIndex(event.id, n)
+                    }
                     syncJobDao.deleteJob(job.jobId)
                 }
                 is PushResult.SuccessWithMapping -> {
                     // Update cloudEventId if provider returned one
                     eventDao.updateCloudEventId(event.id, result.cloudEventId)
+                    
+                    val m = event.lastProcessedRowIndex
+                    val k = records.size
+                    val n = result.lastRowIndex
+                    if (n == m + k) {
+                        eventDao.updateLastProcessedRowIndex(event.id, n)
+                    }
                     syncJobDao.deleteJob(job.jobId)
                 }
                 is PushResult.Error -> {

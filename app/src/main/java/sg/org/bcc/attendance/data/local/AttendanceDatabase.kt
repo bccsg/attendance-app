@@ -18,7 +18,7 @@ import sg.org.bcc.attendance.data.local.entities.*
         QueueArchive::class,
         SyncLog::class
     ],
-    version = 9,
+    version = 10,
     exportSchema = true
 )
 abstract class AttendanceDatabase : RoomDatabase() {

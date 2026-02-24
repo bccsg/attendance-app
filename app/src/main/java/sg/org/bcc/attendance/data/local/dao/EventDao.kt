@@ -44,6 +44,9 @@ interface EventDao {
     @Query("UPDATE events SET cloudEventId = :cloudId WHERE id = :id")
     suspend fun updateCloudEventId(id: String, cloudId: String)
 
+    @Query("UPDATE events SET lastProcessedRowIndex = :index WHERE id = :id")
+    suspend fun updateLastProcessedRowIndex(id: String, index: Int)
+
     @Query("DELETE FROM events")
     suspend fun clearAll()
 }

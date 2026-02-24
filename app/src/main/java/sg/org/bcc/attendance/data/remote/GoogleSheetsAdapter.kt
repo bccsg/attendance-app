@@ -77,6 +77,7 @@ class GoogleSheetsAdapter @Inject constructor(
                 val cloudIdStr = sheetId.toString()
 
                 // 2. Prepare data for push if any records exist
+                var lastRowIndex = event.lastProcessedRowIndex
                 if (records.isNotEmpty()) {
                     val userEmail = authManager.getEmail() ?: "unknown"
                     val sgtOffsetMs = 8 * 3600 * 1000L
@@ -109,6 +110,7 @@ class GoogleSheetsAdapter @Inject constructor(
                     if (match != null) {
                         val startRow = match.groupValues[1].toInt() - 1 // 0-indexed
                         val endRow = match.groupValues[2].toInt()
+                        lastRowIndex = endRow - 1 // Data rows count (header excluded)
                         
                         val checkboxRequest = com.google.api.services.sheets.v4.model.Request().setRepeatCell(
                             com.google.api.services.sheets.v4.model.RepeatCellRequest()
@@ -133,13 +135,19 @@ class GoogleSheetsAdapter @Inject constructor(
                             .setRequests(listOf(checkboxRequest))
                         service.spreadsheets().batchUpdate(eventSpreadsheetId, batchUpdate).execute()
                     }
+                } else {
+                    // Even if no records pushed, we might want to know the current cloud end
+                    // But for pushAttendance, if records is empty, we just return current
+                    val spreadsheet = service.spreadsheets().get(eventSpreadsheetId).execute()
+                    val sheet = spreadsheet.sheets.find { it.properties.sheetId == sheetId }
+                    lastRowIndex = (sheet?.properties?.gridProperties?.rowCount ?: 1) - 1
                 }
                 
                 // 4. Return mapping if local event doesn't have it yet
                 if (event.cloudEventId != cloudIdStr) {
-                    PushResult.SuccessWithMapping(cloudIdStr)
+                    PushResult.SuccessWithMapping(cloudIdStr, lastRowIndex)
                 } else {
-                    PushResult.Success
+                    PushResult.Success(lastRowIndex)
                 }
             } catch (e: Exception) {
                 PushResult.Error(e.message ?: "Sync failed", isRetryable = true)
@@ -407,23 +415,27 @@ class GoogleSheetsAdapter @Inject constructor(
 
     override suspend fun fetchAttendanceForEvent(
         event: Event,
+        startIndex: Int,
         scope: SyncLogScope
-    ): List<AttendanceRecord> = runWithLogging(scope, "fetchAttendanceForEvent", "event='${event.title}'") {
+    ): PullResult = runWithLogging(scope, "fetchAttendanceForEvent", "event='${event.title}', start=$startIndex") {
         withContext(Dispatchers.IO) {
             ensureAuthenticated()
             val service = getSheetsService()
+            // Range A{startIndex + 2}:F skips header (1) and M rows
+            val range = "'${event.title}'!A${startIndex + 2}:F"
             val response = try {
                 service.spreadsheets().values()
-                    .get(eventSpreadsheetId, "'${event.title}'!A2:F") // Fetch all 6 cols
+                    .get(eventSpreadsheetId, range) 
                     .setValueRenderOption("UNFORMATTED_VALUE")
                     .execute()
             } catch (e: Exception) {
-                return@withContext emptyList()
+                return@withContext PullResult(emptyList(), startIndex)
             }
             
+            val values = response.getValues()
             val sgtOffsetMs = 8 * 3600 * 1000L
 
-            response.getValues()?.mapNotNull { row ->
+            val records = values?.mapNotNull { row ->
                 if (row.size < 5) return@mapNotNull null
                 
                 val attendeeId = row[0].toString()
@@ -451,6 +463,10 @@ class GoogleSheetsAdapter @Inject constructor(
                     timestamp = timestamp
                 )
             } ?: emptyList()
+
+            // Calculate lastRowIndex. 
+            // startIndex + records.size is the new lastRowIndex.
+            PullResult(records, startIndex + (values?.size ?: 0))
         }
     }
 

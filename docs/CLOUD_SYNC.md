@@ -9,16 +9,16 @@ The application is designed for immediate feedback in high-traffic environments.
 1.  All user actions (e.g., "Mark Present") are committed instantly to the local `attendance_records` table.
 2.  A corresponding `SyncJob` is queued in the local `sync_jobs` table for upload.
 
-### Sequential Processing (Planned)
-*   **WorkManager Pipeline**: Future implementation will process `sync_jobs` one at a time in strict chronological order to ensure data integrity.
-*   **Integrity Protection**: Future implementation will disable remote pulls while `sync_jobs` are pending to prevent stale data overwrites.
+### Sequential Processing
+*   **WorkManager Pipeline**: The application processes `sync_jobs` one at a time in strict chronological order to ensure data integrity via `SyncWorker`.
+*   **Integrity Protection**: Remote pulls are automatically skipped while `sync_jobs` are pending to prevent stale data overwrites.
 
 ### Conflict Resolution: "Last Commit Wins"
 *   Conflicts (e.g., two users updating the same record) are resolved by comparing commit timestamps.
 *   **Local Deduplication**: The local database uses an `upsertIfNewer` pattern, ensuring only the record with the most recent timestamp is persisted for a given Attendee/Event pair.
 *   **Cloud Deduplication**: 
     *   **Pushes**: The application currently appends all changes to the cloud (e.g., Google Sheets). This preserves a full audit trail of changes.
-    *   **Pulls**: When fetching data from the cloud, the application reduces the incoming batch to ensure only the **latest record per attendee** (maximum timestamp) is processed. The repository then merges this reduced state with the local database, ensuring that the final local state reflects the last known state from the cloud.
+    *   **Pulls**: When fetching data from the cloud, the application reduces the incoming batch in `AttendanceDao` to ensure only the **latest record per attendee** (maximum timestamp) is processed. The repository then merges this reduced state with the local database, ensuring that the final local state reflects the last known state from the cloud.
 *   **NTP Synchronization**: The application is configured with `TrueTime` to ensure consistent timestamps across distributed devices.
 
 ---

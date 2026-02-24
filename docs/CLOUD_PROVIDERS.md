@@ -9,8 +9,8 @@ The application interacts with remote backends through a unified interface, ensu
 ### Core Operations
 *   **`fetchMasterAttendees` / `fetchMasterGroups` / `fetchAttendeeGroupMappings`**: Retrieves the global master list data.
 *   **`fetchRecentEvents(days: Int)`**: Retrieves events within a manageable window (default: 30 days).
-*   **`pushAttendance(event: Event, records: List<AttendanceRecord>)`**: Uploads local attendance commits.
-*   **`fetchAttendanceForEvent(event: Event)`**: Pulls remote state for a specific event for reconciliation.
+*   **`pushAttendance(event: Event, records: List<AttendanceRecord>, scope: SyncLogScope)`**: Uploads local attendance commits. Returns a `PushResult` containing the `lastRowIndex`.
+*   **`fetchAttendanceForEvent(event: Event, startIndex: Int, scope: SyncLogScope)`**: Pulls remote state for a specific event starting from `startIndex` for differential reconciliation. Returns a `PullResult` containing the records and the new `lastRowIndex`.
 
 ---
 

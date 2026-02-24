@@ -258,9 +258,20 @@ class AttendanceRepository @Inject constructor(
     suspend fun syncAttendanceForEvent(event: Event, scope: SyncLogScope = NoOpSyncLogScope) {
         if (!checkAuthAndRefresh()) return
         try {
-            val remoteRecords = cloudProvider.fetchAttendanceForEvent(event, scope)
-            if (remoteRecords.isNotEmpty()) {
-                attendanceDao.upsertAllIfNewer(remoteRecords)
+            // Differential Pull: Fetch rows from M+1 (M=lastProcessedRowIndex)
+            val pullResult = cloudProvider.fetchAttendanceForEvent(
+                event = event, 
+                startIndex = event.lastProcessedRowIndex,
+                scope = scope
+            )
+            
+            if (pullResult.records.isNotEmpty()) {
+                attendanceDao.upsertAllIfNewer(pullResult.records)
+            }
+            
+            // Update: Set lastProcessedRowIndex to the cloud's current end index after pull
+            if (pullResult.lastRowIndex != event.lastProcessedRowIndex) {
+                eventDao.updateLastProcessedRowIndex(event.id, pullResult.lastRowIndex)
             }
         } catch (e: Exception) {
             android.util.Log.e("AttendanceSync", "Failed to sync attendance for ${event.title}: ${e.message}")

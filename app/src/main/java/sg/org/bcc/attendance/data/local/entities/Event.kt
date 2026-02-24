@@ -11,5 +11,6 @@ data class Event(
     val date: String,  // ISO-8601 date: "yyyy-MM-dd"
     val time: String,  // 24h time: "HHmm"
     val cloudEventId: String? = null,
-    val lastSyncTime: Long? = null
+    val lastSyncTime: Long? = null,
+    val lastProcessedRowIndex: Int = 0
 )

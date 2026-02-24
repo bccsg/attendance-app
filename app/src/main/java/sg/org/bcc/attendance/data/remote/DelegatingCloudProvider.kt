@@ -51,9 +51,10 @@ class DelegatingCloudProvider @Inject constructor(
 
     override suspend fun fetchAttendanceForEvent(
         event: Event,
+        startIndex: Int,
         scope: SyncLogScope
-    ): List<AttendanceRecord> {
-        return activeProvider.fetchAttendanceForEvent(event, scope)
+    ): PullResult {
+        return activeProvider.fetchAttendanceForEvent(event, startIndex, scope)
     }
 
     override suspend fun fetchRecentEvents(

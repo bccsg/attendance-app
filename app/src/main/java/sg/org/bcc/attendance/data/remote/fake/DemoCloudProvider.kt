@@ -8,6 +8,7 @@ import sg.org.bcc.attendance.data.local.entities.AttendeeGroupMapping
 import sg.org.bcc.attendance.data.local.entities.Event
 import sg.org.bcc.attendance.data.local.entities.Group
 import sg.org.bcc.attendance.data.remote.AttendanceCloudProvider
+import sg.org.bcc.attendance.data.remote.PullResult
 import sg.org.bcc.attendance.data.remote.PushResult
 import sg.org.bcc.attendance.sync.SyncLogScope
 import sg.org.bcc.attendance.util.DemoData
@@ -36,7 +37,6 @@ class DemoCloudProvider @Inject constructor(
         try {
             val eventRecords = sessionPushedRecords.getOrPut(event.id) { mutableListOf() }
             records.forEach { newRecord ->
-                eventRecords.removeIf { it.attendeeId == newRecord.attendeeId }
                 eventRecords.add(newRecord)
             }
             
@@ -48,10 +48,11 @@ class DemoCloudProvider @Inject constructor(
                 android.util.Log.d("DemoCloud", "Pushed record for ${it.attendeeId} at $formatted")
             }
             
+            val lastRowIndex = eventRecords.size
             val result = if (event.cloudEventId == null) {
-                PushResult.SuccessWithMapping("sheet-${event.id.take(4)}")
+                PushResult.SuccessWithMapping("sheet-${event.id.take(4)}", lastRowIndex)
             } else {
-                PushResult.Success
+                PushResult.Success(lastRowIndex)
             }
             scope.log("pushAttendance", true, params = params)
             return result
@@ -99,18 +100,27 @@ class DemoCloudProvider @Inject constructor(
 
     override suspend fun fetchAttendanceForEvent(
         event: Event,
+        startIndex: Int,
         scope: SyncLogScope
-    ): List<AttendanceRecord> {
-        val params = "event='${event.title}'"
+    ): PullResult {
+        val params = "event='${event.title}', start=$startIndex"
         return try {
             // Preference: 1. Current session memory, 2. Local Database
             val sessionRecords = sessionPushedRecords[event.id]
-            if (sessionRecords != null) {
-                scope.log("fetchAttendanceForEvent", true, params = params)
-                return sessionRecords
+            val records = if (sessionRecords != null) {
+                if (startIndex < sessionRecords.size) {
+                    sessionRecords.subList(startIndex, sessionRecords.size)
+                } else {
+                    emptyList()
+                }
+            } else {
+                // For demo purposes, we don't have row indices in DB records easily
+                // So if we pull from DB, we assume it's a full sync or already caught up
+                emptyList()
             }
             
-            attendanceDao.getAttendanceForEvent(event.id).also {
+            val lastRowIndex = (sessionRecords?.size ?: 0).coerceAtLeast(startIndex)
+            PullResult(records, lastRowIndex).also {
                 scope.log("fetchAttendanceForEvent", true, params = params)
             }
         } catch (e: Exception) {

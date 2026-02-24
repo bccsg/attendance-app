@@ -32,7 +32,15 @@ interface AttendanceDao {
 
     @Transaction
     suspend fun upsertAllIfNewer(records: List<AttendanceRecord>) {
-        records.forEach { upsertIfNewer(it) }
+        if (records.isEmpty()) return
+        
+        // Batch Reduction: Latest per attendee (max timestamp)
+        val reduced = records.groupBy { it.attendeeId }
+            .mapValues { (_, group) -> group.maxBy { it.timestamp } }
+            .values
+            .toList()
+
+        reduced.forEach { upsertIfNewer(it) }
     }
 
     @Query("DELETE FROM attendance_records")

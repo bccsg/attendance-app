@@ -8,10 +8,15 @@ import sg.org.bcc.attendance.data.local.entities.Group
 import sg.org.bcc.attendance.sync.SyncLogScope
 
 sealed class PushResult {
-    data object Success : PushResult()
-    data class SuccessWithMapping(val cloudEventId: String) : PushResult()
+    data class Success(val lastRowIndex: Int) : PushResult()
+    data class SuccessWithMapping(val cloudEventId: String, val lastRowIndex: Int) : PushResult()
     data class Error(val message: String, val isRetryable: Boolean) : PushResult()
 }
+
+data class PullResult(
+    val records: List<AttendanceRecord>,
+    val lastRowIndex: Int
+)
 
 interface AttendanceCloudProvider {
     /**
@@ -51,8 +56,9 @@ interface AttendanceCloudProvider {
      */
     suspend fun fetchAttendanceForEvent(
         event: Event,
+        startIndex: Int, // M+1
         scope: SyncLogScope
-    ): List<AttendanceRecord>
+    ): PullResult
 
     /**
      * Fetch events occurring within the last [days].
