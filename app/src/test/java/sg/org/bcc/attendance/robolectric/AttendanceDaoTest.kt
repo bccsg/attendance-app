@@ -40,7 +40,7 @@ class AttendanceDaoTest {
             val attendeeId = "A001"
             
             // Initial insert
-            val record = AttendanceRecord(event, attendeeId, "PRESENT", 1000L)
+            val record = AttendanceRecord(event, attendeeId, "", "PRESENT", 1000L)
             dao.upsertIfNewer(record)
             
             var result = dao.getRecord(event, attendeeId)
@@ -48,7 +48,7 @@ class AttendanceDaoTest {
             result?.timestamp shouldBe 1000L
 
             // Older update ignored
-            val olderRecord = AttendanceRecord(event, attendeeId, "ABSENT", 500L)
+            val olderRecord = AttendanceRecord(event, attendeeId, "", "ABSENT", 500L)
             dao.upsertIfNewer(olderRecord)
             
             result = dao.getRecord(event, attendeeId)
@@ -56,7 +56,7 @@ class AttendanceDaoTest {
             result?.timestamp shouldBe 1000L
 
             // Newer update applied
-            val newerRecord = AttendanceRecord(event, attendeeId, "ABSENT", 2000L)
+            val newerRecord = AttendanceRecord(event, attendeeId, "", "ABSENT", 2000L)
             dao.upsertIfNewer(newerRecord)
             
             result = dao.getRecord(event, attendeeId)

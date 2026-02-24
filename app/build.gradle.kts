@@ -126,6 +126,7 @@ dependencies {
     testImplementation(libs.androidxTestExtJunit)
     testImplementation(libs.kotlinxCoroutinesTest)
     testImplementation("junit:junit:4.13.2")
+    testImplementation("androidx.work:work-testing:2.10.0")
 
     androidTestImplementation(libs.mockkAndroid)
     androidTestImplementation(platform(libs.androidxComposeBom))

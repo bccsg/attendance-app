@@ -1,4 +1,4 @@
-package sg.org.bcc.attendance.unit
+package sg.org.bcc.attendance.robolectric
 
 import io.kotest.matchers.shouldBe
 import io.mockk.every
@@ -19,23 +19,44 @@ import sg.org.bcc.attendance.data.local.entities.Event
 import sg.org.bcc.attendance.data.repository.AttendanceRepository
 import sg.org.bcc.attendance.data.remote.AuthManager
 import sg.org.bcc.attendance.ui.main.MainListViewModel
+import android.content.Context
+import android.content.SharedPreferences
+import android.net.ConnectivityManager
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import androidx.work.WorkManager
+import androidx.lifecycle.MutableLiveData
+import androidx.work.WorkInfo
+import androidx.test.core.app.ApplicationProvider
 
+import androidx.work.testing.WorkManagerTestInitHelper
+
+@RunWith(RobolectricTestRunner::class)
 @OptIn(ExperimentalCoroutinesApi::class)
 class MainListViewModelTest {
     private val repository = mockk<AttendanceRepository>()
     private val authManager = mockk<AuthManager>()
+    private lateinit var context: Context
     private val isAuthedFlow = MutableStateFlow(false)
     private val testDispatcher = UnconfinedTestDispatcher()
 
     @Before
     fun setup() {
+        context = ApplicationProvider.getApplicationContext<Context>()
+        WorkManagerTestInitHelper.initializeTestWorkManager(context)
+        
         Dispatchers.setMain(testDispatcher)
         io.mockk.mockkStatic(android.util.Log::class)
+        
         every { android.util.Log.d(any(), any()) } returns 0
         every { android.util.Log.e(any(), any()) } returns 0
         every { android.util.Log.e(any(), any(), any()) } returns 0
         every { authManager.isAuthed } returns isAuthedFlow
         io.mockk.coEvery { repository.syncMasterList() } returns Unit
+        io.mockk.coEvery { repository.retrySync() } returns Unit
+        io.mockk.coEvery { repository.getUpcomingEvent(any()) } returns null
+        io.mockk.coEvery { repository.getLatestEvent() } returns null
+        io.mockk.coEvery { repository.getEventById(any()) } returns null
     }
 
     @After
@@ -62,7 +83,7 @@ class MainListViewModelTest {
         io.mockk.coEvery { repository.isDemoMode() } returns false
         io.mockk.coEvery { repository.purgeOldEvents() } returns Unit
 
-        val viewModel = MainListViewModel(repository, authManager)
+        val viewModel = MainListViewModel(repository, authManager, context)
         
         // Start collecting to activate stateIn
         val job = launch(UnconfinedTestDispatcher(testScheduler)) {
@@ -94,7 +115,7 @@ class MainListViewModelTest {
         io.mockk.coEvery { repository.purgeOldEvents() } returns Unit
         io.mockk.coEvery { repository.syncMasterList() } returns Unit
 
-        val viewModel = MainListViewModel(repository, authManager)
+        val viewModel = MainListViewModel(repository, authManager, context)
         
         testScheduler.advanceUntilIdle()
         
@@ -117,7 +138,7 @@ class MainListViewModelTest {
         io.mockk.coEvery { repository.purgeOldEvents() } returns Unit
         io.mockk.coEvery { repository.syncMasterList() } returns Unit
 
-        val viewModel = MainListViewModel(repository, authManager)
+        val viewModel = MainListViewModel(repository, authManager, context)
         
         testScheduler.advanceUntilIdle()
         
@@ -131,9 +152,9 @@ class MainListViewModelTest {
             Attendee("2", "Jane")
         )
         val records = listOf(
-            AttendanceRecord("Event", "1", "PRESENT", 1000L)
+            AttendanceRecord("Event", "1", "", "PRESENT", 1000L)
         )
-        val events = listOf(Event("Event", "260223 1030 Sunday Service", "cloudId"))
+        val events = listOf(Event("Event", "260223 1030 Sunday Service", "2026-02-23", "1030", "cloudId"))
         every { repository.getAllAttendees() } returns flowOf(attendees)
         every { repository.getQueueItems() } returns flowOf(emptyList())
         every { repository.getAttendanceRecords(any()) } returns flowOf(records)
@@ -146,7 +167,8 @@ class MainListViewModelTest {
         io.mockk.coEvery { repository.isDemoMode() } returns false
         io.mockk.coEvery { repository.purgeOldEvents() } returns Unit
 
-        val viewModel = MainListViewModel(repository, authManager)
+        val viewModel = MainListViewModel(repository, authManager, context)
+        viewModel.onSwitchEvent("Event")
         
         val job = launch(UnconfinedTestDispatcher(testScheduler)) {
             viewModel.attendees.collect()
@@ -179,7 +201,7 @@ class MainListViewModelTest {
         io.mockk.coEvery { repository.purgeOldEvents() } returns Unit
         io.mockk.coEvery { repository.replaceQueueWithSelection(any()) } returns Unit
 
-        val viewModel = MainListViewModel(repository, authManager)
+        val viewModel = MainListViewModel(repository, authManager, context)
         
         viewModel.selectedIds.value.size shouldBe 0
         
@@ -199,9 +221,9 @@ class MainListViewModelTest {
             Attendee("2", "Jane")
         )
         val records = listOf(
-            AttendanceRecord("Event", "1", "PRESENT", 1000L)
+            AttendanceRecord("Event", "1", "", "PRESENT", 1000L)
         )
-        val events = listOf(Event("Event", "260223 1030 Sunday Service", "cloudId"))
+        val events = listOf(Event("Event", "260223 1030 Sunday Service", "2026-02-23", "1030", "cloudId"))
         every { repository.getAllAttendees() } returns flowOf(attendees)
         every { repository.getQueueItems() } returns flowOf(emptyList())
         every { repository.getAttendanceRecords(any()) } returns flowOf(records)
@@ -214,7 +236,8 @@ class MainListViewModelTest {
         io.mockk.coEvery { repository.isDemoMode() } returns false
         io.mockk.coEvery { repository.purgeOldEvents() } returns Unit
 
-        val viewModel = MainListViewModel(repository, authManager)
+        val viewModel = MainListViewModel(repository, authManager, context)
+        viewModel.onSwitchEvent("Event")
         
         // Start collection for reactive flows
         val job = launch(UnconfinedTestDispatcher(testScheduler)) {
@@ -261,7 +284,7 @@ class MainListViewModelTest {
         io.mockk.coEvery { repository.purgeOldEvents() } returns Unit
         io.mockk.coEvery { repository.syncMasterList() } returns Unit
 
-        val viewModel = MainListViewModel(repository, authManager)
+        val viewModel = MainListViewModel(repository, authManager, context)
 
         // Set an error
         viewModel.onLoginError("Test error")
@@ -296,7 +319,7 @@ class MainListViewModelTest {
         io.mockk.coEvery { authManager.exchangeCodeForTokens("test_code") } returns true
         io.mockk.coEvery { repository.syncMasterListWithDetailedResult() } returns (true to "OK")
 
-        val viewModel = MainListViewModel(repository, authManager)
+        val viewModel = MainListViewModel(repository, authManager, context)
         
         viewModel.handleOAuthCode("test_code")
         
@@ -322,7 +345,7 @@ class MainListViewModelTest {
         io.mockk.coEvery { repository.syncMasterList() } returns Unit
         io.mockk.coEvery { authManager.logout() } returns Unit
 
-        val viewModel = MainListViewModel(repository, authManager)
+        val viewModel = MainListViewModel(repository, authManager, context)
         
         viewModel.onLogout()
         testScheduler.advanceUntilIdle()
@@ -347,7 +370,7 @@ class MainListViewModelTest {
         // Mock failed exchange
         io.mockk.coEvery { authManager.exchangeCodeForTokens("test_code") } returns false
 
-        val viewModel = MainListViewModel(repository, authManager)
+        val viewModel = MainListViewModel(repository, authManager, context)
         
         viewModel.handleOAuthCode("test_code")
         

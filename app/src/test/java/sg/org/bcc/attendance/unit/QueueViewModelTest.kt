@@ -40,9 +40,9 @@ class QueueViewModelTest {
     fun `presentIds should filter and collect IDs with state PRESENT for current event`() = runTest {
         val eventId = "event-123"
         val records = listOf(
-            AttendanceRecord(eventId, "A01", "PRESENT", 1000L),
-            AttendanceRecord(eventId, "A02", "ABSENT", 1100L),
-            AttendanceRecord(eventId, "A03", "PRESENT", 1200L)
+            AttendanceRecord(eventId, "A01", "", "PRESENT", 1000L),
+            AttendanceRecord(eventId, "A02", "", "ABSENT", 1100L),
+            AttendanceRecord(eventId, "A03", "", "PRESENT", 1200L)
         )
         
         every { repository.getQueueItems() } returns flowOf(emptyList())
@@ -71,7 +71,7 @@ class QueueViewModelTest {
     fun `presentIds should be empty when eventId is null`() = runTest {
         val eventId = "event-123"
         val records = listOf(
-            AttendanceRecord(eventId, "A01", "PRESENT", 1000L)
+            AttendanceRecord(eventId, "A01", "", "PRESENT", 1000L)
         )
         
         every { repository.getQueueItems() } returns flowOf(emptyList())
