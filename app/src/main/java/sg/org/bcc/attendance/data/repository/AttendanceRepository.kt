@@ -185,9 +185,19 @@ class AttendanceRepository @Inject constructor(
                 } else {
                     // Fetch Attendees
                     try {
+                        val localAttendeeIds = attendeeDao.getAllAttendeeIds().toSet()
                         val remoteAttendees = cloudProvider.fetchMasterAttendees(scope)
+                        val remoteAttendeeIds = remoteAttendees.map { it.id }.toSet()
+                        
                         attendeeDao.insertAll(remoteAttendees)
-                        status.add("Attendees: OK (${remoteAttendees.size})")
+                        
+                        val missingAttendeeIds = localAttendeeIds.filter { it !in remoteAttendeeIds }
+                        if (missingAttendeeIds.isNotEmpty()) {
+                            attendeeDao.markAsMissingOnCloud(missingAttendeeIds)
+                            status.add("Attendees: OK (${remoteAttendees.size}), Missing locally: ${missingAttendeeIds.size}")
+                        } else {
+                            status.add("Attendees: OK (${remoteAttendees.size})")
+                        }
                     } catch (e: Exception) {
                         status.add("Attendees: FAILED (${e.message})")
                         throw e 
@@ -195,10 +205,23 @@ class AttendanceRepository @Inject constructor(
 
                     // Groups (Non-critical)
                     try {
+                        val localGroupIds = groupDao.getAllGroupIds().toSet()
                         val remoteGroups = cloudProvider.fetchMasterGroups(scope)
-                        groupDao.clearAll()
-                        if (remoteGroups.isNotEmpty()) groupDao.insertAll(remoteGroups)
-                        status.add("Groups: OK (${remoteGroups.size})")
+                        val remoteGroupIds = remoteGroups.map { it.groupId }.toSet()
+                        
+                        // We used to clearAll here, but now we should only update/insert and mark missing.
+                        // groupDao.clearAll() 
+                        if (remoteGroups.isNotEmpty()) {
+                            groupDao.insertAll(remoteGroups)
+                        }
+                        
+                        val missingGroupIds = localGroupIds.filter { it !in remoteGroupIds }
+                        if (missingGroupIds.isNotEmpty()) {
+                            groupDao.markAsMissingOnCloud(missingGroupIds)
+                            status.add("Groups: OK (${remoteGroups.size}), Missing locally: ${missingGroupIds.size}")
+                        } else {
+                            status.add("Groups: OK (${remoteGroups.size})")
+                        }
                     } catch (e: Exception) {
                         status.add("Groups: FAILED (${e.message})")
                     }
@@ -207,7 +230,22 @@ class AttendanceRepository @Inject constructor(
                     try {
                         val remoteMappings = cloudProvider.fetchAttendeeGroupMappings(scope)
                         attendeeGroupMappingDao.clearAll()
-                        if (remoteMappings.isNotEmpty()) attendeeGroupMappingDao.insertAll(remoteMappings)
+                        if (remoteMappings.isNotEmpty()) {
+                            attendeeGroupMappingDao.insertAll(remoteMappings)
+                            
+                            // Requirement: If a mapping references an unknown ID, upsertPlaceholder.
+                            val localAttendeeIds = attendeeDao.getAllAttendeeIds().toSet()
+                            val localGroupIds = groupDao.getAllGroupIds().toSet()
+                            
+                            remoteMappings.forEach { mapping ->
+                                if (mapping.attendeeId !in localAttendeeIds) {
+                                    attendeeDao.upsert(Attendee(id = mapping.attendeeId, fullName = mapping.attendeeId, notExistOnCloud = true))
+                                }
+                                if (mapping.groupId !in localGroupIds) {
+                                    groupDao.upsert(Group(groupId = mapping.groupId, name = mapping.groupId, notExistOnCloud = true))
+                                }
+                            }
+                        }
                         status.add("Mappings: OK (${remoteMappings.size})")
                     } catch (e: Exception) {
                         status.add("Mappings: FAILED (${e.message})")
@@ -266,6 +304,16 @@ class AttendanceRepository @Inject constructor(
             )
             
             if (pullResult.records.isNotEmpty()) {
+                val currentAttendeeIds = attendeeDao.getAllAttendeeIds().toSet()
+                pullResult.records.forEach { record ->
+                    if (record.attendeeId !in currentAttendeeIds) {
+                        attendeeDao.upsert(Attendee(
+                            id = record.attendeeId, 
+                            fullName = record.attendeeId, 
+                            notExistOnCloud = true
+                        ))
+                    }
+                }
                 attendanceDao.upsertAllIfNewer(pullResult.records)
             }
             
@@ -390,6 +438,17 @@ class AttendanceRepository @Inject constructor(
     suspend fun clearReadyQueue() {
         persistentQueueDao.clearReady()
     }
+
+    suspend fun purgeAllMissingFromCloud() {
+        attendeeDao.purgeAllMissingOnCloud()
+        groupDao.purgeAllMissingOnCloud()
+    }
+
+    fun getMissingOnCloudAttendees(): Flow<List<Attendee>> = attendeeDao.getMissingOnCloudAttendees()
+    fun getMissingOnCloudGroups(): Flow<List<Group>> = groupDao.getMissingOnCloudGroups()
+
+    suspend fun removeAttendeeById(id: String) = attendeeDao.deleteById(id)
+    suspend fun removeGroupById(id: String) = groupDao.deleteById(id)
 
     suspend fun replaceQueueWithSelection(attendeeIds: List<String>) {
         val currentQueue = persistentQueueDao.getQueue().first()

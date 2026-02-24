@@ -65,6 +65,8 @@ class MainListViewModelTest {
         every { repository.getAllGroups() } returns flowOf(emptyList())
         every { repository.getAllMappings() } returns flowOf(emptyList())
         every { repository.getAttendanceRecords(any()) } returns flowOf(emptyList())
+        every { repository.getMissingOnCloudAttendees() } returns flowOf(emptyList())
+        every { repository.getMissingOnCloudGroups() } returns flowOf(emptyList())
         
         io.mockk.coEvery { repository.syncMasterList(any()) } returns Unit
         io.mockk.coEvery { repository.syncMasterListWithDetailedResult(any(), any(), any()) } returns (true to "OK")

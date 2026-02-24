@@ -357,6 +357,9 @@ fun MainListScreen(
     }
 
     if (showCloudStatusDialog) {
+        val missingCloudAttendeesCount by viewModel.missingCloudAttendeesCount.collectAsState()
+        val missingCloudGroupsCount by viewModel.missingCloudGroupsCount.collectAsState()
+
         SetStatusBarIconsColor(isLight = false)
         CloudStatusDialog(
             isAuthed = isAuthed,
@@ -371,6 +374,8 @@ fun MainListScreen(
             totalAttendeesCount = totalAttendeesCount,
             totalGroupsCount = totalGroupsCount,
             attendeesWithGroupCount = attendeesWithGroupCount,
+            missingCloudAttendeesCount = missingCloudAttendeesCount,
+            missingCloudGroupsCount = missingCloudGroupsCount,
             onLogin = viewModel::onLoginTrigger,
             onLogout = viewModel::onLogout,
             onDismiss = { viewModel.setShowCloudStatusDialog(false) },
@@ -378,7 +383,8 @@ fun MainListScreen(
             onShowLogs = {
                 viewModel.setShowCloudStatusDialog(false)
                 onNavigateToSyncLogs()
-            }
+            },
+            onResolveMissing = viewModel::onNavigateToResolutionScreen
         )
     }
 
@@ -1342,11 +1348,14 @@ fun CloudStatusDialog(
     totalAttendeesCount: Int = 0,
     totalGroupsCount: Int = 0,
     attendeesWithGroupCount: Int = 0,
+    missingCloudAttendeesCount: Int = 0,
+    missingCloudGroupsCount: Int = 0,
     onLogin: () -> Unit,
     onLogout: () -> Unit,
     onDismiss: () -> Unit,
     onManualSync: () -> Unit,
-    onShowLogs: () -> Unit
+    onShowLogs: () -> Unit,
+    onResolveMissing: () -> Unit
 ) {
     var isAcknowledgeLossChecked by remember { mutableStateOf(false) }
     val hasPendingJobs = syncProgress.pendingJobs > 0
@@ -1430,6 +1439,55 @@ fun CloudStatusDialog(
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onErrorContainer
                                 )
+                            }
+                        }
+                    }
+                }
+
+                if (missingCloudAttendeesCount > 0 || missingCloudGroupsCount > 0) {
+                    banners.add {
+                        Surface(
+                            color = MaterialTheme.colorScheme.tertiaryContainer,
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onResolveMissing() }
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                AppIcon(
+                                    resourceId = AppIcons.CloudAlert,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onTertiaryContainer,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    val text = buildString {
+                                        if (missingCloudAttendeesCount > 0) {
+                                            append("$missingCloudAttendeesCount attendee${if (missingCloudAttendeesCount > 1) "s" else ""}")
+                                        }
+                                        if (missingCloudAttendeesCount > 0 && missingCloudGroupsCount > 0) {
+                                            append(" and ")
+                                        }
+                                        if (missingCloudGroupsCount > 0) {
+                                            append("$missingCloudGroupsCount group${if (missingCloudGroupsCount > 1) "s" else ""}")
+                                        }
+                                        append(" missing on cloud.")
+                                    }
+                                    Text(
+                                        text = text,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onTertiaryContainer
+                                    )
+                                    Text(
+                                        text = "Tap to resolve.",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.7f)
+                                    )
+                                }
                             }
                         }
                     }

@@ -14,6 +14,7 @@ object AppIcons {
     val PersonCancel = R.drawable.ic_person_cancel
     val PersonRemove = R.drawable.ic_person_remove
     val PlaylistRemove = R.drawable.ic_playlist_remove
+    val DeleteSweep = R.drawable.ic_delete_sweep
     val PersonSearch = R.drawable.ic_person_search
     val PlaylistAdd = R.drawable.ic_playlist_add
     val Groups = R.drawable.ic_groups

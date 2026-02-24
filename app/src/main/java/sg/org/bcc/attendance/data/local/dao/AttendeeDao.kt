@@ -22,9 +22,27 @@ interface AttendeeDao {
     """)
     suspend fun searchAttendees(query: String): List<Attendee>
 
+    @Query("SELECT id FROM attendees")
+    suspend fun getAllAttendeeIds(): List<String>
+
+    @Query("UPDATE attendees SET notExistOnCloud = 1 WHERE id IN (:ids)")
+    suspend fun markAsMissingOnCloud(ids: List<String>)
+
+    @Query("SELECT * FROM attendees WHERE notExistOnCloud = 1")
+    fun getMissingOnCloudAttendees(): Flow<List<Attendee>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(attendee: Attendee)
+
+    @Query("DELETE FROM attendees WHERE id = :id")
+    suspend fun deleteById(id: String)
+
     @Query("SELECT * FROM attendees WHERE id = :id")
     suspend fun getAttendeeById(id: String): Attendee?
 
     @Query("DELETE FROM attendees")
     suspend fun clearAll()
+
+    @Query("DELETE FROM attendees WHERE notExistOnCloud = 1")
+    suspend fun purgeAllMissingOnCloud()
 }

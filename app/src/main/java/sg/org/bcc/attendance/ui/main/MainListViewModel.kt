@@ -149,8 +149,28 @@ class MainListViewModel @Inject constructor(
     private val _loginRequestEvent = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val loginRequestEvent = _loginRequestEvent.asSharedFlow()
 
+    private val _navigateToResolutionScreenEvent = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val navigateToResolutionScreenEvent = _navigateToResolutionScreenEvent.asSharedFlow()
+
     fun setShowQueueSheet(show: Boolean) {
         _showQueueSheet.value = show
+    }
+
+    val missingCloudAttendees = repository.getMissingOnCloudAttendees()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val missingCloudGroups = repository.getMissingOnCloudGroups()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val missingCloudAttendeesCount = missingCloudAttendees.map { it.size }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+
+    val missingCloudGroupsCount = missingCloudGroups.map { it.size }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+
+    fun onNavigateToResolutionScreen() {
+        _navigateToResolutionScreenEvent.tryEmit(Unit)
+        _showCloudStatusDialog.value = false
     }
 
     val syncPendingCount = repository.getPendingSyncCount()

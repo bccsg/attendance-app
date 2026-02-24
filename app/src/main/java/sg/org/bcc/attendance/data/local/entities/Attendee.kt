@@ -7,5 +7,6 @@ import androidx.room.PrimaryKey
 data class Attendee(
     @PrimaryKey val id: String,
     val fullName: String,
-    val shortName: String? = null
+    val shortName: String? = null,
+    val notExistOnCloud: Boolean = false
 )

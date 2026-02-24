@@ -6,5 +6,6 @@ import androidx.room.PrimaryKey
 @Entity(tableName = "groups")
 data class Group(
     @PrimaryKey val groupId: String, // Group name acts as ID
-    val name: String
+    val name: String,
+    val notExistOnCloud: Boolean = false
 )

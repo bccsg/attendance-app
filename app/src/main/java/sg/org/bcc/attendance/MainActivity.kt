@@ -21,6 +21,7 @@ import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 import sg.org.bcc.attendance.ui.main.MainListScreen
 import sg.org.bcc.attendance.ui.main.MainListViewModel
+import sg.org.bcc.attendance.ui.main.CloudResolutionScreen
 import sg.org.bcc.attendance.ui.event.EventManagementScreen
 import sg.org.bcc.attendance.ui.queue.SyncLogsScreen
 import sg.org.bcc.attendance.ui.theme.AttendanceTheme
@@ -53,6 +54,18 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
+                LaunchedEffect(Unit) {
+                    repeatOnLifecycle(Lifecycle.State.STARTED) {
+                        mainViewModel.navigateToResolutionScreenEvent.collect {
+                            if (navController.currentDestination?.route != "cloud_resolution") {
+                                navController.navigate("cloud_resolution") {
+                                    launchSingleTop = true
+                                }
+                            }
+                        }
+                    }
+                }
+
                 NavHost(navController = navController, startDestination = "main_list") {
                     composable("main_list") {
                         MainListScreen(
@@ -69,6 +82,15 @@ class MainActivity : ComponentActivity() {
                                     navController.navigate("sync_logs") {
                                         launchSingleTop = true
                                     }
+                                }
+                            }
+                        )
+                    }
+                    composable("cloud_resolution") {
+                        CloudResolutionScreen(
+                            onBack = {
+                                if (navController.currentDestination?.route == "cloud_resolution") {
+                                    navController.popBackStack()
                                 }
                             }
                         )
