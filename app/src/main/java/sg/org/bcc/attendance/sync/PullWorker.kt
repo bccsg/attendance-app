@@ -47,7 +47,7 @@ class PullWorker @AssistedInject constructor(
         return try {
             val (success, status) = repository.syncMasterListWithDetailedResult(
                 isFullSync = false,
-                triggerType = "AUTO",
+                triggerType = "SCHEDULED",
                 targetEventId = selectedEventId
             )
             val now = System.currentTimeMillis()

@@ -137,7 +137,7 @@ class MainListViewModelTest {
         
         testScheduler.advanceUntilIdle()
         
-        io.mockk.coVerify(exactly = 1) { repository.syncMasterList(any()) }
+        io.mockk.coVerify(exactly = 1) { repository.syncMasterList(targetEventId = null) }
     }
 
     @Test
@@ -368,5 +368,20 @@ class MainListViewModelTest {
         viewModel.isDemoMode.value shouldBe true
         viewModel.isAuthed.value shouldBe false
         viewModel.authState.value shouldBe sg.org.bcc.attendance.data.remote.AuthState.UNAUTHENTICATED
+    }
+
+    @Test
+    fun `onSwitchEvent should trigger attendance sync`() = runTest {
+        val event = Event(id = "E1", title = "2026-02-25 1000 Test", date = "2026-02-25", time = "1000")
+        io.mockk.coEvery { repository.getEventById("E1") } returns event
+        io.mockk.coEvery { repository.syncAttendanceForEvent(event, triggerType = any()) } returns Unit
+        
+        val viewModel = MainListViewModel(repository, authManager, context)
+        testScheduler.advanceUntilIdle()
+
+        viewModel.onSwitchEvent("E1")
+        testScheduler.advanceUntilIdle()
+
+        io.mockk.coVerify { repository.syncAttendanceForEvent(event, triggerType = "EVENT_SWITCH") }
     }
 }

@@ -529,7 +529,7 @@ class MainListViewModel @Inject constructor(
             if (!repository.isDemoMode()) {
                 isSyncing.value = true
                 try {
-                    repository.syncMasterList(targetEventId = _currentEventId.value)
+                    repository.syncMasterList(targetEventId = null)
                 } catch (e: Exception) {
                     android.util.Log.e("AttendanceSync", "App start sync failed: ${e.message}")
                 } finally {
@@ -547,28 +547,42 @@ class MainListViewModel @Inject constructor(
                 val currentId = _currentEventId.value
                 val currentEventObj = events.find { it.id == currentId }
                 
+                var isExpired = false
                 if (currentEventObj != null) {
                     val date = EventSuggester.parseDate(currentEventObj.title)
                     val cutoff = LocalDate.now().minusDays(30)
-                    val isExpired = date == null || date.isBefore(cutoff)
-                    
-                    if (!isExpired) return@collect
+                    isExpired = date == null || date.isBefore(cutoff)
                 }
 
-                val now = java.time.LocalDateTime.now()
-                val oneHourAgo = now.minusHours(1)
-                
-                val suggestedEvent = repository.getUpcomingEvent(oneHourAgo) ?: repository.getLatestEvent()
-                
-                val newId = suggestedEvent?.id
-                _currentEventId.value = newId
-                if (newId != null) {
-                    prefs.edit { putString("selected_event_id", newId) }
-                } else {
-                    prefs.edit { remove("selected_event_id") }
+                if (currentEventObj == null || isExpired) {
+                    val now = java.time.LocalDateTime.now()
+                    val oneHourAgo = now.minusHours(1)
+                    
+                    val suggestedEvent = repository.getUpcomingEvent(oneHourAgo) ?: repository.getLatestEvent()
+                    
+                    val newId = suggestedEvent?.id
+                    _currentEventId.value = newId
+                    if (newId != null) {
+                        prefs.edit { putString("selected_event_id", newId) }
+                    } else {
+                        prefs.edit { remove("selected_event_id") }
+                    }
                 }
             }
         }
+
+        // Trigger attendance sync when event selection changes (covers app start suggestion)
+        _currentEventId
+            .filterNotNull()
+            .distinctUntilChanged()
+            .onEach { eventId ->
+                if (!repository.isDemoMode()) {
+                    repository.getEventById(eventId)?.let { event ->
+                        repository.syncAttendanceForEvent(event, triggerType = "EVENT_AUTOSELECT")
+                    }
+                }
+            }
+            .launchIn(viewModelScope)
 
         combine(presentPoolCount, _showPresent, _showAbsent) { count, present, absent ->
             if (count == 0 && !absent) {
@@ -814,7 +828,7 @@ class MainListViewModel @Inject constructor(
         
         viewModelScope.launch {
             repository.getEventById(eventId)?.let { event ->
-                repository.syncAttendanceForEvent(event)
+                repository.syncAttendanceForEvent(event, triggerType = "EVENT_SWITCH")
             }
         }
     }

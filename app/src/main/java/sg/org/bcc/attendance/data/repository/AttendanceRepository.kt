@@ -293,14 +293,28 @@ class AttendanceRepository @Inject constructor(
         }
     }
 
-    suspend fun syncAttendanceForEvent(event: Event, scope: SyncLogScope = NoOpSyncLogScope) {
-        if (!checkAuthAndRefresh()) return
+    suspend fun syncAttendanceForEvent(
+        event: Event, 
+        scope: SyncLogScope = NoOpSyncLogScope,
+        triggerType: String? = null
+    ) {
+        val actualScope = if (triggerType != null) {
+            DatabaseSyncLogScope(syncLogDao, triggerType)
+        } else {
+            scope
+        }
+        
+        if (!checkAuthAndRefresh()) {
+            actualScope.log("authCheck", false, "Authentication failed")
+            return
+        }
+        
         try {
             // Differential Pull: Fetch rows from M+1 (M=lastProcessedRowIndex)
             val pullResult = cloudProvider.fetchAttendanceForEvent(
                 event = event, 
                 startIndex = event.lastProcessedRowIndex,
-                scope = scope
+                scope = actualScope
             )
             
             if (pullResult.records.isNotEmpty()) {
@@ -315,6 +329,11 @@ class AttendanceRepository @Inject constructor(
                     }
                 }
                 attendanceDao.upsertAllIfNewer(pullResult.records)
+                actualScope.log(
+                    operation = "pull", 
+                    success = true, 
+                    params = "event=${event.title} fetched=${pullResult.records.size}"
+                )
             }
             
             // Update: Set lastProcessedRowIndex to the cloud's current end index after pull
@@ -323,6 +342,7 @@ class AttendanceRepository @Inject constructor(
             }
         } catch (e: Exception) {
             android.util.Log.e("AttendanceSync", "Failed to sync attendance for ${event.title}: ${e.message}")
+            actualScope.log("pull", false, "Failed to sync attendance", error = e.message, stackTrace = e.stackTraceToString())
         }
     }
 
