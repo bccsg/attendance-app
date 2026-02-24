@@ -49,4 +49,7 @@ object DatabaseModule {
 
     @Provides
     fun provideAttendeeGroupMappingDao(db: AttendanceDatabase): AttendeeGroupMappingDao = db.attendeeGroupMappingDao()
+
+    @Provides
+    fun provideSyncLogDao(db: AttendanceDatabase): SyncLogDao = db.syncLogDao()
 }

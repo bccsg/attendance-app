@@ -6,6 +6,7 @@ import sg.org.bcc.attendance.data.local.entities.AttendeeGroupMapping
 import sg.org.bcc.attendance.data.local.entities.Event
 import sg.org.bcc.attendance.data.local.entities.Group
 import sg.org.bcc.attendance.data.remote.fake.DemoCloudProvider
+import sg.org.bcc.attendance.sync.SyncLogScope
 import javax.inject.Inject
 import javax.inject.Provider
 import javax.inject.Singleton
@@ -24,27 +25,41 @@ class DelegatingCloudProvider @Inject constructor(
             demoProvider.get()
         }
 
-    override suspend fun pushAttendance(event: Event, records: List<AttendanceRecord>): PushResult {
-        return activeProvider.pushAttendance(event, records)
+    override suspend fun pushAttendance(
+        event: Event, 
+        records: List<AttendanceRecord>,
+        scope: SyncLogScope
+    ): PushResult {
+        return activeProvider.pushAttendance(event, records, scope)
     }
 
-    override suspend fun fetchMasterAttendees(): List<Attendee> {
-        return activeProvider.fetchMasterAttendees()
+    override suspend fun fetchMasterAttendees(scope: SyncLogScope): List<Attendee> {
+        return activeProvider.fetchMasterAttendees(scope)
     }
 
-    override suspend fun fetchMasterGroups(): List<Group> {
-        return activeProvider.fetchMasterGroups()
+    override suspend fun fetchMasterGroups(scope: SyncLogScope): List<Group> {
+        return activeProvider.fetchMasterGroups(scope)
     }
 
-    override suspend fun fetchAttendeeGroupMappings(): List<AttendeeGroupMapping> {
-        return activeProvider.fetchAttendeeGroupMappings()
+    override suspend fun fetchAttendeeGroupMappings(scope: SyncLogScope): List<AttendeeGroupMapping> {
+        return activeProvider.fetchAttendeeGroupMappings(scope)
     }
 
-    override suspend fun fetchAttendanceForEvent(event: Event): List<AttendanceRecord> {
-        return activeProvider.fetchAttendanceForEvent(event)
+    override suspend fun fetchMasterListVersion(scope: SyncLogScope): String {
+        return activeProvider.fetchMasterListVersion(scope)
     }
 
-    override suspend fun fetchRecentEvents(days: Int): List<Event> {
-        return activeProvider.fetchRecentEvents(days)
+    override suspend fun fetchAttendanceForEvent(
+        event: Event,
+        scope: SyncLogScope
+    ): List<AttendanceRecord> {
+        return activeProvider.fetchAttendanceForEvent(event, scope)
+    }
+
+    override suspend fun fetchRecentEvents(
+        days: Int,
+        scope: SyncLogScope
+    ): List<Event> {
+        return activeProvider.fetchRecentEvents(days, scope)
     }
 }

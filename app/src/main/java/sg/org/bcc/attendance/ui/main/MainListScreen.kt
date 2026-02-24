@@ -62,7 +62,8 @@ import java.util.Locale
 @Composable
 fun MainListScreen(
     viewModel: MainListViewModel = hiltViewModel(),
-    onNavigateToEventManagement: () -> Unit = {}
+    onNavigateToEventManagement: () -> Unit = {},
+    onNavigateToSyncLogs: () -> Unit = {}
 ) {
     val searchQuery by viewModel.searchQuery.collectAsState()
     val attendees by viewModel.attendees.collectAsState()
@@ -373,7 +374,11 @@ fun MainListScreen(
             onLogin = viewModel::onLoginTrigger,
             onLogout = viewModel::onLogout,
             onDismiss = { viewModel.setShowCloudStatusDialog(false) },
-            onManualSync = viewModel::doManualSync
+            onManualSync = viewModel::doManualSync,
+            onShowLogs = {
+                viewModel.setShowCloudStatusDialog(false)
+                onNavigateToSyncLogs()
+            }
         )
     }
 
@@ -1340,7 +1345,8 @@ fun CloudStatusDialog(
     onLogin: () -> Unit,
     onLogout: () -> Unit,
     onDismiss: () -> Unit,
-    onManualSync: () -> Unit
+    onManualSync: () -> Unit,
+    onShowLogs: () -> Unit
 ) {
     var isAcknowledgeLossChecked by remember { mutableStateOf(false) }
     val hasPendingJobs = syncProgress.pendingJobs > 0
@@ -1615,7 +1621,7 @@ fun CloudStatusDialog(
                             "Unknown"
                         }
                     } ?: "None")
-                    SyncInfoRow("Last Pull Status", syncProgress.lastPullStatus ?: "Unknown")
+                    SyncInfoRow("Last Pull Status", syncProgress.lastPullStatus ?: "Unknown", onClick = onShowLogs)
                 }
             }
         },
@@ -1651,13 +1657,20 @@ fun CloudStatusDialog(
 }
 
 @Composable
-fun SyncInfoRow(label: String, value: String) {
+fun SyncInfoRow(label: String, value: String, onClick: (() -> Unit)? = null) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(value, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+        Text(
+            value, 
+            style = MaterialTheme.typography.bodySmall, 
+            fontWeight = FontWeight.Bold,
+            color = if (onClick != null) MaterialTheme.colorScheme.primary else Color.Unspecified
+        )
     }
 }
 

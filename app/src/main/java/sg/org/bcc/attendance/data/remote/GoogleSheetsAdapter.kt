@@ -10,6 +10,7 @@ import com.google.auth.oauth2.GoogleCredentials
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import sg.org.bcc.attendance.data.local.entities.*
+import sg.org.bcc.attendance.sync.SyncLogScope
 import sg.org.bcc.attendance.util.EventSuggester
 import java.util.*
 import javax.inject.Inject
@@ -25,6 +26,22 @@ class GoogleSheetsAdapter @Inject constructor(
 
     private val masterSpreadsheetId = sg.org.bcc.attendance.BuildConfig.MASTER_SHEET_ID
     private val eventSpreadsheetId = sg.org.bcc.attendance.BuildConfig.EVENT_SHEET_ID
+
+    private suspend fun <T> runWithLogging(
+        scope: SyncLogScope,
+        operation: String,
+        params: String? = null,
+        block: suspend () -> T
+    ): T {
+        return try {
+            val result = block()
+            scope.log(operation, true, params = params)
+            result
+        } catch (e: Exception) {
+            scope.log(operation, false, params = params, error = e.message, stackTrace = e.stackTraceToString())
+            throw e
+        }
+    }
 
     private fun getSheetsService(): Sheets {
         val accessToken = authManager.getAccessToken() ?: throw IllegalStateException("Not authenticated")
@@ -44,83 +61,89 @@ class GoogleSheetsAdapter @Inject constructor(
         }
     }
 
-    override suspend fun pushAttendance(event: Event, records: List<AttendanceRecord>): PushResult = withContext(Dispatchers.IO) {
-        try {
-            ensureAuthenticated()
-            val service = getSheetsService()
-            val sheetTitle = event.title // Format: yyMMdd HHmm Name
-            
-            // 1. Ensure worksheet exists and get its ID
-            val sheetId = ensureWorksheetExists(service, eventSpreadsheetId, sheetTitle)
-            val cloudIdStr = sheetId.toString()
+    override suspend fun pushAttendance(
+        event: Event, 
+        records: List<AttendanceRecord>,
+        scope: SyncLogScope
+    ): PushResult = runWithLogging(scope, "pushAttendance", "event='${event.title}', records=${records.size}") {
+        withContext(Dispatchers.IO) {
+            try {
+                ensureAuthenticated()
+                val service = getSheetsService()
+                val sheetTitle = event.title // Format: yyMMdd HHmm Name
+                
+                // 1. Ensure worksheet exists and get its ID
+                val sheetId = ensureWorksheetExists(service, eventSpreadsheetId, sheetTitle)
+                val cloudIdStr = sheetId.toString()
 
-            // 2. Prepare data for push if any records exist
-            if (records.isNotEmpty()) {
-                val userEmail = authManager.getEmail() ?: "unknown"
-                val sgtOffsetMs = 8 * 3600 * 1000L
-                val finalFormula = "=COUNTIF(INDIRECT(\"A\"&ROW()&\":A\"), INDIRECT(\"A\"&ROW())) = 1"
-                
-                val values = records.map { record ->
-                    // Convert Unix ms to Google Sheets Serial Number in SGT (+8h)
-                    val sgtTimestamp = record.timestamp + sgtOffsetMs
-                    val serialNumber = (sgtTimestamp / 86400000.0) + 25569.0
+                // 2. Prepare data for push if any records exist
+                if (records.isNotEmpty()) {
+                    val userEmail = authManager.getEmail() ?: "unknown"
+                    val sgtOffsetMs = 8 * 3600 * 1000L
+                    val finalFormula = "=COUNTIF(INDIRECT(\"A\"&ROW()&\":A\"), INDIRECT(\"A\"&ROW())) = 1"
                     
-                    // Fallback name if VLOOKUP fails (includes a suffix)
-                    val escapedLocalName = record.fullName.replace("\"", "\"\"")
-                    val vlookupFormula = "=IFERROR(VLOOKUP(INDIRECT(\"A\"&ROW()), IMPORTRANGE(\"$masterSpreadsheetId\", \"Attendees!A:B\"), 2, FALSE), \"$escapedLocalName (Not Found)\")"
+                    val values = records.map { record ->
+                        // Convert Unix ms to Google Sheets Serial Number in SGT (+8h)
+                        val sgtTimestamp = record.timestamp + sgtOffsetMs
+                        val serialNumber = (sgtTimestamp / 86400000.0) + 25569.0
+                        
+                        // Fallback name if VLOOKUP fails (includes a suffix)
+                        val escapedLocalName = record.fullName.replace("\"", "\"\"")
+                        val vlookupFormula = "=IFERROR(VLOOKUP(INDIRECT(\"A\"&ROW()), IMPORTRANGE(\"$masterSpreadsheetId\", \"Attendees!A:B\"), 2, FALSE), \"$escapedLocalName (Not Found)\")"
+                        
+                        // Order: ID (A), Name (B), State (C), Final (D), Time (E), User (F)
+                        listOf(record.attendeeId, vlookupFormula, record.state, finalFormula, serialNumber, userEmail) 
+                    }
+                    val body = ValueRange().setValues(values)
                     
-                    // Order: ID (A), Name (B), State (C), Final (D), Time (E), User (F)
-                    listOf(record.attendeeId, vlookupFormula, record.state, finalFormula, serialNumber, userEmail) 
-                }
-                val body = ValueRange().setValues(values)
-                
-                val appendResponse = service.spreadsheets().values()
-                    .append(eventSpreadsheetId, "'$sheetTitle'!A1:F1", body)
-                    .setValueInputOption("USER_ENTERED")
-                    .execute()
-                
-                // 3. Format the appended rows Column D as Checkbox
-                // We extract the range from the appendResponse to target exactly the new rows
-                val updatedRange = appendResponse.updates.updatedRange // e.g. "Sheet1!A2:F5"
-                val rowRangeRegex = Regex("!A(\\d+):F(\\d+)")
-                val match = rowRangeRegex.find(updatedRange)
-                if (match != null) {
-                    val startRow = match.groupValues[1].toInt() - 1 // 0-indexed
-                    val endRow = match.groupValues[2].toInt()
+                    val appendResponse = service.spreadsheets().values()
+                        .append(eventSpreadsheetId, "'$sheetTitle'!A1:F1", body)
+                        .setValueInputOption("USER_ENTERED")
+                        .execute()
                     
-                    val checkboxRequest = com.google.api.services.sheets.v4.model.Request().setRepeatCell(
-                        com.google.api.services.sheets.v4.model.RepeatCellRequest()
-                            .setRange(com.google.api.services.sheets.v4.model.GridRange()
-                                .setSheetId(sheetId)
-                                .setStartRowIndex(startRow)
-                                .setEndRowIndex(endRow)
-                                .setStartColumnIndex(3)
-                                .setEndColumnIndex(4)
-                            )
-                            .setCell(com.google.api.services.sheets.v4.model.CellData()
-                                .setDataValidation(com.google.api.services.sheets.v4.model.DataValidationRule()
-                                    .setCondition(com.google.api.services.sheets.v4.model.BooleanCondition()
-                                        .setType("BOOLEAN")
+                    // 3. Format the appended rows Column D as Checkbox
+                    // We extract the range from the appendResponse to target exactly the new rows
+                    val updatedRange = appendResponse.updates.updatedRange // e.g. "Sheet1!A2:F5"
+                    val rowRangeRegex = Regex("!A(\\d+):F(\\d+)")
+                    val match = rowRangeRegex.find(updatedRange)
+                    if (match != null) {
+                        val startRow = match.groupValues[1].toInt() - 1 // 0-indexed
+                        val endRow = match.groupValues[2].toInt()
+                        
+                        val checkboxRequest = com.google.api.services.sheets.v4.model.Request().setRepeatCell(
+                            com.google.api.services.sheets.v4.model.RepeatCellRequest()
+                                .setRange(com.google.api.services.sheets.v4.model.GridRange()
+                                    .setSheetId(sheetId)
+                                    .setStartRowIndex(startRow)
+                                    .setEndRowIndex(endRow)
+                                    .setStartColumnIndex(3)
+                                    .setEndColumnIndex(4)
+                                )
+                                .setCell(com.google.api.services.sheets.v4.model.CellData()
+                                    .setDataValidation(com.google.api.services.sheets.v4.model.DataValidationRule()
+                                        .setCondition(com.google.api.services.sheets.v4.model.BooleanCondition()
+                                            .setType("BOOLEAN")
+                                        )
                                     )
                                 )
-                            )
-                            .setFields("dataValidation")
-                    )
-                    
-                    val batchUpdate = com.google.api.services.sheets.v4.model.BatchUpdateSpreadsheetRequest()
-                        .setRequests(listOf(checkboxRequest))
-                    service.spreadsheets().batchUpdate(eventSpreadsheetId, batchUpdate).execute()
+                                .setFields("dataValidation")
+                        )
+                        
+                        val batchUpdate = com.google.api.services.sheets.v4.model.BatchUpdateSpreadsheetRequest()
+                            .setRequests(listOf(checkboxRequest))
+                        service.spreadsheets().batchUpdate(eventSpreadsheetId, batchUpdate).execute()
+                    }
                 }
+                
+                // 4. Return mapping if local event doesn't have it yet
+                if (event.cloudEventId != cloudIdStr) {
+                    PushResult.SuccessWithMapping(cloudIdStr)
+                } else {
+                    PushResult.Success
+                }
+            } catch (e: Exception) {
+                PushResult.Error(e.message ?: "Sync failed", isRetryable = true)
             }
-            
-            // 4. Return mapping if local event doesn't have it yet
-            if (event.cloudEventId != cloudIdStr) {
-                PushResult.SuccessWithMapping(cloudIdStr)
-            } else {
-                PushResult.Success
-            }
-        } catch (e: Exception) {
-            PushResult.Error(e.message ?: "Sync failed", isRetryable = true)
         }
     }
 
@@ -268,163 +291,189 @@ class GoogleSheetsAdapter @Inject constructor(
         newSheetId
     }
 
-    override suspend fun fetchMasterAttendees(): List<Attendee> = withContext(Dispatchers.IO) {
-        ensureAuthenticated()
-        val service = getSheetsService()
-        android.util.Log.d("AttendanceSync", "Fetching attendees from sheet: $masterSpreadsheetId")
-        try {
-            val response = service.spreadsheets().values()
-                .get(masterSpreadsheetId, "Attendees!A2:E")
-                .execute()
-            
-            val values = response.getValues()
-            android.util.Log.d("AttendanceSync", "Raw attendee rows: ${values?.size ?: 0}")
-            
-            values?.filter { it.size >= 2 }?.map { row ->
-                Attendee(
-                    id = row[0].toString(),
-                    fullName = row[1].toString(),
-                    shortName = row.getOrNull(2)?.toString()
-                )
-            } ?: emptyList()
-        } catch (e: Exception) {
-            val type = e.javaClass.simpleName
-            android.util.Log.e("AttendanceSync", "Error fetching attendees ($type): ${e.message}", e)
-            throw Exception("[$type] ${e.message ?: "No message"}")
-        }
-    }
-
-    override suspend fun fetchMasterGroups(): List<Group> = withContext(Dispatchers.IO) {
-        ensureAuthenticated()
-        val service = getSheetsService()
-        android.util.Log.d("AttendanceSync", "Fetching groups...")
-        try {
-            val response = service.spreadsheets().values()
-                .get(masterSpreadsheetId, "Groups!A2:B")
-                .execute()
-            
-            val values = response.getValues()
-            android.util.Log.d("AttendanceSync", "Raw group rows: ${values?.size ?: 0}")
-            
-            values?.filter { it.size >= 2 }?.map { row ->
-                Group(
-                    groupId = row[0].toString(),
-                    name = row[1].toString()
-                )
-            } ?: emptyList()
-        } catch (e: Exception) {
-            val type = e.javaClass.simpleName
-            val msg = e.message ?: "No message"
-            if (msg.contains("Unable to parse range") || msg.contains("Grid with id")) {
-                 android.util.Log.e("AttendanceSync", "CRITICAL: 'Groups' worksheet not found in master sheet!")
+    override suspend fun fetchMasterAttendees(scope: SyncLogScope): List<Attendee> = runWithLogging(scope, "fetchMasterAttendees") {
+        withContext(Dispatchers.IO) {
+            ensureAuthenticated()
+            val service = getSheetsService()
+            android.util.Log.d("AttendanceSync", "Fetching attendees from sheet: $masterSpreadsheetId")
+            try {
+                val response = service.spreadsheets().values()
+                    .get(masterSpreadsheetId, "Attendees!A2:E")
+                    .execute()
+                
+                val values = response.getValues()
+                android.util.Log.d("AttendanceSync", "Raw attendee rows: ${values?.size ?: 0}")
+                
+                values?.filter { it.size >= 2 }?.map { row ->
+                    Attendee(
+                        id = row[0].toString(),
+                        fullName = row[1].toString(),
+                        shortName = row.getOrNull(2)?.toString()
+                    )
+                } ?: emptyList()
+            } catch (e: Exception) {
+                val type = e.javaClass.simpleName
+                android.util.Log.e("AttendanceSync", "Error fetching attendees ($type): ${e.message}", e)
+                throw Exception("[$type] ${e.message ?: "No message"}")
             }
-            android.util.Log.e("AttendanceSync", "Error fetching groups ($type): $msg")
-            throw Exception("[$type] $msg")
         }
     }
 
-    override suspend fun fetchAttendeeGroupMappings(): List<AttendeeGroupMapping> = withContext(Dispatchers.IO) {
-        ensureAuthenticated()
-        val service = getSheetsService()
-        android.util.Log.d("AttendanceSync", "Fetching mappings...")
-        
-        // DEBUG: List all sheets to verify names
-        try {
-            val spreadsheet = service.spreadsheets().get(masterSpreadsheetId).execute()
-            val sheetNames = spreadsheet.sheets.map { it.properties.title }
-            android.util.Log.d("AttendanceSync", "Available sheets: $sheetNames")
-        } catch (e: Exception) {
-            android.util.Log.e("AttendanceSync", "Failed to list sheets: ${e.message}")
-        }
-
-        try {
-            val response = service.spreadsheets().values()
-                .get(masterSpreadsheetId, "Mappings!A2:B")
-                .execute()
-            
-            val values = response.getValues()
-            android.util.Log.d("AttendanceSync", "Raw mapping rows: ${values?.size ?: 0}")
-            
-            // User sheet format: Group ID, Attendee ID
-            values?.filter { it.size >= 2 }?.map { row ->
-                AttendeeGroupMapping(
-                    groupId = row[0].toString(),    // Column A is Group ID
-                    attendeeId = row[1].toString()  // Column B is Attendee ID
-                )
-            } ?: emptyList()
-        } catch (e: Exception) {
-            val type = e.javaClass.simpleName
-            val msg = e.message ?: "No message"
-            if (msg.contains("Unable to parse range") || msg.contains("Grid with id")) {
-                 android.util.Log.e("AttendanceSync", "CRITICAL: 'Mappings' worksheet not found in master sheet!")
-            }
-            android.util.Log.e("AttendanceSync", "Error fetching mappings ($type): $msg")
-            throw Exception("[$type] $msg")
-        }
-    }
-
-    override suspend fun fetchAttendanceForEvent(event: Event): List<AttendanceRecord> = withContext(Dispatchers.IO) {
-        ensureAuthenticated()
-        val service = getSheetsService()
-        val response = try {
-            service.spreadsheets().values()
-                .get(eventSpreadsheetId, "'${event.title}'!A2:F") // Fetch all 6 cols
-                .setValueRenderOption("UNFORMATTED_VALUE")
-                .execute()
-        } catch (e: Exception) {
-            return@withContext emptyList()
-        }
-        
-        val sgtOffsetMs = 8 * 3600 * 1000L
-
-        response.getValues()?.mapNotNull { row ->
-            if (row.size < 5) return@mapNotNull null
-            
-            val attendeeId = row[0].toString()
-            // index 1 is Full Name, skip
-            val state = row[2].toString()
-            // index 3 is Final, skip
-            val rawValue = row[4] // Timestamp is now Column E
-            
-            val timestamp = when (rawValue) {
-                is Number -> {
-                    // Convert Serial Number back to SGT ms, then shift to UTC ms
-                    val sgtMs = ((rawValue.toDouble() - 25569.0) * 86400000.0).toLong()
-                    sgtMs - sgtOffsetMs
+    override suspend fun fetchMasterGroups(scope: SyncLogScope): List<Group> = runWithLogging(scope, "fetchMasterGroups") {
+        withContext(Dispatchers.IO) {
+            ensureAuthenticated()
+            val service = getSheetsService()
+            android.util.Log.d("AttendanceSync", "Fetching groups...")
+            try {
+                val response = service.spreadsheets().values()
+                    .get(masterSpreadsheetId, "Groups!A2:B")
+                    .execute()
+                
+                val values = response.getValues()
+                android.util.Log.d("AttendanceSync", "Raw group rows: ${values?.size ?: 0}")
+                
+                values?.filter { it.size >= 2 }?.map { row ->
+                    Group(
+                        groupId = row[0].toString(),
+                        name = row[1].toString()
+                    )
+                } ?: emptyList()
+            } catch (e: Exception) {
+                val type = e.javaClass.simpleName
+                val msg = e.message ?: "No message"
+                if (msg.contains("Unable to parse range") || msg.contains("Grid with id")) {
+                    android.util.Log.e("AttendanceSync", "CRITICAL: 'Groups' worksheet not found in master sheet!")
                 }
-                else -> {
-                    // Fallback if it's a string
-                    rawValue.toString().toLongOrNull() ?: 0L
-                }
+                android.util.Log.e("AttendanceSync", "Error fetching groups ($type): $msg")
+                throw Exception("[$type] $msg")
             }
-
-            AttendanceRecord(
-                eventId = event.id,
-                attendeeId = attendeeId,
-                state = state,
-                timestamp = timestamp
-            )
-        } ?: emptyList()
+        }
     }
 
-    override suspend fun fetchRecentEvents(days: Int): List<Event> = withContext(Dispatchers.IO) {
-        ensureAuthenticated()
-        val service = getSheetsService()
-        val spreadsheet = service.spreadsheets().get(eventSpreadsheetId).execute()
-        
-        // In GSheets, each worksheet IS an event
-        spreadsheet.sheets.mapNotNull { sheet ->
-            val title = sheet.properties.title
-            val date = EventSuggester.parseDate(title)?.toString() ?: return@mapNotNull null
-            val time = title.split(" ").getOrNull(1) ?: return@mapNotNull null
+    override suspend fun fetchAttendeeGroupMappings(scope: SyncLogScope): List<AttendeeGroupMapping> = runWithLogging(scope, "fetchAttendeeGroupMappings") {
+        withContext(Dispatchers.IO) {
+            ensureAuthenticated()
+            val service = getSheetsService()
+            android.util.Log.d("AttendanceSync", "Fetching mappings...")
             
-            Event(
-                id = UUID.randomUUID().toString(),
-                title = title,
-                date = date,
-                time = time,
-                cloudEventId = sheet.properties.sheetId.toString()
-            )
+            // DEBUG: List all sheets to verify names
+            try {
+                val spreadsheet = service.spreadsheets().get(masterSpreadsheetId).execute()
+                val sheetNames = spreadsheet.sheets.map { it.properties.title }
+                android.util.Log.d("AttendanceSync", "Available sheets: $sheetNames")
+            } catch (e: Exception) {
+                android.util.Log.e("AttendanceSync", "Failed to list sheets: ${e.message}")
+            }
+
+            try {
+                val response = service.spreadsheets().values()
+                    .get(masterSpreadsheetId, "Mappings!A2:B")
+                    .execute()
+                
+                val values = response.getValues()
+                android.util.Log.d("AttendanceSync", "Raw mapping rows: ${values?.size ?: 0}")
+                
+                // User sheet format: Group ID, Attendee ID
+                values?.filter { it.size >= 2 }?.map { row ->
+                    AttendeeGroupMapping(
+                        groupId = row[0].toString(),    // Column A is Group ID
+                        attendeeId = row[1].toString()  // Column B is Attendee ID
+                    )
+                } ?: emptyList()
+            } catch (e: Exception) {
+                val type = e.javaClass.simpleName
+                val msg = e.message ?: "No message"
+                if (msg.contains("Unable to parse range") || msg.contains("Grid with id")) {
+                    android.util.Log.e("AttendanceSync", "CRITICAL: 'Mappings' worksheet not found in master sheet!")
+                }
+                android.util.Log.e("AttendanceSync", "Error fetching mappings ($type): $msg")
+                throw Exception("[$type] $msg")
+            }
+        }
+    }
+
+    override suspend fun fetchMasterListVersion(scope: SyncLogScope): String = runWithLogging(scope, "fetchMasterListVersion") {
+        withContext(Dispatchers.IO) {
+            ensureAuthenticated()
+            val service = getSheetsService()
+            // We only need the ETag, so we fetch minimal fields
+            val spreadsheet = service.spreadsheets().get(masterSpreadsheetId)
+                .setFields("spreadsheetId")
+                .execute()
+            
+            spreadsheet.get("etag")?.toString() ?: System.currentTimeMillis().toString()
+        }
+    }
+
+    override suspend fun fetchAttendanceForEvent(
+        event: Event,
+        scope: SyncLogScope
+    ): List<AttendanceRecord> = runWithLogging(scope, "fetchAttendanceForEvent", "event='${event.title}'") {
+        withContext(Dispatchers.IO) {
+            ensureAuthenticated()
+            val service = getSheetsService()
+            val response = try {
+                service.spreadsheets().values()
+                    .get(eventSpreadsheetId, "'${event.title}'!A2:F") // Fetch all 6 cols
+                    .setValueRenderOption("UNFORMATTED_VALUE")
+                    .execute()
+            } catch (e: Exception) {
+                return@withContext emptyList()
+            }
+            
+            val sgtOffsetMs = 8 * 3600 * 1000L
+
+            response.getValues()?.mapNotNull { row ->
+                if (row.size < 5) return@mapNotNull null
+                
+                val attendeeId = row[0].toString()
+                // index 1 is Full Name, skip
+                val state = row[2].toString()
+                // index 3 is Final, skip
+                val rawValue = row[4] // Timestamp is now Column E
+                
+                val timestamp = when (rawValue) {
+                    is Number -> {
+                        // Convert Serial Number back to SGT ms, then shift to UTC ms
+                        val sgtMs = ((rawValue.toDouble() - 25569.0) * 86400000.0).toLong()
+                        sgtMs - sgtOffsetMs
+                    }
+                    else -> {
+                        // Fallback if it's a string
+                        rawValue.toString().toLongOrNull() ?: 0L
+                    }
+                }
+
+                AttendanceRecord(
+                    eventId = event.id,
+                    attendeeId = attendeeId,
+                    state = state,
+                    timestamp = timestamp
+                )
+            } ?: emptyList()
+        }
+    }
+
+    override suspend fun fetchRecentEvents(days: Int, scope: SyncLogScope): List<Event> = runWithLogging(scope, "fetchRecentEvents", "days=$days") {
+        withContext(Dispatchers.IO) {
+            ensureAuthenticated()
+            val service = getSheetsService()
+            val spreadsheet = service.spreadsheets().get(eventSpreadsheetId).execute()
+            
+            // In GSheets, each worksheet IS an event
+            spreadsheet.sheets.mapNotNull { sheet ->
+                val title = sheet.properties.title
+                val date = EventSuggester.parseDate(title)?.toString() ?: return@mapNotNull null
+                val time = title.split(" ").getOrNull(1) ?: return@mapNotNull null
+                
+                Event(
+                    id = UUID.randomUUID().toString(),
+                    title = title,
+                    date = date,
+                    time = time,
+                    cloudEventId = sheet.properties.sheetId.toString()
+                )
+            }
         }
     }
 }

@@ -37,12 +37,19 @@ class PullWorker @AssistedInject constructor(
         prefs.edit().putString("last_pull_status", "Syncing...").apply()
         
         setProgress(workDataOf(
-            PROGRESS_OP to "Pulling Master List",
+            PROGRESS_OP to "Pulling Events",
             PROGRESS_STATE to "SYNCING"
         ))
 
+        val appPrefs = applicationContext.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
+        val selectedEventId = appPrefs.getString("selected_event_id", null)
+
         return try {
-            val (success, status) = repository.syncMasterListWithDetailedResult()
+            val (success, status) = repository.syncMasterListWithDetailedResult(
+                isFullSync = false,
+                triggerType = "AUTO",
+                targetEventId = selectedEventId
+            )
             val now = System.currentTimeMillis()
             if (success) {
                 prefs.edit().putLong("last_pull_time", now).putString("last_pull_status", "Success").apply()

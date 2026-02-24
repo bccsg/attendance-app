@@ -64,7 +64,7 @@ data class SyncProgress(
 class MainListViewModel @Inject constructor(
     private val repository: AttendanceRepository,
     private val authManager: AuthManager,
-    @ApplicationContext private val context: Context
+    @param:ApplicationContext private val context: Context
 ) : ViewModel() {
 
     private val prefs = context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
@@ -260,7 +260,7 @@ class MainListViewModel @Inject constructor(
             }
             combine(flows.values) { attendeeLists ->
                 groups.mapIndexed { index, group ->
-                    group.groupId to attendeeLists[index]
+                    group.groupId to (attendeeLists[index] as List<Attendee>)
                 }.toMap()
             }
         }
@@ -285,7 +285,6 @@ class MainListViewModel @Inject constructor(
         }
     }
 
-    // Combine UI state to bypass combine() parameter limit
     private val uiFilterState = combine(
         _showPresent,
         _showAbsent,
@@ -337,7 +336,6 @@ class MainListViewModel @Inject constructor(
         }
 
         if (data.query.isNotBlank()) {
-            // Already sorted by search scorer
             result
         } else {
             when (filters.sortMode) {
@@ -393,7 +391,6 @@ class MainListViewModel @Inject constructor(
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
-    // Statistics for Cloud Status Dialog
     val totalAttendeesCount = allAttendees.map { it.size }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
@@ -421,7 +418,6 @@ class MainListViewModel @Inject constructor(
             }
         })
 
-        // Observe WorkManager progress combined with connectivity and pending count
         combine(
             WorkManager.getInstance(context)
                 .getWorkInfosForUniqueWorkLiveData(SyncScheduler.SYNC_WORK_NAME)
@@ -432,14 +428,13 @@ class MainListViewModel @Inject constructor(
             _isOnline,
             repository.getPendingSyncCount()
         ) { syncWorkInfos, pullWorkInfos, online, pendingCount ->
-            val syncWorkInfo = syncWorkInfos?.firstOrNull()
-            val pullWorkInfo = pullWorkInfos?.firstOrNull()
+            val syncWorkInfo = syncWorkInfos.firstOrNull()
+            val pullWorkInfo = pullWorkInfos.firstOrNull()
             
             val syncPrefs = context.getSharedPreferences("sync_prefs", Context.MODE_PRIVATE)
             val lastPullTimeStored = syncPrefs.getLong("last_pull_time", 0L).let { if (it == 0L) null else it }
             val lastPullStatusStored = syncPrefs.getString("last_pull_status", "Never")
             
-            // Use WorkManager's next schedule time if available, otherwise fallback to calculation
             val nextScheduledPull = pullWorkInfo?.nextScheduleTimeMillis?.let { if (it == 0L) null else it }
                 ?: lastPullTimeStored?.let { it + 15 * 60 * 1000 }
 
@@ -447,7 +442,6 @@ class MainListViewModel @Inject constructor(
             var newState = SyncState.IDLE
             var errorMsg: String? = null
 
-            // 1. Process sync work (pushes)
             if (syncWorkInfo != null) {
                 val progress = syncWorkInfo.progress
                 currentOp = progress.getString(SyncWorker.PROGRESS_OP)
@@ -469,7 +463,6 @@ class MainListViewModel @Inject constructor(
                 }
             }
 
-            // 2. Process pull work if sync work is IDLE
             if (newState == SyncState.IDLE && pullWorkInfo != null) {
                 val progress = pullWorkInfo.progress
                 val stateStr = progress.getString(PullWorker.PROGRESS_STATE)
@@ -483,7 +476,6 @@ class MainListViewModel @Inject constructor(
                 }
             }
 
-            // Override status if pending jobs are blocked by lack of internet
             if ((newState == SyncState.IDLE || newState == SyncState.RETRYING) && pendingCount > 0 && !online) {
                 newState = SyncState.NO_INTERNET
             }
@@ -492,7 +484,6 @@ class MainListViewModel @Inject constructor(
             if (errorMsg != null && (currentErrors.isEmpty() || currentErrors.first().message != errorMsg)) {
                 currentErrors.add(0, SyncError(System.currentTimeMillis(), errorMsg))
             } else if (newState == SyncState.SYNCING && errorMsg == null) {
-                // Clear errors on fresh start of a sync operation
                 currentErrors.clear()
             }
 
@@ -510,17 +501,17 @@ class MainListViewModel @Inject constructor(
             hasSyncError.value = newState == SyncState.ERROR
         }.launchIn(viewModelScope)
 
-        // Trigger any pending sync jobs on app start (robustness mop-up)
         viewModelScope.launch {
             repository.retrySync()
         }
 
-        // Initial seed of demo data if the database is empty on first launch
         viewModelScope.launch {
-            if (repository.getAllAttendees().first().isEmpty()) {
+            if (!repository.isDemoMode()) {
                 isSyncing.value = true
                 try {
-                    repository.syncMasterList()
+                    repository.syncMasterList(targetEventId = _currentEventId.value)
+                } catch (e: Exception) {
+                    android.util.Log.e("AttendanceSync", "App start sync failed: ${e.message}")
                 } finally {
                     isSyncing.value = false
                 }
@@ -528,19 +519,14 @@ class MainListViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
-            // Purge old events on start
             repository.purgeOldEvents()
             
-            // Auto-switch logic
             availableEvents.collect { events ->
-                // Wait for events to load. If it's genuinely empty after sync,
-                // we'll stay in "No Event Selected" state naturally.
                 if (events.isEmpty()) return@collect
 
                 val currentId = _currentEventId.value
                 val currentEventObj = events.find { it.id == currentId }
                 
-                // Only auto-select if no valid selection exists or it has been purged/expired
                 if (currentEventObj != null) {
                     val date = EventSuggester.parseDate(currentEventObj.title)
                     val cutoff = LocalDate.now().minusDays(30)
@@ -549,11 +535,9 @@ class MainListViewModel @Inject constructor(
                     if (!isExpired) return@collect
                 }
 
-                // If we reach here, we either have no selection or the current one is invalid.
                 val now = java.time.LocalDateTime.now()
                 val oneHourAgo = now.minusHours(1)
                 
-                // 1. Try to find the earliest event starting within 1 hour ago or in the future
                 val suggestedEvent = repository.getUpcomingEvent(oneHourAgo) ?: repository.getLatestEvent()
                 
                 val newId = suggestedEvent?.id
@@ -578,7 +562,6 @@ class MainListViewModel @Inject constructor(
             }
         }.launchIn(viewModelScope)
 
-        // Reset checklist mode if selection becomes empty
         _selectedIds.map { it.isEmpty() }
             .distinctUntilChanged()
             .onEach { if (it) _isShowSelectedOnlyMode.value = false }
@@ -706,13 +689,13 @@ class MainListViewModel @Inject constructor(
             syncPrefs.edit().putString("last_pull_status", "Syncing...").apply()
             
             try {
-                val (syncSuccess, detailedStatus) = repository.syncMasterListWithDetailedResult()
+                val (syncSuccess, detailedStatus) = repository.syncMasterListWithDetailedResult(targetEventId = _currentEventId.value)
                 val now = System.currentTimeMillis()
                 if (!syncSuccess) {
                     _loginError.value = detailedStatus
                     syncPrefs.edit().putString("last_pull_status", "Failed: $detailedStatus").apply()
                 } else {
-                    _loginError.value = null // Clear any previous errors on success
+                    _loginError.value = null
                     syncPrefs.edit().putLong("last_pull_time", now).putString("last_pull_status", "Success").apply()
                 }
             } catch (e: Exception) {
@@ -750,18 +733,14 @@ class MainListViewModel @Inject constructor(
     fun getAuthUrl(): String = authManager.getAuthUrl()
 
     fun handleOAuthCode(code: String) {
-        android.util.Log.d("AttendanceAuth", "ViewModel handling OAuth code: ${code.take(5)}...")
         viewModelScope.launch {
             isSyncing.value = true
             try {
                 val oldEmail = authManager.getEmail()
                 val oldIsDemo = authManager.isDemoMode.value
 
-                // 1. Exchange code for tokens
-                android.util.Log.d("AttendanceAuth", "Exchanging code for tokens...")
                 val exchangeSuccess = authManager.exchangeCodeForTokens(code)
                 if (!exchangeSuccess) {
-                    android.util.Log.e("AttendanceAuth", "Token exchange FAILED!")
                     _loginError.value = "Failed to exchange code for tokens. Ensure you use a @${AuthManager.REQUIRED_DOMAIN} account."
                     return@launch
                 }
@@ -769,33 +748,24 @@ class MainListViewModel @Inject constructor(
                 val newEmail = authManager.getEmail()
                 val identityChanged = oldEmail != newEmail || oldIsDemo
 
-                android.util.Log.d("AttendanceAuth", "Exchange success! Identity changed: $identityChanged")
-                
                 if (identityChanged) {
-                    android.util.Log.d("AttendanceAuth", "New identity or transitioned from demo. Clearing local data.")
-                    // 2. Clear all local data before syncing with the cloud
                     repository.clearAllData()
-                    
-                    // Clear selection on new identity
                     _currentEventId.value = null
                     prefs.edit { remove("selected_event_id") }
-                } else {
-                    android.util.Log.d("AttendanceAuth", "Re-authentication of same user. Preserving local data and selection.")
-                }
+                } 
                 
-                // 3. Attempt sync with new tokens
-                val (syncSuccess, detailedStatus) = repository.syncMasterListWithDetailedResult()
-                android.util.Log.d("AttendanceAuth", "Sync success: $syncSuccess, status:\n$detailedStatus")
+                val (syncSuccess, detailedStatus) = repository.syncMasterListWithDetailedResult(
+                    triggerType = "LOGIN",
+                    targetEventId = _currentEventId.value
+                )
                 
                 if (syncSuccess) {
                     _loginError.value = null
                 } else {
-                    // For now, logout to ensure clean state if sync fails
                     authManager.logout()
                     _loginError.value = detailedStatus
                 }
             } catch (e: Exception) {
-                android.util.Log.e("AttendanceAuth", "Error during OAuth flow: ${e.message}", e)
                 _loginError.value = "Login error: ${e.message}"
             } finally {
                 isSyncing.value = false
@@ -809,12 +779,9 @@ class MainListViewModel @Inject constructor(
             try {
                 authManager.logout()
                 repository.clearAllData()
-                
-                // Clear selection on logout
                 _currentEventId.value = null
                 prefs.edit { remove("selected_event_id") }
-                
-                repository.syncMasterList()
+                repository.syncMasterList(targetEventId = null)
             } finally {
                 isSyncing.value = false
             }
@@ -831,6 +798,4 @@ class MainListViewModel @Inject constructor(
             }
         }
     }
-
-    // setTextScale is already defined above
 }

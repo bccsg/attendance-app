@@ -15,9 +15,10 @@ import sg.org.bcc.attendance.data.local.entities.*
         AttendanceRecord::class,
         PersistentQueue::class,
         SyncJob::class,
-        QueueArchive::class
+        QueueArchive::class,
+        SyncLog::class
     ],
-    version = 7,
+    version = 9,
     exportSchema = true
 )
 abstract class AttendanceDatabase : RoomDatabase() {
@@ -29,4 +30,5 @@ abstract class AttendanceDatabase : RoomDatabase() {
     abstract fun eventDao(): EventDao
     abstract fun groupDao(): GroupDao
     abstract fun attendeeGroupMappingDao(): AttendeeGroupMappingDao
+    abstract fun syncLogDao(): SyncLogDao
 }

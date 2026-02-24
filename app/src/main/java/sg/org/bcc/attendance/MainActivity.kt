@@ -22,6 +22,7 @@ import kotlinx.coroutines.launch
 import sg.org.bcc.attendance.ui.main.MainListScreen
 import sg.org.bcc.attendance.ui.main.MainListViewModel
 import sg.org.bcc.attendance.ui.event.EventManagementScreen
+import sg.org.bcc.attendance.ui.queue.SyncLogsScreen
 import sg.org.bcc.attendance.ui.theme.AttendanceTheme
 
 @AndroidEntryPoint
@@ -57,7 +58,18 @@ class MainActivity : ComponentActivity() {
                         MainListScreen(
                             viewModel = mainViewModel,
                             onNavigateToEventManagement = {
-                                navController.navigate("event_management")
+                                if (navController.currentDestination?.route == "main_list") {
+                                    navController.navigate("event_management") {
+                                        launchSingleTop = true
+                                    }
+                                }
+                            },
+                            onNavigateToSyncLogs = {
+                                if (navController.currentDestination?.route == "main_list") {
+                                    navController.navigate("sync_logs") {
+                                        launchSingleTop = true
+                                    }
+                                }
                             }
                         )
                     }
@@ -72,9 +84,20 @@ class MainActivity : ComponentActivity() {
                                 mainViewModel.onSwitchEvent(id)
                             },
                             onBack = {
-                                navController.popBackStack()
+                                if (navController.currentDestination?.route == "event_management") {
+                                    navController.popBackStack()
+                                }
                             },
                             onLogout = { mainViewModel.setShowCloudStatusDialog(true) }
+                        )
+                    }
+                    composable("sync_logs") {
+                        SyncLogsScreen(
+                            onBack = {
+                                if (navController.currentDestination?.route == "sync_logs") {
+                                    navController.popBackStack()
+                                }
+                            }
                         )
                     }
                 }

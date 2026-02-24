@@ -1,5 +1,7 @@
 package sg.org.bcc.attendance.data.repository
 
+import android.content.Context
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
@@ -8,6 +10,9 @@ import sg.org.bcc.attendance.data.local.dao.*
 import sg.org.bcc.attendance.data.local.entities.*
 import sg.org.bcc.attendance.data.remote.AttendanceCloudProvider
 import sg.org.bcc.attendance.data.remote.AuthManager
+import sg.org.bcc.attendance.sync.DatabaseSyncLogScope
+import sg.org.bcc.attendance.sync.NoOpSyncLogScope
+import sg.org.bcc.attendance.sync.SyncLogScope
 import sg.org.bcc.attendance.sync.SyncScheduler
 import sg.org.bcc.attendance.util.EventSuggester
 import sg.org.bcc.attendance.util.time.TimeProvider
@@ -22,6 +27,7 @@ data class QueueItem(
 
 @Singleton
 class AttendanceRepository @Inject constructor(
+    @param:ApplicationContext private val context: Context,
     private val attendeeDao: AttendeeDao,
     private val attendanceDao: AttendanceDao,
     private val persistentQueueDao: PersistentQueueDao,
@@ -30,11 +36,22 @@ class AttendanceRepository @Inject constructor(
     private val eventDao: EventDao,
     private val groupDao: GroupDao,
     private val attendeeGroupMappingDao: AttendeeGroupMappingDao,
+    private val syncLogDao: SyncLogDao,
     private val cloudProvider: AttendanceCloudProvider,
     private val authManager: AuthManager,
     private val timeProvider: TimeProvider,
     private val syncScheduler: SyncScheduler
 ) {
+    companion object {
+        private const val PREFS_NAME = "sync_prefs"
+        private const val PREF_MASTER_VERSION = "local_master_list_version"
+    }
+
+    private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+
+    fun getSyncLogsSummary() = syncLogDao.getTriggersSummary()
+    fun getLogsForTrigger(triggerId: String) = syncLogDao.getLogsForTrigger(triggerId)
+
     fun getQueueItems(): Flow<List<QueueItem>> {
         return combine(
             attendeeDao.getAllAttendees(),
@@ -111,7 +128,6 @@ class AttendanceRepository @Inject constructor(
     fun getAllAttendees(): Flow<List<Attendee>> = attendeeDao.getAllAttendees()
 
     suspend fun isDemoMode(): Boolean {
-        // Demo mode is active when the user is not authenticated and is explicitly in demo mode.
         return authManager.isDemoMode.value
     }
 
@@ -123,82 +139,114 @@ class AttendanceRepository @Inject constructor(
         return true
     }
 
-    suspend fun syncMasterList() {
-        syncMasterListWithDetailedResult()
+    suspend fun syncMasterList(targetEventId: String? = null) {
+        syncMasterListWithDetailedResult(isFullSync = true, triggerType = "APP_START", targetEventId = targetEventId)
     }
 
-    suspend fun syncMasterListWithResult(): Boolean {
-        return syncMasterListWithDetailedResult().first
+    suspend fun syncMasterListWithResult(targetEventId: String? = null): Boolean {
+        return syncMasterListWithDetailedResult(isFullSync = true, triggerType = "MANUAL", targetEventId = targetEventId).first
     }
 
-    suspend fun syncMasterListWithDetailedResult(): Pair<Boolean, String> {
-        if (!checkAuthAndRefresh()) return false to "Authentication failed or token expired."
+    suspend fun syncMasterListWithDetailedResult(
+        isFullSync: Boolean = true,
+        triggerType: String = "MANUAL",
+        targetEventId: String? = null
+    ): Pair<Boolean, String> {
+        val scope = DatabaseSyncLogScope(syncLogDao, triggerType)
+        
+        if (!checkAuthAndRefresh()) {
+            scope.log("authCheck", false, "Authentication failed")
+            return false to "Authentication failed or token expired."
+        }
 
         if (syncJobDao.getPendingCount() > 0) {
+            scope.log("preCheck", false, "Skipped pull due to pending sync jobs")
             return false to "Skipped pull due to pending sync jobs."
         }
 
         val status = mutableListOf<String>()
         try {
-            android.util.Log.d("AttendanceSync", "Starting master list sync...")
+            android.util.Log.d("AttendanceSync", "Starting master list sync (isFullSync=$isFullSync, target=$targetEventId)...")
             
-            // 1. Fetch Attendees (Critical gatekeeper)
-            val remoteAttendees = try {
-                cloudProvider.fetchMasterAttendees().also {
-                    status.add("Attendees: OK (${it.size})")
-                }
-            } catch (e: Exception) {
-                status.add("Attendees: FAILED (${e.message})")
-                throw e // Critical failure, abort sync
-            }
-
-            // At this point, we have a valid connection. The ViewModel is responsible
-            // for clearing data upon initial login.
-            attendeeDao.insertAll(remoteAttendees)
-
-            // 2. Groups (Non-critical)
-            try {
-                val remoteGroups = cloudProvider.fetchMasterGroups()
-                groupDao.clearAll()
-                if (remoteGroups.isNotEmpty()) {
-                    groupDao.insertAll(remoteGroups)
-                }
-                status.add("Groups: OK (${remoteGroups.size})")
-            } catch (e: Exception) {
-                status.add("Groups: FAILED ([${e.javaClass.simpleName}] ${e.message})")
-            }
-
-            // 3. Mappings (Non-critical)
-            try {
-                val remoteMappings = cloudProvider.fetchAttendeeGroupMappings()
-                attendeeGroupMappingDao.clearAll()
-                if (remoteMappings.isNotEmpty()) {
-                    attendeeGroupMappingDao.insertAll(remoteMappings)
-                }
-                status.add("Mappings: OK (${remoteMappings.size})")
-            } catch (e: Exception) {
-                status.add("Mappings: FAILED ([${e.javaClass.simpleName}] ${e.message})")
-            }
-
-            // 4. Events
-            try {
-                val remoteEvents = cloudProvider.fetchRecentEvents(30)
-                if (remoteEvents.isNotEmpty()) {
-                    mergeAndInsertEvents(remoteEvents)
-                    
-                    // 5. Reconcile attendance for all manageable events
-                    status.add("Reconciling attendance...")
-                    remoteEvents.forEach { event ->
-                        syncAttendanceForEvent(event)
+            if (isFullSync) {
+                // 1-3. Master Data (Version-Based)
+                val localVersion = prefs.getString(PREF_MASTER_VERSION, "")
+                val remoteVersion = try {
+                    cloudProvider.fetchMasterListVersion(scope).also {
+                        android.util.Log.d("AttendanceSync", "Remote Master Version: $it (Local: $localVersion)")
                     }
-                    status.add("Attendance: OK")
+                } catch (e: Exception) {
+                    android.util.Log.e("AttendanceSync", "Failed to fetch master list version", e)
+                    "" 
                 }
-                status.add("Events: OK (${remoteEvents.size})")
-            } catch (e: Exception) {
-                status.add("Events/Attendance: FAILED ([${e.javaClass.simpleName}] ${e.message})")
+
+                if (remoteVersion.isNotEmpty() && remoteVersion == localVersion) {
+                    status.add("Master List: Already up to date (version: $remoteVersion)")
+                } else {
+                    // Fetch Attendees
+                    try {
+                        val remoteAttendees = cloudProvider.fetchMasterAttendees(scope)
+                        attendeeDao.insertAll(remoteAttendees)
+                        status.add("Attendees: OK (${remoteAttendees.size})")
+                    } catch (e: Exception) {
+                        status.add("Attendees: FAILED (${e.message})")
+                        throw e 
+                    }
+
+                    // Groups (Non-critical)
+                    try {
+                        val remoteGroups = cloudProvider.fetchMasterGroups(scope)
+                        groupDao.clearAll()
+                        if (remoteGroups.isNotEmpty()) groupDao.insertAll(remoteGroups)
+                        status.add("Groups: OK (${remoteGroups.size})")
+                    } catch (e: Exception) {
+                        status.add("Groups: FAILED (${e.message})")
+                    }
+
+                    // Mappings (Non-critical)
+                    try {
+                        val remoteMappings = cloudProvider.fetchAttendeeGroupMappings(scope)
+                        attendeeGroupMappingDao.clearAll()
+                        if (remoteMappings.isNotEmpty()) attendeeGroupMappingDao.insertAll(remoteMappings)
+                        status.add("Mappings: OK (${remoteMappings.size})")
+                    } catch (e: Exception) {
+                        status.add("Mappings: FAILED (${e.message})")
+                    }
+
+                    if (remoteVersion.isNotEmpty()) {
+                        prefs.edit().putString(PREF_MASTER_VERSION, remoteVersion).apply()
+                    }
+                }
+
+                // 4. Events Discovery (Discovery of new/deleted events)
+                try {
+                    val remoteEvents = cloudProvider.fetchRecentEvents(30, scope)
+                    if (remoteEvents.isNotEmpty()) {
+                        mergeAndInsertEvents(remoteEvents)
+                    }
+                    status.add("Events Discovery: OK (${remoteEvents.size})")
+                } catch (e: Exception) {
+                    status.add("Events Discovery: FAILED (${e.message})")
+                }
+            } else {
+                status.add("Master List: Skipped (Periodic Sync)")
+            }
+
+            // 5. Reconcile attendance ONLY for the target event (Unified)
+            if (targetEventId != null) {
+                eventDao.getEventById(targetEventId)?.let { event ->
+                    status.add("Reconciling attendance: ${event.title}")
+                    syncAttendanceForEvent(event, scope)
+                    status.add("Attendance: OK")
+                } ?: run {
+                    status.add("Attendance: Skipped (Target event not found)")
+                }
+            } else {
+                status.add("Attendance: Skipped (No event selected)")
             }
             
             android.util.Log.d("AttendanceSync", "Master list sync COMPLETED: ${status.joinToString(", ")}")
+            syncLogDao.prune(500)
             return true to status.joinToString("\n")
         } catch (e: Exception) {
             val errorMsg = "Master list sync FAILED:\n${status.joinToString("\n")}"
@@ -207,10 +255,10 @@ class AttendanceRepository @Inject constructor(
         }
     }
 
-    suspend fun syncAttendanceForEvent(event: Event) {
+    suspend fun syncAttendanceForEvent(event: Event, scope: SyncLogScope = NoOpSyncLogScope) {
         if (!checkAuthAndRefresh()) return
         try {
-            val remoteRecords = cloudProvider.fetchAttendanceForEvent(event)
+            val remoteRecords = cloudProvider.fetchAttendanceForEvent(event, scope)
             if (remoteRecords.isNotEmpty()) {
                 attendanceDao.upsertAllIfNewer(remoteRecords)
             }
@@ -252,6 +300,7 @@ class AttendanceRepository @Inject constructor(
     suspend fun getLatestEvent(): Event? = eventDao.getLatestEvent()
 
     suspend fun clearAllData() {
+        prefs.edit().remove(PREF_MASTER_VERSION).apply()
         attendeeDao.clearAll()
         attendanceDao.clearAll()
         persistentQueueDao.clear()
@@ -262,7 +311,7 @@ class AttendanceRepository @Inject constructor(
         attendeeGroupMappingDao.clearAll()
     }
 
-    suspend fun syncRecentEvents(clearFirst: Boolean = false) {
+    suspend fun syncRecentEvents(clearFirst: Boolean = false, triggerType: String = "MANUAL") {
         if (!checkAuthAndRefresh()) return
 
         if (syncJobDao.getPendingCount() > 0) {
@@ -270,8 +319,9 @@ class AttendanceRepository @Inject constructor(
             return
         }
         
+        val scope = DatabaseSyncLogScope(syncLogDao, triggerType)
         try {
-            val remoteEvents = cloudProvider.fetchRecentEvents(30)
+            val remoteEvents = cloudProvider.fetchRecentEvents(30, scope)
             if (clearFirst) {
                 eventDao.clearAll()
             }
@@ -298,7 +348,6 @@ class AttendanceRepository @Inject constructor(
     suspend fun restoreFromArchive(archiveId: Long) {
         val archive = queueArchiveDao.getArchiveById(archiveId) ?: return
         
-        // Simple JSON parsing (in a real app, use Gson/Moshi)
         val regex = Regex("\"id\":\"(.*?)\".*?\"state\":\"(.*?)\"")
         val matches = regex.findAll(archive.dataJson)
         
@@ -308,7 +357,6 @@ class AttendanceRepository @Inject constructor(
             PersistentQueue(id, isLater = (state == "ABSENT"))
         }.toList()
 
-        // Append to current queue
         val currentQueue = persistentQueueDao.getQueue().first()
         val currentIds = currentQueue.map { it.attendeeId }.toSet()
         
@@ -336,7 +384,6 @@ class AttendanceRepository @Inject constructor(
         val currentQueue = persistentQueueDao.getQueue().first()
         val laterIds = currentQueue.filter { it.isLater }.map { it.attendeeId }.toSet()
         
-        // Archive the old queue before replacing
         if (currentQueue.isNotEmpty()) {
             val timestamp = timeProvider.now()
             val payload = currentQueue.map { q ->
@@ -345,7 +392,7 @@ class AttendanceRepository @Inject constructor(
             }.joinToString(prefix = "[", postfix = "]", separator = ",")
             
             queueArchiveDao.insertWithFifo(QueueArchive(
-                eventId = "replaces", // Use a generic ID or actual event ID if available
+                eventId = "replaces",
                 timestamp = timestamp,
                 dataJson = payload
             ))
@@ -357,7 +404,6 @@ class AttendanceRepository @Inject constructor(
         persistentQueueDao.replaceQueue(newQueue)
     }
 
-    // Group Management functions
     fun getAllGroups(): Flow<List<Group>> = groupDao.getAllGroups()
 
     suspend fun getGroupsForAttendee(attendeeId: String): List<String> = 
@@ -376,7 +422,6 @@ class AttendanceRepository @Inject constructor(
     fun getAllMappings(): Flow<List<AttendeeGroupMapping>> = 
         attendeeGroupMappingDao.getAllMappings()
 
-    // Event Management functions
     fun getAllEvents(): Flow<List<Event>> = eventDao.getAllEvents()
 
     fun getManageableEvents(): Flow<List<Event>> {
@@ -398,11 +443,10 @@ class AttendanceRepository @Inject constructor(
     suspend fun insertEvent(event: Event) {
         eventDao.insert(event)
         
-        // Trigger initial sync for the event to ensure it's created on the cloud
         val timestamp = timeProvider.now()
         val job = SyncJob(
             eventId = event.id,
-            payloadJson = "[]", // Empty payload indicates event creation/mapping only
+            payloadJson = "[]",
             createdAt = timestamp
         )
         syncJobDao.insert(job)

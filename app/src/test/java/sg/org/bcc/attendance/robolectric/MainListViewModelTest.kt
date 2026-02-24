@@ -66,7 +66,8 @@ class MainListViewModelTest {
         every { repository.getAllMappings() } returns flowOf(emptyList())
         every { repository.getAttendanceRecords(any()) } returns flowOf(emptyList())
         
-        io.mockk.coEvery { repository.syncMasterList() } returns Unit
+        io.mockk.coEvery { repository.syncMasterList(any()) } returns Unit
+        io.mockk.coEvery { repository.syncMasterListWithDetailedResult(any(), any(), any()) } returns (true to "OK")
         io.mockk.coEvery { repository.retrySync() } returns Unit
         io.mockk.coEvery { repository.getUpcomingEvent(any()) } returns null
         io.mockk.coEvery { repository.getLatestEvent() } returns null
@@ -118,7 +119,7 @@ class MainListViewModelTest {
         
         testScheduler.advanceUntilIdle()
         
-        io.mockk.coVerify(exactly = 0) { repository.syncMasterList() }
+        io.mockk.coVerify(exactly = 0) { repository.syncMasterList(any()) }
     }
 
     @Test
@@ -134,7 +135,7 @@ class MainListViewModelTest {
         
         testScheduler.advanceUntilIdle()
         
-        io.mockk.coVerify(exactly = 1) { repository.syncMasterList() }
+        io.mockk.coVerify(exactly = 1) { repository.syncMasterList(any()) }
     }
 
     @Test
@@ -271,7 +272,7 @@ class MainListViewModelTest {
         
         // Mock successful exchange and sync
         io.mockk.coEvery { authManager.exchangeCodeForTokens("test_code") } returns true
-        io.mockk.coEvery { repository.syncMasterListWithDetailedResult() } returns (true to "OK")
+        io.mockk.coEvery { repository.syncMasterListWithDetailedResult(any(), any()) } returns (true to "OK")
 
         val viewModel = MainListViewModel(repository, authManager, context)
         
@@ -282,7 +283,7 @@ class MainListViewModelTest {
         viewModel.loginError.value shouldBe null
         io.mockk.coVerify { authManager.exchangeCodeForTokens("test_code") }
         io.mockk.coVerify { repository.clearAllData() }
-        io.mockk.coVerify { repository.syncMasterListWithDetailedResult() }
+        io.mockk.coVerify { repository.syncMasterListWithDetailedResult(any(), any(), any()) }
     }
 
     @Test
@@ -297,7 +298,7 @@ class MainListViewModelTest {
         
         io.mockk.coVerify { authManager.logout() }
         io.mockk.coVerify { repository.clearAllData() }
-        io.mockk.coVerify { repository.syncMasterList() }
+        io.mockk.coVerify { repository.syncMasterList(any()) }
         viewModel.isSyncing.value shouldBe false
     }
 
@@ -324,7 +325,7 @@ class MainListViewModelTest {
         isDemoModeFlow.value = false
         
         io.mockk.coEvery { authManager.exchangeCodeForTokens("test_code") } returns true
-        io.mockk.coEvery { repository.syncMasterListWithDetailedResult() } returns (true to "OK")
+        io.mockk.coEvery { repository.syncMasterListWithDetailedResult(any(), any()) } returns (true to "OK")
 
         val viewModel = MainListViewModel(repository, authManager, context)
         
@@ -334,7 +335,7 @@ class MainListViewModelTest {
         
         // Should NOT call clearAllData
         io.mockk.coVerify(exactly = 0) { repository.clearAllData() }
-        io.mockk.coVerify { repository.syncMasterListWithDetailedResult() }
+        io.mockk.coVerify { repository.syncMasterListWithDetailedResult(any(), any(), any()) }
     }
 
     @Test

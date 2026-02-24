@@ -26,10 +26,17 @@ class EventManagementViewModel @Inject constructor(
     val manageableEvents: StateFlow<List<Event>> = repository.getManageableEvents()
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
+    val isSyncing = MutableStateFlow(false)
+
     init {
         viewModelScope.launch {
             if (!repository.isDemoMode()) {
-                repository.syncRecentEvents()
+                isSyncing.value = true
+                try {
+                    repository.syncRecentEvents(triggerType = "EVENT_REFRESH")
+                } finally {
+                    isSyncing.value = false
+                }
             }
         }
     }

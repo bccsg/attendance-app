@@ -49,6 +49,7 @@ class PullSyncTest {
         coEvery { authManager.silentRefresh() } returns true
         
         repository = AttendanceRepository(
+            context,
             db.attendeeDao(),
             db.attendanceDao(),
             db.persistentQueueDao(),
@@ -57,6 +58,7 @@ class PullSyncTest {
             db.eventDao(),
             db.groupDao(),
             db.attendeeGroupMappingDao(),
+            db.syncLogDao(),
             cloudProvider,
             authManager,
             sg.org.bcc.attendance.util.time.TrueTimeProvider(),
@@ -70,6 +72,86 @@ class PullSyncTest {
     @After
     fun teardown() {
         db.close()
+    }
+
+    @Test
+    fun `syncMasterListWithDetailedResult should skip steps 1-3 if isFullSync is false`() {
+        runBlocking {
+            coEvery { cloudProvider.fetchRecentEvents(30, any()) } returns emptyList()
+
+            val (success, status) = repository.syncMasterListWithDetailedResult(isFullSync = false)
+            
+            success shouldBe true
+            status.contains("Master List: Skipped (Periodic Sync)") shouldBe true
+            
+            // Should NOT call fetchMasterAttendees
+            io.mockk.coVerify(exactly = 0) { cloudProvider.fetchMasterAttendees(any()) }
+        }
+    }
+
+    @Test
+    fun `syncMasterListWithDetailedResult should skip steps 1-3 if version matches`() {
+        runBlocking {
+            val version = "v123"
+            coEvery { cloudProvider.fetchMasterListVersion(any()) } returns version
+            coEvery { cloudProvider.fetchRecentEvents(30, any()) } returns emptyList()
+            
+            // Set local version in prefs
+            context.getSharedPreferences("sync_prefs", Context.MODE_PRIVATE)
+                .edit().putString("local_master_list_version", version).apply()
+
+            val (success, status) = repository.syncMasterListWithDetailedResult(isFullSync = true)
+            
+            success shouldBe true
+            status.contains("Master List: Already up to date") shouldBe true
+            
+            // Should NOT call fetchMasterAttendees
+            io.mockk.coVerify(exactly = 0) { cloudProvider.fetchMasterAttendees(any()) }
+        }
+    }
+
+    @Test
+    fun `syncMasterListWithDetailedResult should pull if version differs`() {
+        runBlocking {
+            val oldVersion = "v122"
+            val newVersion = "v123"
+            coEvery { cloudProvider.fetchMasterListVersion(any()) } returns newVersion
+            coEvery { cloudProvider.fetchMasterAttendees(any()) } returns listOf(Attendee("A1", "John"))
+            coEvery { cloudProvider.fetchMasterGroups(any()) } returns emptyList()
+            coEvery { cloudProvider.fetchAttendeeGroupMappings(any()) } returns emptyList()
+            coEvery { cloudProvider.fetchRecentEvents(30, any()) } returns emptyList()
+            
+            // Set local version in prefs
+            context.getSharedPreferences("sync_prefs", Context.MODE_PRIVATE)
+                .edit().putString("local_master_list_version", oldVersion).apply()
+
+            val (success, status) = repository.syncMasterListWithDetailedResult(isFullSync = true)
+            
+            success shouldBe true
+            status.contains("Attendees: OK (1)") shouldBe true
+            
+            // Should call fetchMasterAttendees
+            io.mockk.coVerify(exactly = 1) { cloudProvider.fetchMasterAttendees(any()) }
+            
+            // Local version should be updated
+            val storedVersion = context.getSharedPreferences("sync_prefs", Context.MODE_PRIVATE)
+                .getString("local_master_list_version", "")
+            storedVersion shouldBe newVersion
+        }
+    }
+
+    @Test
+    fun `clearAllData should reset master list version`() {
+        runBlocking {
+            context.getSharedPreferences("sync_prefs", Context.MODE_PRIVATE)
+                .edit().putString("local_master_list_version", "v123").apply()
+            
+            repository.clearAllData()
+            
+            val storedVersion = context.getSharedPreferences("sync_prefs", Context.MODE_PRIVATE)
+                .getString("local_master_list_version", null)
+            storedVersion shouldBe null
+        }
     }
 
     @Test
@@ -104,10 +186,10 @@ class PullSyncTest {
     fun `syncMasterListWithDetailedResult should pull all data`() {
         runBlocking {
             val attendees = listOf(Attendee("A1", "John"))
-            coEvery { cloudProvider.fetchMasterAttendees() } returns attendees
-            coEvery { cloudProvider.fetchMasterGroups() } returns emptyList()
-            coEvery { cloudProvider.fetchAttendeeGroupMappings() } returns emptyList()
-            coEvery { cloudProvider.fetchRecentEvents(30) } returns emptyList()
+            coEvery { cloudProvider.fetchMasterAttendees(any()) } returns attendees
+            coEvery { cloudProvider.fetchMasterGroups(any()) } returns emptyList()
+            coEvery { cloudProvider.fetchAttendeeGroupMappings(any()) } returns emptyList()
+            coEvery { cloudProvider.fetchRecentEvents(30, any()) } returns emptyList()
 
             val (success, status) = repository.syncMasterListWithDetailedResult()
             

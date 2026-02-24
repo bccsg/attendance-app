@@ -1,5 +1,6 @@
 package sg.org.bcc.attendance.ui.event
 
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -12,6 +13,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -47,9 +49,21 @@ fun EventManagementScreen(
 ) {
     val events by viewModel.manageableEvents.collectAsState()
     val isDemoMode by viewModel.isDemoMode.collectAsState()
+    val isSyncing by viewModel.isSyncing.collectAsState()
     val uiError by viewModel.uiError.collectAsState()
     var showCreateDialog by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
+
+    val infiniteTransition = rememberInfiniteTransition(label = "SyncRotation")
+    val rotation by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1500, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "Rotation"
+    )
 
     LaunchedEffect(uiError) {
         uiError?.let {
@@ -76,6 +90,17 @@ fun EventManagementScreen(
                         }
                     },
                     actions = {
+                        if (isSyncing) {
+                            AppIcon(
+                                resourceId = AppIcons.Sync,
+                                contentDescription = "Syncing",
+                                modifier = Modifier
+                                    .size(24.dp)
+                                    .graphicsLayer { rotationZ = rotation },
+                                tint = MaterialTheme.colorScheme.onPrimary
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                        }
                         IconButton(onClick = { showCreateDialog = true }) {
                             AppIcon(resourceId = AppIcons.PlaylistAdd, contentDescription = "Create Event", tint = MaterialTheme.colorScheme.onPrimary)
                         }

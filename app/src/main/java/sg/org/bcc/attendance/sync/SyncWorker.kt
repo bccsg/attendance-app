@@ -8,6 +8,7 @@ import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import sg.org.bcc.attendance.data.local.dao.SyncJobDao
 import sg.org.bcc.attendance.data.local.dao.EventDao
+import sg.org.bcc.attendance.data.local.dao.SyncLogDao
 import sg.org.bcc.attendance.data.local.entities.AttendanceRecord
 import sg.org.bcc.attendance.data.remote.AttendanceCloudProvider
 import sg.org.bcc.attendance.data.remote.AuthManager
@@ -22,6 +23,7 @@ class SyncWorker @AssistedInject constructor(
     @Assisted workerParams: WorkerParameters,
     private val syncJobDao: SyncJobDao,
     private val eventDao: EventDao,
+    private val syncLogDao: SyncLogDao,
     private val cloudProvider: AttendanceCloudProvider,
     private val authManager: AuthManager
 ) : CoroutineWorker(appContext, workerParams) {
@@ -33,6 +35,8 @@ class SyncWorker @AssistedInject constructor(
     }
 
     override suspend fun doWork(): Result {
+        val scope = DatabaseSyncLogScope(syncLogDao, "PUSH_JOB")
+        
         // 1. Process jobs sequentially
         while (true) {
             val job = syncJobDao.getOldestSyncJob() ?: break
@@ -59,7 +63,7 @@ class SyncWorker @AssistedInject constructor(
             ))
             
             val result = try {
-                cloudProvider.pushAttendance(event, records)
+                cloudProvider.pushAttendance(event, records, scope)
             } catch (e: Exception) {
                 PushResult.Error(e.message ?: "Unknown error", isRetryable = true)
             }

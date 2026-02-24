@@ -29,6 +29,7 @@ class QueueSyncTest {
             .allowMainThreadQueries()
             .build()
         repository = AttendanceRepository(
+            context,
             db.attendeeDao(),
             db.attendanceDao(),
             db.persistentQueueDao(),
@@ -37,6 +38,7 @@ class QueueSyncTest {
             db.eventDao(),
             db.groupDao(),
             db.attendeeGroupMappingDao(),
+            db.syncLogDao(),
             io.mockk.mockk(relaxed = true), // cloudProvider
             io.mockk.mockk(relaxed = true), // authManager
             sg.org.bcc.attendance.util.time.TrueTimeProvider(),

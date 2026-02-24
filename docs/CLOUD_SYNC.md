@@ -18,27 +18,43 @@ The application is designed for immediate feedback in high-traffic environments.
 *   **Local Deduplication**: The local database uses an `upsertIfNewer` pattern, ensuring only the record with the most recent timestamp is persisted for a given Attendee/Event pair.
 *   **Cloud Deduplication**: 
     *   **Pushes**: The application currently appends all changes to the cloud (e.g., Google Sheets). This preserves a full audit trail of changes.
-    *   **Pulls**: When fetching data from the cloud, the application processes records in chronological order (by row index or timestamp), ensuring that the final local state reflects the last known state from the cloud.
-*   **NTP Synchronization (Planned)**: The application is configured with `TrueTime` to ensure consistent timestamps across distributed devices. In the current implementation, it falls back to `System.currentTimeMillis()`.
+    *   **Pulls**: When fetching data from the cloud, the application reduces the incoming batch to ensure only the **latest record per attendee** (maximum timestamp) is processed. The repository then merges this reduced state with the local database, ensuring that the final local state reflects the last known state from the cloud.
+*   **NTP Synchronization**: The application is configured with `TrueTime` to ensure consistent timestamps across distributed devices.
 
 ---
 
 ## 2. Synchronization Lifecycle
 
 ### Attendance Pushes (Local -> Cloud)
-*   **Trigger**: Currently, `SyncJob` entries are created and stored in the local database. Sequential upload to the cloud provider is a planned feature for a background worker.
-*   **Partial Failures**: The provider interface is designed to track successfully processed records and resume from points of failure.
+*   **Trigger**: \`SyncJob\` entries are created instantly and processed sequentially by \`SyncWorker\`.
+*   **Row-Based Indexing**: 
+    *   The app tracks a \`lastProcessedRowIndex (M)\` for each event.
+    *   After a successful push of \`K\` records, if the cloud returns a total row count \`N = M + K\`, the local index is advanced to \`N\`.
+    *   **Gap Detection**: If \`N > M + K\`, it indicates rows were added by another device. In this case, \`SyncWorker\` **stops advancing the index** until a clean pull is performed.
 
-### Master & Event Pulls (Cloud -> Local)
-*   **Master Lists (Attendees, Groups)**: Pulled manually on start (if not in demo mode).
-*   **Event List**: Pulled on application start and whenever the **Events** screen is opened.
-*   **Purge**: Local events and associated attendance records older than 30 days are automatically purged from the device on application start.
+### Attendance Pulls (Cloud -> Local)
+*   **Integrity Protection**: Pulls are **automatically skipped** if any local \`SyncJobs\` (pushes) are pending to prevent stale cloud state from overwriting recent local changes.
+*   **Trigger-Specific Behavior**:
+    1.  **Periodic Sync (\`PullWorker\`)**: ONLY reconciles attendance for the **currently selected event** (if any). Skips master lists and metadata.
+    2.  **Event Screen Opening**: ONLY fetches recent events (metadata). Skips all attendance pulls.
+    3.  **Full Sync (Login/App Start/Manual)**: Performs the complete suite of pulls (Attendees, Groups, Mappings, Recent Events, and Active Event Attendance).
+*   **Differential Pulls**: Uses the local \`lastProcessedRowIndex\` to fetch only new or missed rows (\`M+1\` to \`N\`), significantly reducing bandwidth.
+
+### Master List Sync (Attendees, Groups)
+*   **Conditional Pulls**: Uses a \`localMasterListVersion\` (hashed from cloud-native metadata like GDrive file version) to skip global pulls if no data has changed on the cloud.
+*   **Trigger**: Only performed during **Full Sync** triggers.
 
 ---
 
-## 3. Error Scenarios & UX Indicators (Planned Implementation)
+## 3. Cloud Deletion & Integrity Strategies
 
-While background processing is currently mocked, the application is designed to support the following error and status states:
+### "Missing on Cloud" Flagging
+Instead of immediate deletion (which could break local history), records missing from the cloud are handled via a flagging strategy:
+*   **Attendee/Group/Event**: Marked with a \`notExistOnCloud = true\` flag.
+*   **Placeholders**: If a cloud pull references an unknown ID (e.g., a person added by another device), a local placeholder is created and flagged.
+*   **UI Resolution**: Discrepancy counts are displayed in the **Cloud Status Dialog**, linking to a **Resolution Screen** for manual cleanup (Swipe-to-Delete or Purge All).
+
+### Error Scenarios & UX Indicators
 
 | Scenario | UX Handling | System Action |
 | :--- | :--- | :--- |
