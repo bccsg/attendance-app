@@ -13,6 +13,9 @@ import sg.org.bcc.attendance.data.remote.AttendanceCloudProvider
 import sg.org.bcc.attendance.data.remote.AuthManager
 import sg.org.bcc.attendance.data.remote.PushResult
 
+import androidx.work.Data
+import androidx.work.workDataOf
+
 @HiltWorker
 class SyncWorker @AssistedInject constructor(
     @Assisted appContext: Context,
@@ -23,17 +26,14 @@ class SyncWorker @AssistedInject constructor(
     private val authManager: AuthManager
 ) : CoroutineWorker(appContext, workerParams) {
 
-    override suspend fun doWork(): Result {
-        // 1. Check Auth & Refresh if needed
-        if (authManager.isTokenExpired()) {
-            val refreshed = authManager.silentRefresh()
-            if (!refreshed) {
-                // Cannot sync without valid token, retry later (WorkManager will back off)
-                return Result.retry()
-            }
-        }
+    companion object {
+        const val PROGRESS_OP = "progress_op"
+        const val PROGRESS_STATE = "progress_state"
+        const val PROGRESS_ERROR = "progress_error"
+    }
 
-        // 2. Process jobs sequentially
+    override suspend fun doWork(): Result {
+        // 1. Process jobs sequentially
         while (true) {
             val job = syncJobDao.getOldestSyncJob() ?: break
             
@@ -46,6 +46,17 @@ class SyncWorker @AssistedInject constructor(
             }
 
             val records = parsePayload(job.eventId, job.payloadJson)
+            
+            val operationName = if (records.isEmpty()) {
+                "Cloud Mapping: ${event.title}"
+            } else {
+                "Pushing ${records.size} records to '${event.title}'"
+            }
+
+            setProgress(workDataOf(
+                PROGRESS_OP to operationName,
+                PROGRESS_STATE to "SYNCING"
+            ))
             
             val result = try {
                 cloudProvider.pushAttendance(event, records)
@@ -63,28 +74,38 @@ class SyncWorker @AssistedInject constructor(
                     syncJobDao.deleteJob(job.jobId)
                 }
                 is PushResult.Error -> {
-                    return if (result.isRetryable) {
-                        Result.retry()
+                    if (result.isRetryable) {
+                        setProgress(workDataOf(
+                            PROGRESS_STATE to "RETRYING",
+                            PROGRESS_ERROR to result.message
+                        ))
+                        return Result.retry()
                     } else {
                         // Fatal error for this job, discard it
                         syncJobDao.deleteJob(job.jobId)
-                        Result.failure()
+                        return Result.failure(workDataOf(
+                            PROGRESS_ERROR to result.message
+                        ))
                     }
                 }
             }
         }
 
+        setProgress(workDataOf(
+            PROGRESS_STATE to "IDLE"
+        ))
         return Result.success()
     }
 
     private fun parsePayload(eventId: String, payloadJson: String): List<AttendanceRecord> {
-        val regex = Regex("\"id\":\"(.*?)\",\"state\":\"(.*?)\",\"time\":(\\d+)")
+        val regex = Regex("\"id\":\"(.*?)\",\"name\":\"(.*?)\",\"state\":\"(.*?)\",\"time\":(\\d+)")
         return regex.findAll(payloadJson).map { match ->
             AttendanceRecord(
                 eventId = eventId,
                 attendeeId = match.groupValues[1],
-                state = match.groupValues[2],
-                timestamp = match.groupValues[3].toLong()
+                fullName = match.groupValues[2].replace("\\\"", "\""),
+                state = match.groupValues[3],
+                timestamp = match.groupValues[4].toLong()
             )
         }.toList()
     }

@@ -9,6 +9,7 @@ import androidx.room.Entity
 data class AttendanceRecord(
     val eventId: String, // UUID of the event
     val attendeeId: String,
+    val fullName: String = "", // Added for cloud fallback
     val state: String, // PRESENT or ABSENT
     val timestamp: Long
 )

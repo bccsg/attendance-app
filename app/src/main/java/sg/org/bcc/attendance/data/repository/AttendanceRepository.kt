@@ -57,8 +57,14 @@ class AttendanceRepository @Inject constructor(
         val readyItems = currentQueue.filter { !it.isLater }
         if (readyItems.isEmpty()) return
 
+        // 1. Fetch attendee details for name mapping
+        val attendees = attendeeDao.getAllAttendees().first().associateBy { it.id }
+
         val payload = readyItems.map { q ->
-            "{\"id\":\"${q.attendeeId}\",\"state\":\"$state\",\"time\":$timestamp}"
+            val name = attendees[q.attendeeId]?.fullName ?: "Unknown"
+            // Escape name for JSON
+            val escapedName = name.replace("\"", "\\\"")
+            "{\"id\":\"${q.attendeeId}\",\"name\":\"$escapedName\",\"state\":\"$state\",\"time\":$timestamp}"
         }.joinToString(prefix = "[", postfix = "]", separator = ",")
 
         // Local Write: Update local attendance state immediately for UI feedback
@@ -66,6 +72,7 @@ class AttendanceRepository @Inject constructor(
             AttendanceRecord(
                 eventId = eventId,
                 attendeeId = q.attendeeId,
+                fullName = attendees[q.attendeeId]?.fullName ?: "",
                 state = state,
                 timestamp = timestamp
             )
@@ -171,13 +178,20 @@ class AttendanceRepository @Inject constructor(
 
             // 4. Events
             try {
-                val recentEvents = cloudProvider.fetchRecentEvents(30)
-                if (recentEvents.isNotEmpty()) {
-                    eventDao.insertAll(recentEvents)
+                val remoteEvents = cloudProvider.fetchRecentEvents(30)
+                if (remoteEvents.isNotEmpty()) {
+                    mergeAndInsertEvents(remoteEvents)
+                    
+                    // 5. Reconcile attendance for all manageable events
+                    status.add("Reconciling attendance...")
+                    remoteEvents.forEach { event ->
+                        syncAttendanceForEvent(event)
+                    }
+                    status.add("Attendance: OK")
                 }
-                status.add("Events: OK (${recentEvents.size})")
+                status.add("Events: OK (${remoteEvents.size})")
             } catch (e: Exception) {
-                status.add("Events: FAILED ([${e.javaClass.simpleName}] ${e.message})")
+                status.add("Events/Attendance: FAILED ([${e.javaClass.simpleName}] ${e.message})")
             }
             
             android.util.Log.d("AttendanceSync", "Master list sync COMPLETED: ${status.joinToString(", ")}")
@@ -187,6 +201,37 @@ class AttendanceRepository @Inject constructor(
             android.util.Log.e("AttendanceSync", errorMsg, e)
             return false to errorMsg
         }
+    }
+
+    suspend fun syncAttendanceForEvent(event: Event) {
+        if (!checkAuthAndRefresh()) return
+        try {
+            val remoteRecords = cloudProvider.fetchAttendanceForEvent(event)
+            if (remoteRecords.isNotEmpty()) {
+                attendanceDao.upsertAllIfNewer(remoteRecords)
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("AttendanceSync", "Failed to sync attendance for ${event.title}: ${e.message}")
+        }
+    }
+
+    private suspend fun mergeAndInsertEvents(remoteEvents: List<Event>) {
+        val localEvents = eventDao.getAllEvents().first()
+        val localByCloudId = localEvents.filter { it.cloudEventId != null }.associateBy { it.cloudEventId }
+        val localByTitle = localEvents.associateBy { it.title }
+
+        val mergedEvents = remoteEvents.map { remote ->
+            val existing = localByCloudId[remote.cloudEventId] ?: localByTitle[remote.title]
+            if (existing != null) {
+                existing.copy(
+                    title = remote.title,
+                    cloudEventId = remote.cloudEventId
+                )
+            } else {
+                remote
+            }
+        }
+        eventDao.insertAll(mergedEvents)
     }
 
     suspend fun clearAllData() {
@@ -204,12 +249,12 @@ class AttendanceRepository @Inject constructor(
         if (!checkAuthAndRefresh()) return
         
         try {
-            val recentEvents = cloudProvider.fetchRecentEvents(30)
+            val remoteEvents = cloudProvider.fetchRecentEvents(30)
             if (clearFirst) {
                 eventDao.clearAll()
             }
-            if (recentEvents.isNotEmpty()) {
-                eventDao.insertAll(recentEvents)
+            if (remoteEvents.isNotEmpty()) {
+                mergeAndInsertEvents(remoteEvents)
             }
         } catch (e: Exception) {
             android.util.Log.e("AttendanceSync", "Failed to sync recent events: ${e.message}")
@@ -328,7 +373,19 @@ class AttendanceRepository @Inject constructor(
 
     suspend fun findEventByTitleIgnoreCase(title: String): Event? = eventDao.findEventByTitleIgnoreCase(title)
 
-    suspend fun insertEvent(event: Event) = eventDao.insert(event)
+    suspend fun insertEvent(event: Event) {
+        eventDao.insert(event)
+        
+        // Trigger initial sync for the event to ensure it's created on the cloud
+        val timestamp = timeProvider.now()
+        val job = SyncJob(
+            eventId = event.id,
+            payloadJson = "[]", // Empty payload indicates event creation/mapping only
+            createdAt = timestamp
+        )
+        syncJobDao.insert(job)
+        syncScheduler.scheduleSync()
+    }
 
     suspend fun deleteEvent(id: String) {
         attendanceDao.deleteForEvent(id)

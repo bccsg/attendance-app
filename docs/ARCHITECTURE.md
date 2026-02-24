@@ -17,7 +17,7 @@
 *   **`groups`**: Master list of groups.
 *   **`attendee_groups`**: Many-to-Many mapping between attendees and groups.
 *   **`events`**: ID (UUID), Title (`yyMMdd HHmm Name`), Cloud Event ID, lastSyncTime.
-*   **`attendance_records`**: Event ID (UUID), Attendee ID, State, Timestamp.
+*   **`attendance_records`**: Event ID (UUID), Attendee ID, State (`PRESENT` or `ABSENT`), Timestamp. Uses "Last Commit Wins" deduplication.
 *   **`persistent_queue`**: Attendee ID, isLater flag.
 *   **`sync_jobs`**: Queue for sequential cloud commits (Payload, CreatedAt).
 *   **`queue_archive`**: JSON blob of previous batches, Timestamp, Event ID.

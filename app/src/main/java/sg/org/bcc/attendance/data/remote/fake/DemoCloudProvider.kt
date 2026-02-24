@@ -33,6 +33,14 @@ class DemoCloudProvider @Inject constructor(
             eventRecords.add(newRecord)
         }
         
+        // Simulate formatting for log transparency
+        val sgtZone = java.time.ZoneId.of("Asia/Singapore")
+        val formatter = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
+        records.forEach { 
+            val formatted = java.time.Instant.ofEpochMilli(it.timestamp).atZone(sgtZone).format(formatter)
+            android.util.Log.d("DemoCloud", "Pushed record for ${it.attendeeId} at $formatted")
+        }
+        
         return if (event.cloudEventId == null) {
             PushResult.SuccessWithMapping("sheet-${event.id.take(4)}")
         } else {

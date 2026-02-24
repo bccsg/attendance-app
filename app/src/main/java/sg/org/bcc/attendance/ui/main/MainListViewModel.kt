@@ -11,6 +11,15 @@ import sg.org.bcc.attendance.data.repository.AttendanceRepository
 import sg.org.bcc.attendance.data.remote.AuthManager
 import sg.org.bcc.attendance.util.FuzzySearchScorer
 import sg.org.bcc.attendance.util.EventSuggester
+import android.content.Context
+import androidx.lifecycle.asFlow
+import androidx.work.WorkManager
+import dagger.hilt.android.qualifiers.ApplicationContext
+import sg.org.bcc.attendance.sync.SyncWorker
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
+import android.net.NetworkRequest
 import java.time.LocalDate
 import javax.inject.Inject
 
@@ -24,8 +33,18 @@ data class SyncError(
     val message: String
 )
 
+enum class SyncState {
+    IDLE,
+    SYNCING,
+    RETRYING,
+    ERROR,
+    NO_INTERNET
+}
+
 data class SyncProgress(
     val pendingJobs: Int,
+    val currentOperation: String? = null,
+    val syncState: SyncState = SyncState.IDLE,
     val nextScheduledPull: Long?,
     val lastPullTime: Long?,
     val lastPullStatus: String?,
@@ -36,8 +55,19 @@ data class SyncProgress(
 @HiltViewModel
 class MainListViewModel @Inject constructor(
     private val repository: AttendanceRepository,
-    private val authManager: AuthManager
+    private val authManager: AuthManager,
+    @ApplicationContext private val context: Context
 ) : ViewModel() {
+
+    private val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+    private val _isOnline = MutableStateFlow(isCurrentlyOnline())
+    val isOnline: StateFlow<Boolean> = _isOnline.asStateFlow()
+
+    private fun isCurrentlyOnline(): Boolean {
+        val network = connectivityManager.activeNetwork ?: return false
+        val capabilities = connectivityManager.getNetworkCapabilities(network) ?: return false
+        return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+    }
 
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
@@ -312,6 +342,79 @@ class MainListViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
     init {
+        val networkRequest = NetworkRequest.Builder()
+            .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+            .build()
+        
+        connectivityManager.registerNetworkCallback(networkRequest, object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: Network) { _isOnline.value = true }
+            override fun onLost(network: Network) { _isOnline.value = false }
+        })
+
+        // Observe WorkManager progress combined with connectivity and pending count
+        combine(
+            WorkManager.getInstance(context)
+                .getWorkInfosForUniqueWorkLiveData("sequential_sync_work")
+                .asFlow(),
+            _isOnline,
+            repository.getPendingSyncCount()
+        ) { workInfos, online, pendingCount ->
+            val workInfo = workInfos?.firstOrNull()
+            
+            var currentOp: String? = null
+            var newState = SyncState.IDLE
+            var errorMsg: String? = null
+
+            if (workInfo != null) {
+                val progress = workInfo.progress
+                currentOp = progress.getString(SyncWorker.PROGRESS_OP)
+                val stateStr = progress.getString(SyncWorker.PROGRESS_STATE)
+                errorMsg = progress.getString(SyncWorker.PROGRESS_ERROR) ?: workInfo.outputData.getString(SyncWorker.PROGRESS_ERROR)
+                
+                newState = when (stateStr) {
+                    "SYNCING" -> SyncState.SYNCING
+                    "RETRYING" -> SyncState.RETRYING
+                    "IDLE" -> SyncState.IDLE
+                    else -> {
+                        when (workInfo.state) {
+                            androidx.work.WorkInfo.State.RUNNING -> SyncState.SYNCING
+                            androidx.work.WorkInfo.State.ENQUEUED -> SyncState.IDLE
+                            androidx.work.WorkInfo.State.FAILED -> SyncState.ERROR
+                            else -> SyncState.IDLE
+                        }
+                    }
+                }
+            }
+
+            // Override status if pending jobs are blocked by lack of internet
+            if ((newState == SyncState.IDLE || newState == SyncState.RETRYING) && pendingCount > 0 && !online) {
+                newState = SyncState.NO_INTERNET
+            }
+
+            val currentErrors = _syncProgress.value.lastErrors.toMutableList()
+            if (errorMsg != null && (currentErrors.isEmpty() || currentErrors.first().message != errorMsg)) {
+                currentErrors.add(0, SyncError(System.currentTimeMillis(), errorMsg))
+            } else if (newState == SyncState.SYNCING && errorMsg == null) {
+                // Clear errors on fresh start of a sync operation
+                currentErrors.clear()
+            }
+
+            _syncProgress.value = _syncProgress.value.copy(
+                pendingJobs = pendingCount,
+                currentOperation = currentOp,
+                syncState = newState,
+                lastErrors = currentErrors
+            )
+            
+            isSyncing.value = newState == SyncState.SYNCING
+            hasSyncError.value = newState == SyncState.ERROR
+        }.launchIn(viewModelScope)
+
+        // Trigger any pending sync jobs on app start (robustness mop-up)
+        viewModelScope.launch {
+            repository.retrySync()
+        }
+
         // Initial seed of demo data if the database is empty on first launch
         viewModelScope.launch {
             if (repository.getAllAttendees().first().isEmpty()) {
@@ -577,6 +680,11 @@ class MainListViewModel @Inject constructor(
 
     fun onSwitchEvent(eventId: String) {
         _currentEventId.value = eventId
+        viewModelScope.launch {
+            repository.getEventById(eventId)?.let { event ->
+                repository.syncAttendanceForEvent(event)
+            }
+        }
     }
 
     // setTextScale is already defined above

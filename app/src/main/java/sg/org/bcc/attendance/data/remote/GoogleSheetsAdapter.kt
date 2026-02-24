@@ -34,48 +34,241 @@ class GoogleSheetsAdapter @Inject constructor(
             .build()
     }
 
-    override suspend fun pushAttendance(event: Event, records: List<AttendanceRecord>): PushResult = withContext(Dispatchers.IO) {
-        val service = getSheetsService()
-        val sheetTitle = event.title // Format: yyMMdd HHmm Name
-        
-        // 1. Ensure worksheet exists
-        ensureWorksheetExists(service, eventSpreadsheetId, sheetTitle)
+    private suspend fun ensureAuthenticated() {
+        if (authManager.isTokenExpired()) {
+            val success = authManager.silentRefresh()
+            if (!success) {
+                throw IllegalStateException("Authentication expired and refresh failed")
+            }
+        }
+    }
 
-        // 2. Prepare data for push (Batch update or Append)
-        // For simplicity, we'll implement a basic append/update logic here.
-        // In a real app, we'd map Attendee ID to Row/Column.
-        
-        val values = records.map { listOf(it.attendeeId, it.state, it.timestamp.toString()) }
-        val body = ValueRange().setValues(values)
-        
+    override suspend fun pushAttendance(event: Event, records: List<AttendanceRecord>): PushResult = withContext(Dispatchers.IO) {
         try {
-            service.spreadsheets().values()
-                .append(eventSpreadsheetId, "'$sheetTitle'!A1", body)
-                .setValueInputOption("RAW")
-                .execute()
-            PushResult.Success
+            ensureAuthenticated()
+            val service = getSheetsService()
+            val sheetTitle = event.title // Format: yyMMdd HHmm Name
+            
+            // 1. Ensure worksheet exists and get its ID
+            val sheetId = ensureWorksheetExists(service, eventSpreadsheetId, sheetTitle)
+            val cloudIdStr = sheetId.toString()
+
+            // 2. Prepare data for push if any records exist
+            if (records.isNotEmpty()) {
+                val userEmail = authManager.getEmail() ?: "unknown"
+                val sgtOffsetMs = 8 * 3600 * 1000L
+                val finalFormula = "=COUNTIF(INDIRECT(\"A\"&ROW()&\":A\"), INDIRECT(\"A\"&ROW())) = 1"
+                
+                val values = records.map { record ->
+                    // Convert Unix ms to Google Sheets Serial Number in SGT (+8h)
+                    val sgtTimestamp = record.timestamp + sgtOffsetMs
+                    val serialNumber = (sgtTimestamp / 86400000.0) + 25569.0
+                    
+                    // Fallback name if VLOOKUP fails (includes a suffix)
+                    val escapedLocalName = record.fullName.replace("\"", "\"\"")
+                    val vlookupFormula = "=IFERROR(VLOOKUP(INDIRECT(\"A\"&ROW()), IMPORTRANGE(\"$masterSpreadsheetId\", \"Attendees!A:B\"), 2, FALSE), \"$escapedLocalName (Not Found)\")"
+                    
+                    // Order: ID (A), Name (B), State (C), Final (D), Time (E), User (F)
+                    listOf(record.attendeeId, vlookupFormula, record.state, finalFormula, serialNumber, userEmail) 
+                }
+                val body = ValueRange().setValues(values)
+                
+                val appendResponse = service.spreadsheets().values()
+                    .append(eventSpreadsheetId, "'$sheetTitle'!A1:F1", body)
+                    .setValueInputOption("USER_ENTERED")
+                    .execute()
+                
+                // 3. Format the appended rows Column D as Checkbox
+                // We extract the range from the appendResponse to target exactly the new rows
+                val updatedRange = appendResponse.updates.updatedRange // e.g. "Sheet1!A2:F5"
+                val rowRangeRegex = Regex("!A(\\d+):F(\\d+)")
+                val match = rowRangeRegex.find(updatedRange)
+                if (match != null) {
+                    val startRow = match.groupValues[1].toInt() - 1 // 0-indexed
+                    val endRow = match.groupValues[2].toInt()
+                    
+                    val checkboxRequest = com.google.api.services.sheets.v4.model.Request().setRepeatCell(
+                        com.google.api.services.sheets.v4.model.RepeatCellRequest()
+                            .setRange(com.google.api.services.sheets.v4.model.GridRange()
+                                .setSheetId(sheetId)
+                                .setStartRowIndex(startRow)
+                                .setEndRowIndex(endRow)
+                                .setStartColumnIndex(3)
+                                .setEndColumnIndex(4)
+                            )
+                            .setCell(com.google.api.services.sheets.v4.model.CellData()
+                                .setDataValidation(com.google.api.services.sheets.v4.model.DataValidationRule()
+                                    .setCondition(com.google.api.services.sheets.v4.model.BooleanCondition()
+                                        .setType("BOOLEAN")
+                                    )
+                                )
+                            )
+                            .setFields("dataValidation")
+                    )
+                    
+                    val batchUpdate = com.google.api.services.sheets.v4.model.BatchUpdateSpreadsheetRequest()
+                        .setRequests(listOf(checkboxRequest))
+                    service.spreadsheets().batchUpdate(eventSpreadsheetId, batchUpdate).execute()
+                }
+            }
+            
+            // 4. Return mapping if local event doesn't have it yet
+            if (event.cloudEventId != cloudIdStr) {
+                PushResult.SuccessWithMapping(cloudIdStr)
+            } else {
+                PushResult.Success
+            }
         } catch (e: Exception) {
             PushResult.Error(e.message ?: "Sync failed", isRetryable = true)
         }
     }
 
-    private suspend fun ensureWorksheetExists(service: Sheets, spreadsheetId: String, title: String) = withContext(Dispatchers.IO) {
+    private suspend fun ensureWorksheetExists(service: Sheets, spreadsheetId: String, title: String): Int = withContext(Dispatchers.IO) {
         val spreadsheet = service.spreadsheets().get(spreadsheetId).execute()
-        val sheetExists = spreadsheet.sheets.any { it.properties.title == title }
+        val existingSheet = spreadsheet.sheets.find { it.properties.title == title }
         
-        if (!sheetExists) {
-            val addSheetRequest = com.google.api.services.sheets.v4.model.Request().setAddSheet(
-                com.google.api.services.sheets.v4.model.AddSheetRequest().setProperties(
-                    com.google.api.services.sheets.v4.model.SheetProperties().setTitle(title)
-                )
-            )
-            val batchUpdate = com.google.api.services.sheets.v4.model.BatchUpdateSpreadsheetRequest()
-                .setRequests(listOf(addSheetRequest))
-            service.spreadsheets().batchUpdate(spreadsheetId, batchUpdate).execute()
+        if (existingSheet != null) {
+            return@withContext existingSheet.properties.sheetId
         }
+        
+        // Find target index for descending order (newest first)
+        val existingSheets = spreadsheet.sheets
+        var targetIndex = -1
+        
+        // 1. Try to find chronological spot among existing event sheets
+        for (i in existingSheets.indices) {
+            val et = existingSheets[i].properties.title
+            // Event sheets start with 6 digits (yyMMdd)
+            if (et.length >= 6 && et.take(6).all { it.isDigit() }) {
+                if (et <= title) {
+                    targetIndex = i
+                    break
+                }
+            }
+        }
+        
+        // 2. Fallback if no spot found (no events, or this is the oldest event)
+        if (targetIndex == -1) {
+            val mappingsIndex = existingSheets.indexOfFirst { it.properties.title == "Mappings" }
+            val lastEventIndex = existingSheets.indexOfLast { 
+                val et = it.properties.title
+                et.length >= 6 && et.take(6).all { it.isDigit() } 
+            }
+            
+            targetIndex = when {
+                lastEventIndex != -1 -> lastEventIndex + 1
+                mappingsIndex != -1 -> mappingsIndex + 1
+                else -> existingSheets.size
+            }
+        }
+
+        val newSheetId = Random().nextInt(Int.MAX_VALUE)
+
+        // 1. Create the sheet
+        val addSheetRequest = com.google.api.services.sheets.v4.model.Request().setAddSheet(
+            com.google.api.services.sheets.v4.model.AddSheetRequest().setProperties(
+                com.google.api.services.sheets.v4.model.SheetProperties()
+                    .setTitle(title)
+                    .setSheetId(newSheetId)
+                    .setIndex(targetIndex)
+                    .setGridProperties(com.google.api.services.sheets.v4.model.GridProperties().setFrozenRowCount(1))
+            )
+        )
+        
+        // 2. Bold the header row (Row 1)
+        val boldHeaderRequest = com.google.api.services.sheets.v4.model.Request().setRepeatCell(
+            com.google.api.services.sheets.v4.model.RepeatCellRequest()
+                .setRange(com.google.api.services.sheets.v4.model.GridRange()
+                    .setSheetId(newSheetId)
+                    .setStartRowIndex(0)
+                    .setEndRowIndex(1)
+                )
+                .setCell(com.google.api.services.sheets.v4.model.CellData()
+                    .setUserEnteredFormat(com.google.api.services.sheets.v4.model.CellFormat()
+                        .setTextFormat(com.google.api.services.sheets.v4.model.TextFormat().setBold(true))
+                    )
+                )
+                .setFields("userEnteredFormat.textFormat.bold")
+        )
+
+        // 3. Format Column E (index 4) as Date Time from Row 2 down
+        val timeFormatRequest = com.google.api.services.sheets.v4.model.Request().setRepeatCell(
+            com.google.api.services.sheets.v4.model.RepeatCellRequest()
+                .setRange(com.google.api.services.sheets.v4.model.GridRange()
+                    .setSheetId(newSheetId)
+                    .setStartRowIndex(1)
+                    .setStartColumnIndex(4)
+                    .setEndColumnIndex(5)
+                )
+                .setCell(com.google.api.services.sheets.v4.model.CellData()
+                    .setUserEnteredFormat(com.google.api.services.sheets.v4.model.CellFormat()
+                        .setNumberFormat(com.google.api.services.sheets.v4.model.NumberFormat()
+                            .setType("DATE_TIME")
+                            .setPattern("yyyy-mm-dd hh:mm:ss")
+                        )
+                    )
+                )
+                .setFields("userEnteredFormat.numberFormat")
+        )
+
+        fun createWidthRequest(start: Int, end: Int, size: Int) = com.google.api.services.sheets.v4.model.Request().setUpdateDimensionProperties(
+            com.google.api.services.sheets.v4.model.UpdateDimensionPropertiesRequest()
+                .setRange(com.google.api.services.sheets.v4.model.DimensionRange()
+                    .setSheetId(newSheetId)
+                    .setDimension("COLUMNS")
+                    .setStartIndex(start)
+                    .setEndIndex(end)
+                )
+                .setProperties(com.google.api.services.sheets.v4.model.DimensionProperties().setPixelSize(size))
+                .setFields("pixelSize")
+        )
+
+        // 4. Add Filter View: "Final Present Only"
+        val filterViewRequest = com.google.api.services.sheets.v4.model.Request().setAddFilterView(
+            com.google.api.services.sheets.v4.model.AddFilterViewRequest().setFilter(
+                com.google.api.services.sheets.v4.model.FilterView()
+                    .setTitle("Final Present Only")
+                    .setRange(com.google.api.services.sheets.v4.model.GridRange().setSheetId(newSheetId))
+                    .setCriteria(mapOf(
+                        "2" to com.google.api.services.sheets.v4.model.FilterCriteria()
+                            .setCondition(com.google.api.services.sheets.v4.model.BooleanCondition()
+                                .setType("TEXT_EQ")
+                                .setValues(listOf(com.google.api.services.sheets.v4.model.ConditionValue().setUserEnteredValue("PRESENT")))
+                            ),
+                        "3" to com.google.api.services.sheets.v4.model.FilterCriteria()
+                            .setCondition(com.google.api.services.sheets.v4.model.BooleanCondition()
+                                .setType("TEXT_EQ")
+                                .setValues(listOf(com.google.api.services.sheets.v4.model.ConditionValue().setUserEnteredValue("TRUE")))
+                            )
+                    ))
+            )
+        )
+
+        val batchUpdate = com.google.api.services.sheets.v4.model.BatchUpdateSpreadsheetRequest()
+            .setRequests(listOf(
+                addSheetRequest, 
+                boldHeaderRequest, 
+                timeFormatRequest, 
+                filterViewRequest,
+                createWidthRequest(1, 2, 200), // B
+                createWidthRequest(4, 6, 200)  // E, F
+            ))
+        
+        service.spreadsheets().batchUpdate(spreadsheetId, batchUpdate).execute()
+
+        // 5. Update headers (ID, Name, State, Final, Pushed At, Pushed By)
+        val headerValues = listOf(listOf("Attendee ID", "Full Name", "State", "Final", "Pushed At", "Pushed By"))
+        val headerBody = ValueRange().setValues(headerValues)
+        service.spreadsheets().values()
+            .update(spreadsheetId, "'$title'!A1:F1", headerBody)
+            .setValueInputOption("RAW")
+            .execute()
+        
+        newSheetId
     }
 
     override suspend fun fetchMasterAttendees(): List<Attendee> = withContext(Dispatchers.IO) {
+        ensureAuthenticated()
         val service = getSheetsService()
         android.util.Log.d("AttendanceSync", "Fetching attendees from sheet: $masterSpreadsheetId")
         try {
@@ -101,6 +294,7 @@ class GoogleSheetsAdapter @Inject constructor(
     }
 
     override suspend fun fetchMasterGroups(): List<Group> = withContext(Dispatchers.IO) {
+        ensureAuthenticated()
         val service = getSheetsService()
         android.util.Log.d("AttendanceSync", "Fetching groups...")
         try {
@@ -129,6 +323,7 @@ class GoogleSheetsAdapter @Inject constructor(
     }
 
     override suspend fun fetchAttendeeGroupMappings(): List<AttendeeGroupMapping> = withContext(Dispatchers.IO) {
+        ensureAuthenticated()
         val service = getSheetsService()
         android.util.Log.d("AttendanceSync", "Fetching mappings...")
         
@@ -168,26 +363,51 @@ class GoogleSheetsAdapter @Inject constructor(
     }
 
     override suspend fun fetchAttendanceForEvent(event: Event): List<AttendanceRecord> = withContext(Dispatchers.IO) {
+        ensureAuthenticated()
         val service = getSheetsService()
         val response = try {
             service.spreadsheets().values()
-                .get(eventSpreadsheetId, "'${event.title}'!A1:C")
+                .get(eventSpreadsheetId, "'${event.title}'!A2:F") // Fetch all 6 cols
+                .setValueRenderOption("UNFORMATTED_VALUE")
                 .execute()
         } catch (e: Exception) {
             return@withContext emptyList()
         }
         
-        response.getValues()?.map { row ->
+        val sgtOffsetMs = 8 * 3600 * 1000L
+
+        response.getValues()?.mapNotNull { row ->
+            if (row.size < 5) return@mapNotNull null
+            
+            val attendeeId = row[0].toString()
+            // index 1 is Full Name, skip
+            val state = row[2].toString()
+            // index 3 is Final, skip
+            val rawValue = row[4] // Timestamp is now Column E
+            
+            val timestamp = when (rawValue) {
+                is Number -> {
+                    // Convert Serial Number back to SGT ms, then shift to UTC ms
+                    val sgtMs = ((rawValue.toDouble() - 25569.0) * 86400000.0).toLong()
+                    sgtMs - sgtOffsetMs
+                }
+                else -> {
+                    // Fallback if it's a string
+                    rawValue.toString().toLongOrNull() ?: 0L
+                }
+            }
+
             AttendanceRecord(
                 eventId = event.id,
-                attendeeId = row[0].toString(),
-                state = row[1].toString(),
-                timestamp = row[2].toString().toLongOrNull() ?: 0L
+                attendeeId = attendeeId,
+                state = state,
+                timestamp = timestamp
             )
         } ?: emptyList()
     }
 
     override suspend fun fetchRecentEvents(days: Int): List<Event> = withContext(Dispatchers.IO) {
+        ensureAuthenticated()
         val service = getSheetsService()
         val spreadsheet = service.spreadsheets().get(eventSpreadsheetId).execute()
         

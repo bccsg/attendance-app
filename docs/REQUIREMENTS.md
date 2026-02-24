@@ -18,7 +18,9 @@ A local-first Android attendance tracking application for ushers. It allows for 
 
 ### Attendance
 *   **Link**: Connects an Attendee to an Event.
-*   **State**: `PRESENT` or `ABSENT`.
+*   **State**: 
+    *   `PRESENT`: Attendee is marked as having attended.
+    *   `ABSENT`: Used as an "undo" or correction mechanism to mark an attendee as not present (e.g., if they were marked `PRESENT` by mistake).
 *   **Timestamp**: Precise record of the commit time (synchronized via NTP).
 
 ## Features

@@ -1147,8 +1147,10 @@ fun CloudStatusDialog(
         },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                // Login Error Section
-                if (loginError != null) {
+                // Error / Action Required Banner
+                val errorMessage = loginError ?: syncProgress.lastErrors.firstOrNull()?.message ?: if (syncProgress.syncState == SyncState.ERROR) "An unknown synchronization error occurred." else null
+                
+                if (errorMessage != null) {
                     Surface(
                         color = MaterialTheme.colorScheme.errorContainer,
                         shape = RoundedCornerShape(8.dp),
@@ -1166,7 +1168,7 @@ fun CloudStatusDialog(
                             )
                             Spacer(modifier = Modifier.width(12.dp))
                             Text(
-                                text = loginError,
+                                text = errorMessage,
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onErrorContainer
                             )
@@ -1260,6 +1262,20 @@ fun CloudStatusDialog(
 
                 // Sync Info Section
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Sync Status", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                    
+                    val statusText = when (syncProgress.syncState) {
+                        SyncState.IDLE -> "Idle"
+                        SyncState.SYNCING -> "Syncing..."
+                        SyncState.RETRYING -> "Retrying..."
+                        SyncState.ERROR -> "Sync Error"
+                        SyncState.NO_INTERNET -> "No Internet Connection"
+                    }
+                    SyncInfoRow("Status", statusText)
+                    
+                    if (syncProgress.currentOperation != null && syncProgress.syncState == SyncState.SYNCING) {
+                        SyncInfoRow("Operation", syncProgress.currentOperation)
+                    }
                     SyncInfoRow("Pending Sync Jobs", syncProgress.pendingJobs.toString())
                     SyncInfoRow("Next Pull Scheduled", syncProgress.nextScheduledPull?.let { 
                         try {
@@ -1269,14 +1285,6 @@ fun CloudStatusDialog(
                         }
                     } ?: "None")
                     SyncInfoRow("Last Pull Status", syncProgress.lastPullStatus ?: "Unknown")
-                    
-                    if (syncProgress.lastErrors.isNotEmpty()) {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text("Recent Errors:", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.error)
-                        syncProgress.lastErrors.take(3).forEach { error ->
-                            Text("- ${error.message}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
-                        }
-                    }
                 }
             }
         },

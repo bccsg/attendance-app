@@ -15,6 +15,10 @@ The application is designed for immediate feedback in high-traffic environments.
 
 ### Conflict Resolution: "Last Commit Wins"
 *   Conflicts (e.g., two users updating the same record) are resolved by comparing commit timestamps.
+*   **Local Deduplication**: The local database uses an `upsertIfNewer` pattern, ensuring only the record with the most recent timestamp is persisted for a given Attendee/Event pair.
+*   **Cloud Deduplication**: 
+    *   **Pushes**: The application currently appends all changes to the cloud (e.g., Google Sheets). This preserves a full audit trail of changes.
+    *   **Pulls**: When fetching data from the cloud, the application processes records in chronological order (by row index or timestamp), ensuring that the final local state reflects the last known state from the cloud.
 *   **NTP Synchronization (Planned)**: The application is configured with `TrueTime` to ensure consistent timestamps across distributed devices. In the current implementation, it falls back to `System.currentTimeMillis()`.
 
 ---
