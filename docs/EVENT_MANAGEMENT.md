@@ -5,7 +5,10 @@ The Event Management system allows ushers to manage the lifecycle of attendance 
 ## 1. Event Selection & Window
 *   **Contextual Hub**: The `MainListScreen` always operates within the context of an "Active Event".
 *   **30-Day Window**: Users can only switch to manage attendance for events occurring within the last 30 days.
-*   **Auto-Switch**: If the currently selected event is older than 30 days, the system will automatically switch to the latest available event or prompt the user to create a new one.
+*   **Auto-Selection Logic**: 
+    *   The system automatically selects the **earliest event** that started **within the last hour** or is scheduled for the **future**.
+    *   If no such events exist (e.g., all events occurred more than an hour ago), the system defaults to the **latest available event**.
+    *   Auto-selection only triggers if there is no current selection or if the current selection is older than 30 days.
 *   **Active Indicator**: The currently selected event is clearly highlighted. Selecting a different event updates the main attendance list and summary counts.
 
 ## 2. Event Creation

@@ -164,6 +164,8 @@ object DemoData {
             sg.org.bcc.attendance.data.local.entities.Event(
                 id = "demo-event-$daysAgo",
                 title = "$dateStr 1030 $name",
+                date = date.toString(),
+                time = "1030",
                 cloudEventId = (100000000 + index * 12345).toString()
             )
         }

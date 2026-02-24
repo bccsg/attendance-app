@@ -53,7 +53,11 @@ class EventManagementViewModel @Inject constructor(
                 return@launch
             }
 
-            val newEvent = Event(title = title)
+            val newEvent = Event(
+                title = title,
+                date = date.toString(),
+                time = time
+            )
             repository.insertEvent(newEvent)
             onCreated(newEvent)
         }

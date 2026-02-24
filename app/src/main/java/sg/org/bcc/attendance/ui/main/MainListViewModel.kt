@@ -59,6 +59,8 @@ class MainListViewModel @Inject constructor(
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
+    private val prefs = context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
+
     private val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
     private val _isOnline = MutableStateFlow(isCurrentlyOnline())
     val isOnline: StateFlow<Boolean> = _isOnline.asStateFlow()
@@ -147,7 +149,7 @@ class MainListViewModel @Inject constructor(
     val availableEvents: StateFlow<List<Event>> = repository.getManageableEvents()
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
-    private val _currentEventId = MutableStateFlow<String?>(null)
+    private val _currentEventId = MutableStateFlow<String?>(prefs.getString("selected_event_id", null))
     val currentEventId: StateFlow<String?> = _currentEventId.asStateFlow()
 
     val currentEvent = _currentEventId.flatMapLatest { id ->
@@ -433,20 +435,35 @@ class MainListViewModel @Inject constructor(
             
             // Auto-switch logic
             availableEvents.collect { events ->
-                if (events.isEmpty()) {
-                    _currentEventId.value = null
-                    return@collect
+                // Wait for events to load. If it's genuinely empty after sync,
+                // we'll stay in "No Event Selected" state naturally.
+                if (events.isEmpty()) return@collect
+
+                val currentId = _currentEventId.value
+                val currentEventObj = events.find { it.id == currentId }
+                
+                // Only auto-select if no valid selection exists or it has been purged/expired
+                if (currentEventObj != null) {
+                    val date = EventSuggester.parseDate(currentEventObj.title)
+                    val cutoff = LocalDate.now().minusDays(30)
+                    val isExpired = date == null || date.isBefore(cutoff)
+                    
+                    if (!isExpired) return@collect
                 }
 
-                val current = currentEvent.first()
-                val cutoff = LocalDate.now().minusDays(30)
-                val isExpired = current?.let { 
-                    val date = EventSuggester.parseDate(it.title)
-                    date == null || date.isBefore(cutoff)
-                } ?: true
-
-                if (isExpired || _currentEventId.value == null) {
-                    _currentEventId.value = events.firstOrNull()?.id
+                // If we reach here, we either have no selection or the current one is invalid.
+                val now = java.time.LocalDateTime.now()
+                val oneHourAgo = now.minusHours(1)
+                
+                // 1. Try to find the earliest event starting within 1 hour ago or in the future
+                val suggestedEvent = repository.getUpcomingEvent(oneHourAgo) ?: repository.getLatestEvent()
+                
+                val newId = suggestedEvent?.id
+                _currentEventId.value = newId
+                if (newId != null) {
+                    prefs.edit().putString("selected_event_id", newId).apply()
+                } else {
+                    prefs.edit().remove("selected_event_id").apply()
                 }
             }
         }
@@ -645,6 +662,10 @@ class MainListViewModel @Inject constructor(
                 // 2. Clear all local data before syncing with the cloud
                 repository.clearAllData()
                 
+                // Clear selection on new login
+                _currentEventId.value = null
+                prefs.edit().remove("selected_event_id").apply()
+                
                 // 3. Attempt sync with new tokens
                 val (syncSuccess, detailedStatus) = repository.syncMasterListWithDetailedResult()
                 android.util.Log.d("AttendanceAuth", "Sync success: $syncSuccess, status:\n$detailedStatus")
@@ -671,6 +692,11 @@ class MainListViewModel @Inject constructor(
             try {
                 authManager.logout()
                 repository.clearAllData()
+                
+                // Clear selection on logout
+                _currentEventId.value = null
+                prefs.edit().remove("selected_event_id").apply()
+                
                 repository.syncMasterList()
             } finally {
                 isSyncing.value = false
@@ -680,6 +706,8 @@ class MainListViewModel @Inject constructor(
 
     fun onSwitchEvent(eventId: String) {
         _currentEventId.value = eventId
+        prefs.edit().putString("selected_event_id", eventId).apply()
+        
         viewModelScope.launch {
             repository.getEventById(eventId)?.let { event ->
                 repository.syncAttendanceForEvent(event)

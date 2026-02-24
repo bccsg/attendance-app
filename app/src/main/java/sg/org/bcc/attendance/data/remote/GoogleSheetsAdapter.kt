@@ -10,6 +10,7 @@ import com.google.auth.oauth2.GoogleCredentials
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import sg.org.bcc.attendance.data.local.entities.*
+import sg.org.bcc.attendance.util.EventSuggester
 import java.util.*
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -412,10 +413,16 @@ class GoogleSheetsAdapter @Inject constructor(
         val spreadsheet = service.spreadsheets().get(eventSpreadsheetId).execute()
         
         // In GSheets, each worksheet IS an event
-        spreadsheet.sheets.map { sheet ->
+        spreadsheet.sheets.mapNotNull { sheet ->
+            val title = sheet.properties.title
+            val date = EventSuggester.parseDate(title)?.toString() ?: return@mapNotNull null
+            val time = title.split(" ").getOrNull(1) ?: return@mapNotNull null
+            
             Event(
                 id = UUID.randomUUID().toString(),
-                title = sheet.properties.title,
+                title = title,
+                date = date,
+                time = time,
                 cloudEventId = sheet.properties.sheetId.toString()
             )
         }

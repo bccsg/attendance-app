@@ -221,18 +221,31 @@ class AttendanceRepository @Inject constructor(
         val localByTitle = localEvents.associateBy { it.title }
 
         val mergedEvents = remoteEvents.map { remote ->
+            val date = EventSuggester.parseDate(remote.title)?.toString() ?: ""
+            val time = remote.title.split(" ").getOrNull(1) ?: ""
+            
             val existing = localByCloudId[remote.cloudEventId] ?: localByTitle[remote.title]
             if (existing != null) {
                 existing.copy(
                     title = remote.title,
+                    date = date,
+                    time = time,
                     cloudEventId = remote.cloudEventId
                 )
             } else {
-                remote
+                remote.copy(date = date, time = time)
             }
         }
         eventDao.insertAll(mergedEvents)
     }
+
+    suspend fun getUpcomingEvent(oneHourAgo: java.time.LocalDateTime): Event? {
+        val date = oneHourAgo.toLocalDate().toString()
+        val time = oneHourAgo.toLocalTime().format(java.time.format.DateTimeFormatter.ofPattern("HHmm"))
+        return eventDao.getEarliestUpcomingEvent(date, time)
+    }
+
+    suspend fun getLatestEvent(): Event? = eventDao.getLatestEvent()
 
     suspend fun clearAllData() {
         attendeeDao.clearAll()

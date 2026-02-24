@@ -9,8 +9,19 @@ import sg.org.bcc.attendance.data.local.entities.Event
 
 @Dao
 interface EventDao {
-    @Query("SELECT * FROM events ORDER BY title DESC")
+    @Query("SELECT * FROM events ORDER BY date DESC, time DESC")
     fun getAllEvents(): Flow<List<Event>>
+
+    @Query("""
+        SELECT * FROM events 
+        WHERE (date > :date) OR (date = :date AND time >= :time)
+        ORDER BY date ASC, time ASC 
+        LIMIT 1
+    """)
+    suspend fun getEarliestUpcomingEvent(date: String, time: String): Event?
+
+    @Query("SELECT * FROM events ORDER BY date DESC, time DESC LIMIT 1")
+    suspend fun getLatestEvent(): Event?
 
     @Query("SELECT * FROM events WHERE id = :id")
     suspend fun getEventById(id: String): Event?
