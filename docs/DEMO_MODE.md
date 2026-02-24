@@ -21,6 +21,6 @@ On the first launch (or if the database is empty), the application automatically
 ## 4. Transition to Real Mode
 Demo mode is exited by completing the **Login** process in the **Cloud Status Dialog**.
 *   **Replacement**: Upon successful authentication, the `DemoCloudProvider` is swapped for a real provider (e.g., `GoogleSheetsProvider`).
-*   **Cleanup**: Upon receiving real data, the repository clears all local tables and inserts the new master list.
-*   **Logout**: Logging out via the Cloud Status Dialog will **purge all local data** (attendees, events, attendance records, sync jobs) to ensure security and a clean state.
-*   **Token Expiry**: If an authentication token expires or becomes invalid, the application enters an "Action Required" state (`CloudAlert`). This is **not** a logout; local data is preserved, but synchronization is paused until the user re-authenticates.
+*   **Cleanup**: Upon receiving real data for a *new* identity, the repository clears all local tables and inserts the new master list. Transitioning from Demo Mode requires acknowledgment if pending sync jobs exist.
+*   **Logout**: Logging out via the Cloud Status Dialog will **purge all local data** (attendees, events, attendance records, sync jobs) to ensure security and a clean state. This action requires explicit acknowledgment of data loss if the queue is not empty.
+*   **Token Expiry**: If an authentication token expires or becomes invalid, the application enters an "Action Required" state (`CloudAlert`). This is **not** a logout; local data is preserved, and the user can "Login Again" to repair the session.

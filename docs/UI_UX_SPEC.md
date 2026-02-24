@@ -18,16 +18,21 @@
     *   **Scaling**: Transition between "Normal" and "Large" text sizes.
 *   **Cloud Icon**: Dynamic indicator of sync health and connectivity.
     *   **`CloudOff`**: Demo mode active, or user is not authenticated.
-    *   **`CloudAlert`**: Error with cloud operations or authentication session has expired.
-    *   **`Cloud`**: Slow pulsing alpha animation (100% to 30%) indicates a sync operation is currently in progress.
+    *   **`CloudAlert`**: Error with cloud operations, authentication session has expired, or **no internet connection**.
+    *   **`Sync`**: Rotating icon indicates a sync operation is currently in progress.
     *   **`CloudDone`**: All commits synced, no active operations, and user is logged in.
 
 ### 5. Cloud Status Dialog
 *   **Trigger**: Tapping the Cloud Icon in the TopAppBar.
+*   **Behaviors**:
+    *   **Manual Sync Only**: Tapping the cloud icon opens the dialog but does **not** automatically trigger a sync. Synchronization must be explicitly started via the "Sync Now" button.
+    *   **Connectivity Awareness**: Displays a "No Internet Connection" banner and disables the "Sync Now" button when offline.
+    *   **Data Protection**: If there are pending `sync_jobs`, a mandatory acknowledgment checkbox must be ticked before the user can Logout or Login with a different account.
 *   **States**:
-    *   **Authenticated**: Shows Google profile (email, name) and a **Logout** button.
+    *   **Authenticated**: Shows Google profile (email, name) and a **Logout** button. If the session is expired, it shows a "Login Again" repair path.
     *   **Unauthenticated**: Shows a "Not Authenticated" warning and a **Login** button. If in Demo Mode, includes a notice that logging in will clear demo data.
 *   **Content**:
+    *   **Title Icon**: Matches the TopAppBar sync status (Rotating `Sync` if active, otherwise `CloudDone`).
     *   **Sync Jobs**: Displays the count of pending `sync_jobs`.
     *   **Pull Schedule**: Shows the next scheduled time for a cloud master list pull.
     *   **Sync History**: Displays the last pull status and a list of recent sync errors (if any).

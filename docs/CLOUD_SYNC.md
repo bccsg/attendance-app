@@ -42,15 +42,16 @@ While background processing is currently mocked, the application is designed to 
 
 | Scenario | UX Handling | System Action |
 | :--- | :--- | :--- |
-| **Auth Expired** | Cloud icon: `CloudAlert`. Dialog shows "Not Authenticated". | Pause queue. Attempt silent refresh; wait for user login if fail. **Data is preserved.** |
-| **Logout** | Cloud icon: `CloudOff`. | Purge all local data tables via `clearAllData()`. Enter Demo Mode (unauthenticated state). |
-| **Offline** | Cloud icon: `CloudOff` (in Demo Mode) or dot. | Queue jobs locally. WorkManager retries on connectivity. |
+| **Auth Expired** | Cloud icon: `CloudAlert`. Dialog shows "Session Expired". | Pause queue. Provide "Login Again" repair path. **Data is preserved.** |
+| **Logout** | Cloud icon: `CloudOff`. | Purge all local data tables via `clearAllData()`. Enter Demo Mode (unauthenticated state). Requires acknowledgment if pending jobs exist. |
+| **Offline** | Cloud icon: `CloudAlert`. Dialog shows "No Internet". | Queue jobs locally. WorkManager retries on connectivity. Disable "Sync Now" button. |
 | **Concurrent Edit** | Silent (Last Commit Wins). | Merge cloud state using synchronized NTP timestamps. |
-| **API Rate Limit (429)** | Cloud icon pulses/dot. | Enter backoff (up to 30s). Pause all pull operations. |
+| **API Rate Limit (429)** | Cloud icon: `CloudAlert`. | Enter backoff (up to 30s). Pause all pull operations. |
 | **GSheet Workbook Denied** | Cloud icon: `CloudAlert`. | Engine pauses. User must tap icon to re-auth or check permissions. |
 | **Event > 30 Days Old** | Auto-removal from list. | Purge event and associated records from local database. |
 
 ### Current Status
 
-*   **`CloudOff`**: In demo mode (or if not authenticated), the cloud icon shows `CloudOff`. This indicates that the app is currently in a local-only or mock-only state.
-*   **Sync Jobs**: The pending `SyncJob` count is visible in the **Cloud Status Dialog**, although background processing is not yet implemented.
+*   **`CloudAlert`**: Shown when there is an error, expired session, or **no internet connection**.
+*   **`Sync` (Rotating)**: Indicates an active sync operation.
+*   **Data Preservation**: Identity-aware login ensures that re-authenticating the same user preserves local state and pending `SyncJob` entries. Transitioning to a *different* account or Logging Out requires explicit acknowledgment of data loss.

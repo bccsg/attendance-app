@@ -23,6 +23,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
@@ -102,6 +103,7 @@ fun MainListScreen(
     val fabState by viewModel.fabState.collectAsState()
     val sortMode by viewModel.sortMode.collectAsState()
     val textScale by viewModel.textScale.collectAsState()
+    val isOnline by viewModel.isOnline.collectAsState()
 
     val totalAttendeesCount by viewModel.totalAttendeesCount.collectAsState()
     val totalGroupsCount by viewModel.totalGroupsCount.collectAsState()
@@ -174,6 +176,16 @@ fun MainListScreen(
             repeatMode = RepeatMode.Reverse
         ),
         label = "SyncAlpha"
+    )
+
+    val syncRotation by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(2000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "SyncRotation"
     )
 
     // Ensure status bar content remains white
@@ -351,6 +363,9 @@ fun MainListScreen(
             cloudProfile = cloudProfile,
             syncProgress = syncProgress,
             isDemoMode = isDemoMode,
+            isSyncing = isSyncing,
+            isOnline = isOnline,
+            syncRotation = syncRotation,
             loginError = loginError,
             totalAttendeesCount = totalAttendeesCount,
             totalGroupsCount = totalGroupsCount,
@@ -537,19 +552,16 @@ fun MainListScreen(
                                     } else {
                                         IconButton(onClick = viewModel::onSyncMasterList) {
                                             val syncIcon = when {
-                                                hasSyncError || authState == sg.org.bcc.attendance.data.remote.AuthState.EXPIRED -> AppIcons.CloudAlert
-                                                isSyncing -> AppIcons.Cloud
+                                                !isOnline || hasSyncError || authState == sg.org.bcc.attendance.data.remote.AuthState.EXPIRED -> AppIcons.CloudAlert
+                                                isSyncing -> AppIcons.Sync
                                                 isDemoMode || !isAuthed -> AppIcons.CloudOff
                                                 else -> AppIcons.CloudDone
                                             }
                                             AppIcon(
                                                 resourceId = syncIcon,
                                                 contentDescription = "Sync Status",
-                                                tint = when {
-                                                    hasSyncError || authState == sg.org.bcc.attendance.data.remote.AuthState.EXPIRED -> MaterialTheme.colorScheme.errorContainer
-                                                    else -> MaterialTheme.colorScheme.onPrimary
-                                                },
-                                                modifier = if (isSyncing) Modifier.alpha(syncAlpha) else Modifier
+                                                tint = MaterialTheme.colorScheme.onPrimary,
+                                                modifier = if (isSyncing) Modifier.graphicsLayer { rotationZ = syncRotation } else Modifier
                                             )
                                         }
                                         IconButton(onClick = { showMenu = true }) {
@@ -1318,6 +1330,9 @@ fun CloudStatusDialog(
     cloudProfile: CloudProfile?,
     syncProgress: SyncProgress,
     isDemoMode: Boolean,
+    isSyncing: Boolean,
+    isOnline: Boolean,
+    syncRotation: Float,
     loginError: String? = null,
     totalAttendeesCount: Int = 0,
     totalGroupsCount: Int = 0,
@@ -1327,24 +1342,57 @@ fun CloudStatusDialog(
     onDismiss: () -> Unit,
     onManualSync: () -> Unit
 ) {
-    LaunchedEffect(isAuthed) {
-        if (isAuthed && authState == sg.org.bcc.attendance.data.remote.AuthState.AUTHENTICATED) {
-            onManualSync()
-        }
-    }
+    var isAcknowledgeLossChecked by remember { mutableStateOf(false) }
+    val hasPendingJobs = syncProgress.pendingJobs > 0
+    val canProceedWithAuthAction = !hasPendingJobs || isAcknowledgeLossChecked
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                AppIcon(resourceId = AppIcons.CloudDone, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                AppIcon(
+                    resourceId = if (isSyncing) AppIcons.Sync else AppIcons.CloudDone, 
+                    contentDescription = null, 
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = if (isSyncing) Modifier.graphicsLayer { rotationZ = syncRotation } else Modifier
+                )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text("Cloud Status")
             }
         },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                // Error / Action Required Banner
+                // Error / Action Required Banners
+                val banners = mutableListOf<@Composable () -> Unit>()
+
+                if (!isOnline) {
+                    banners.add {
+                        Surface(
+                            color = MaterialTheme.colorScheme.errorContainer,
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                AppIcon(
+                                    resourceId = AppIcons.CloudOff,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onErrorContainer,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Text(
+                                    text = "No internet connection. Cloud features are unavailable.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onErrorContainer
+                                )
+                            }
+                        }
+                    }
+                }
+
                 val errorMessage = when {
                     loginError != null -> loginError
                     authState == sg.org.bcc.attendance.data.remote.AuthState.EXPIRED -> "Session expired. Please login again to sync data."
@@ -1354,29 +1402,35 @@ fun CloudStatusDialog(
                 }
                 
                 if (errorMessage != null) {
-                    Surface(
-                        color = MaterialTheme.colorScheme.errorContainer,
-                        shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                    banners.add {
+                        Surface(
+                            color = MaterialTheme.colorScheme.errorContainer,
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.fillMaxWidth()
                         ) {
-                            AppIcon(
-                                resourceId = AppIcons.Warning,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onErrorContainer,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Text(
-                                text = errorMessage,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onErrorContainer
-                            )
+                            Row(
+                                modifier = Modifier.padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                AppIcon(
+                                    resourceId = AppIcons.Warning,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onErrorContainer,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Text(
+                                    text = errorMessage,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onErrorContainer
+                                )
+                            }
                         }
                     }
+                }
+
+                banners.forEach { banner ->
+                    banner()
                 }
 
                 // Auth Section
@@ -1396,9 +1450,32 @@ fun CloudStatusDialog(
                             Text(cloudProfile.email, style = MaterialTheme.typography.titleMedium)
                         }
                     }
+
+                    if (hasPendingJobs) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { isAcknowledgeLossChecked = !isAcknowledgeLossChecked }
+                                .padding(vertical = 4.dp)
+                        ) {
+                            Checkbox(
+                                checked = isAcknowledgeLossChecked,
+                                onCheckedChange = { isAcknowledgeLossChecked = it }
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "I acknowledge that ${syncProgress.pendingJobs} pending sync tasks will be lost if I logout.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+                    }
+
                     Button(
                         onClick = onLogout,
                         modifier = Modifier.fillMaxWidth(),
+                        enabled = canProceedWithAuthAction && !isSyncing,
                         colors = ButtonDefaults.buttonColors(
                             containerColor = MaterialTheme.colorScheme.secondaryContainer,
                             contentColor = MaterialTheme.colorScheme.onSecondaryContainer
@@ -1459,10 +1536,32 @@ fun CloudStatusDialog(
                                 }
                             }
                         }
+
+                        if (hasPendingJobs) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { isAcknowledgeLossChecked = !isAcknowledgeLossChecked }
+                                    .padding(vertical = 4.dp)
+                            ) {
+                                Checkbox(
+                                    checked = isAcknowledgeLossChecked,
+                                    onCheckedChange = { isAcknowledgeLossChecked = it }
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "I acknowledge that ${syncProgress.pendingJobs} pending sync tasks will be lost if I login with a different account.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                            }
+                        }
                         
                         Button(
                             onClick = onLogin, 
                             modifier = Modifier.fillMaxWidth(),
+                            enabled = canProceedWithAuthAction && !isSyncing,
                             shape = RoundedCornerShape(8.dp)
                         ) {
                             Text(if (isAuthed) "Login Again" else "Login with Google")
@@ -1471,9 +1570,10 @@ fun CloudStatusDialog(
                         if (isAuthed) {
                             TextButton(
                                 onClick = onLogout,
+                                enabled = canProceedWithAuthAction && !isSyncing,
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                Text("Logout", color = MaterialTheme.colorScheme.error)
+                                Text("Logout", color = if (canProceedWithAuthAction && !isSyncing) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.error.copy(alpha = 0.38f))
                             }
                         }
                     }
@@ -1526,8 +1626,24 @@ fun CloudStatusDialog(
         },
         dismissButton = {
             if (isAuthed && authState == sg.org.bcc.attendance.data.remote.AuthState.AUTHENTICATED) {
-                TextButton(onClick = onManualSync) {
-                    Text("Sync Now")
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (isSyncing) {
+                        AppIcon(
+                            resourceId = AppIcons.Sync,
+                            contentDescription = "Syncing",
+                            modifier = Modifier
+                                .size(18.dp)
+                                .graphicsLayer { rotationZ = syncRotation },
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                    }
+                    TextButton(
+                        onClick = onManualSync,
+                        enabled = !isSyncing && isOnline
+                    ) {
+                        Text("Sync Now")
+                    }
                 }
             }
         }

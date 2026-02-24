@@ -29,6 +29,7 @@ object AppIcons {
     val CloudOff = R.drawable.ic_cloud_off
     val Cloud = R.drawable.ic_cloud
     val CloudAlert = R.drawable.ic_cloud_alert
+    val Sync = R.drawable.ic_sync
     val Warning = R.drawable.ic_warning
     val QrCodeScanner = R.drawable.ic_qr_code_scanner
     val MoreVert = R.drawable.ic_more_vert
