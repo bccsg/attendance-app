@@ -41,6 +41,11 @@ enum class SyncState {
     NO_INTERNET
 }
 
+enum class SortMode {
+    NAME_ASC,
+    RECENT_UPDATED
+}
+
 data class SyncProgress(
     val pendingJobs: Int,
     val currentOperation: String? = null,
@@ -85,6 +90,14 @@ class MainListViewModel @Inject constructor(
 
     private val _isShowSelectedOnlyMode = MutableStateFlow(false)
     val isShowSelectedOnlyMode: StateFlow<Boolean> = _isShowSelectedOnlyMode.asStateFlow()
+
+    private val _sortMode = MutableStateFlow(SortMode.entries.find { it.name == prefs.getString("sort_mode", SortMode.NAME_ASC.name) } ?: SortMode.NAME_ASC)
+    val sortMode: StateFlow<SortMode> = _sortMode.asStateFlow()
+
+    fun setSortMode(mode: SortMode) {
+        _sortMode.value = mode
+        prefs.edit().putString("sort_mode", mode.name).apply()
+    }
 
     private val _textScale = MutableStateFlow(1.0f)
     val textScale: StateFlow<Float> = _textScale.asStateFlow()
@@ -166,6 +179,11 @@ class MainListViewModel @Inject constructor(
             records.filter { it.state == "PRESENT" }.map { it.attendeeId }.toSet() 
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
+
+    val allAttendanceRecords = _currentEventId.flatMapLatest { id ->
+        if (id == null) flowOf(emptyList<sg.org.bcc.attendance.data.local.entities.AttendanceRecord>())
+        else repository.getAttendanceRecords(id)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val pendingIds = _currentEventId.flatMapLatest { id ->
         if (id == null) flowOf(emptySet<String>())
@@ -253,7 +271,7 @@ class MainListViewModel @Inject constructor(
         _searchQuery
     ) { attendees, query ->
         if (query.isBlank()) {
-            attendees.sortedBy { it.shortName ?: it.fullName }
+            attendees
         } else {
             attendees.filter { 
                 (it.shortName?.contains(query, ignoreCase = true) == true) ||
@@ -268,26 +286,65 @@ class MainListViewModel @Inject constructor(
     private val uiFilterState = combine(
         _showPresent,
         _showAbsent,
-        _isShowSelectedOnlyMode
-    ) { present, absent, checklist ->
-        Triple(present, absent, checklist)
+        _isShowSelectedOnlyMode,
+        _sortMode
+    ) { present, absent, checklist, sort ->
+        DataFilters(present, absent, checklist, sort)
     }
 
-    val attendees: StateFlow<List<Attendee>> = combine(
+    data class DataFilters(
+        val showPresent: Boolean,
+        val showAbsent: Boolean,
+        val isShowSelectedOnly: Boolean,
+        val sortMode: SortMode
+    )
+
+    private val attendeeData = combine(
         searchFilteredAttendees,
-        uiFilterState,
         _selectedIds,
-        presentIds
-    ) { filtered, filters, selectedIds, presentIds ->
-        val (showPresent, showAbsent, isShowSelectedOnly) = filters
-        filtered.filter { attendee ->
-            val isPresent = presentIds.contains(attendee.id)
-            val isSelected = selectedIds.contains(attendee.id)
+        presentIds,
+        allAttendanceRecords,
+        _searchQuery
+    ) { filtered, selectedIds, presentIds, records, query ->
+        AttendeeData(filtered, selectedIds, presentIds, records, query)
+    }
+
+    data class AttendeeData(
+        val filtered: List<Attendee>,
+        val selectedIds: Set<String>,
+        val presentIds: Set<String>,
+        val allAttendanceRecords: List<sg.org.bcc.attendance.data.local.entities.AttendanceRecord>,
+        val query: String
+    )
+
+    val attendees: StateFlow<List<Attendee>> = combine(
+        attendeeData,
+        uiFilterState
+    ) { data: AttendeeData, filters: DataFilters ->
+        val recordMap = data.allAttendanceRecords.associateBy { it.attendeeId }
+        
+        val result = data.filtered.filter { attendee ->
+            val isPresent = data.presentIds.contains(attendee.id)
+            val isSelected = data.selectedIds.contains(attendee.id)
             
-            val matchesCategory = (showPresent && isPresent) || (showAbsent && !isPresent)
-            val matchesChecklist = !isShowSelectedOnly || isSelected
+            val matchesCategory = (filters.showPresent && isPresent) || (filters.showAbsent && !isPresent)
+            val matchesChecklist = !filters.isShowSelectedOnly || isSelected
             
             matchesCategory && matchesChecklist
+        }
+
+        if (data.query.isNotBlank()) {
+            // Already sorted by search scorer
+            result
+        } else {
+            when (filters.sortMode) {
+                SortMode.NAME_ASC -> {
+                    result.sortedBy { (it.shortName ?: it.fullName).lowercase() }
+                }
+                SortMode.RECENT_UPDATED -> {
+                    result.sortedByDescending { recordMap[it.id]?.timestamp ?: 0L }
+                }
+            }
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 

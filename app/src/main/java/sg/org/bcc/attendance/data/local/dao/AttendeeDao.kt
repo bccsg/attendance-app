@@ -12,7 +12,7 @@ interface AttendeeDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(attendees: List<Attendee>)
 
-    @Query("SELECT * FROM attendees ORDER BY shortName ASC, fullName ASC")
+    @Query("SELECT * FROM attendees ORDER BY shortName COLLATE NOCASE ASC, fullName COLLATE NOCASE ASC")
     fun getAllAttendees(): Flow<List<Attendee>>
 
     @Query("""

@@ -99,6 +99,7 @@ fun MainListScreen(
     val groupMembersMap by viewModel.groupMembersMap.collectAsState()
     val showQueueSheet by viewModel.showQueueSheet.collectAsState()
     val fabState by viewModel.fabState.collectAsState()
+    val sortMode by viewModel.sortMode.collectAsState()
     val textScale by viewModel.textScale.collectAsState()
 
     val totalAttendeesCount by viewModel.totalAttendeesCount.collectAsState()
@@ -439,7 +440,7 @@ fun MainListScreen(
                                             onDismissRequest = { showMenu = false }
                                         ) {
                                             DropdownMenuItem(
-                                                text = { Text("Text Size", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold) },
+                                                text = { Text("Sort By", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold) },
                                                 onClick = { },
                                                 enabled = false
                                             )
@@ -447,15 +448,15 @@ fun MainListScreen(
                                                 text = {
                                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                                         RadioButton(
-                                                            selected = textScale == 1.0f,
+                                                            selected = sortMode == SortMode.NAME_ASC,
                                                             onClick = null // Handled by item click
                                                         )
                                                         Spacer(modifier = Modifier.width(8.dp))
-                                                        Text("Normal")
+                                                        Text("Name (A-Z)")
                                                     }
                                                 },
                                                 onClick = {
-                                                    viewModel.setTextScale(1.0f)
+                                                    viewModel.setSortMode(SortMode.NAME_ASC)
                                                     showMenu = false
                                                 }
                                             )
@@ -463,15 +464,15 @@ fun MainListScreen(
                                                 text = {
                                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                                         RadioButton(
-                                                            selected = textScale > 1.0f,
+                                                            selected = sortMode == SortMode.RECENT_UPDATED,
                                                             onClick = null // Handled by item click
                                                         )
                                                         Spacer(modifier = Modifier.width(8.dp))
-                                                        Text("Large")
+                                                        Text("Recently Updated")
                                                     }
                                                 },
                                                 onClick = {
-                                                    viewModel.setTextScale(1.5f)
+                                                    viewModel.setSortMode(SortMode.RECENT_UPDATED)
                                                     showMenu = false
                                                 }
                                             )
