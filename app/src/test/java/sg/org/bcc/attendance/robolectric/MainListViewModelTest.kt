@@ -38,6 +38,7 @@ class MainListViewModelTest {
     private val authManager = mockk<AuthManager>()
     private lateinit var context: Context
     private val isAuthedFlow = MutableStateFlow(false)
+    private val authStateFlow = MutableStateFlow(sg.org.bcc.attendance.data.remote.AuthState.UNAUTHENTICATED)
     private val testDispatcher = UnconfinedTestDispatcher()
 
     @Before
@@ -52,11 +53,24 @@ class MainListViewModelTest {
         every { android.util.Log.e(any(), any()) } returns 0
         every { android.util.Log.e(any(), any(), any()) } returns 0
         every { authManager.isAuthed } returns isAuthedFlow
+        every { authManager.authState } returns authStateFlow
+        
+        every { repository.getAllAttendees() } returns flowOf(emptyList())
+        every { repository.getQueueItems() } returns flowOf(emptyList())
+        every { repository.getPendingSyncCount() } returns flowOf(0)
+        every { repository.getManageableEvents() } returns flowOf(emptyList())
+        every { repository.getAllEvents() } returns flowOf(emptyList())
+        every { repository.getAllGroups() } returns flowOf(emptyList())
+        every { repository.getAllMappings() } returns flowOf(emptyList())
+        every { repository.getAttendanceRecords(any()) } returns flowOf(emptyList())
+        
         io.mockk.coEvery { repository.syncMasterList() } returns Unit
         io.mockk.coEvery { repository.retrySync() } returns Unit
         io.mockk.coEvery { repository.getUpcomingEvent(any()) } returns null
         io.mockk.coEvery { repository.getLatestEvent() } returns null
         io.mockk.coEvery { repository.getEventById(any()) } returns null
+        io.mockk.coEvery { repository.isDemoMode() } returns false
+        io.mockk.coEvery { repository.purgeOldEvents() } returns Unit
     }
 
     @After
@@ -72,16 +86,6 @@ class MainListViewModelTest {
             Attendee("2", "Jane Smith", "Jane")
         )
         every { repository.getAllAttendees() } returns flowOf(attendees)
-        every { repository.getQueueItems() } returns flowOf(emptyList())
-        every { repository.getAttendanceRecords(any()) } returns flowOf(emptyList())
-        every { repository.getPendingSyncCount() } returns flowOf(0)
-        every { repository.getManageableEvents() } returns flowOf(emptyList())
-        every { repository.getAllEvents() } returns flowOf(emptyList())
-        every { repository.getAllGroups() } returns flowOf(emptyList())
-        every { repository.getAllMappings() } returns flowOf(emptyList())
-        io.mockk.coEvery { repository.syncMasterList() } returns Unit
-        io.mockk.coEvery { repository.isDemoMode() } returns false
-        io.mockk.coEvery { repository.purgeOldEvents() } returns Unit
 
         val viewModel = MainListViewModel(repository, authManager, context)
         
@@ -104,16 +108,8 @@ class MainListViewModelTest {
     fun `should not sync master list on init if already in demo mode`() = runTest {
         val attendees = listOf(Attendee("D1", "Mickey Mouse"))
         every { repository.getAllAttendees() } returns flowOf(attendees)
-        every { repository.getQueueItems() } returns flowOf(emptyList())
-        every { repository.getPendingSyncCount() } returns flowOf(0)
-        every { repository.getManageableEvents() } returns flowOf(emptyList())
-        every { repository.getAllGroups() } returns flowOf(emptyList())
-        every { repository.getAllMappings() } returns flowOf(emptyList())
-        every { repository.getAllEvents() } returns flowOf(emptyList())
         
         io.mockk.coEvery { repository.isDemoMode() } returns true
-        io.mockk.coEvery { repository.purgeOldEvents() } returns Unit
-        io.mockk.coEvery { repository.syncMasterList() } returns Unit
 
         val viewModel = MainListViewModel(repository, authManager, context)
         
@@ -127,16 +123,8 @@ class MainListViewModelTest {
         isAuthedFlow.value = true
         // Case where database is empty (isDemoMode will be false)
         every { repository.getAllAttendees() } returns flowOf(emptyList())
-        every { repository.getQueueItems() } returns flowOf(emptyList())
-        every { repository.getPendingSyncCount() } returns flowOf(0)
-        every { repository.getManageableEvents() } returns flowOf(emptyList())
-        every { repository.getAllGroups() } returns flowOf(emptyList())
-        every { repository.getAllMappings() } returns flowOf(emptyList())
-        every { repository.getAllEvents() } returns flowOf(emptyList())
         
         io.mockk.coEvery { repository.isDemoMode() } returns false
-        io.mockk.coEvery { repository.purgeOldEvents() } returns Unit
-        io.mockk.coEvery { repository.syncMasterList() } returns Unit
 
         val viewModel = MainListViewModel(repository, authManager, context)
         
@@ -156,16 +144,9 @@ class MainListViewModelTest {
         )
         val events = listOf(Event("Event", "260223 1030 Sunday Service", "2026-02-23", "1030", "cloudId"))
         every { repository.getAllAttendees() } returns flowOf(attendees)
-        every { repository.getQueueItems() } returns flowOf(emptyList())
         every { repository.getAttendanceRecords(any()) } returns flowOf(records)
-        every { repository.getPendingSyncCount() } returns flowOf(0)
         every { repository.getManageableEvents() } returns flowOf(events)
         every { repository.getAllEvents() } returns flowOf(events)
-        every { repository.getAllGroups() } returns flowOf(emptyList())
-        every { repository.getAllMappings() } returns flowOf(emptyList())
-        io.mockk.coEvery { repository.syncMasterList() } returns Unit
-        io.mockk.coEvery { repository.isDemoMode() } returns false
-        io.mockk.coEvery { repository.purgeOldEvents() } returns Unit
 
         val viewModel = MainListViewModel(repository, authManager, context)
         viewModel.onSwitchEvent("Event")
@@ -189,16 +170,6 @@ class MainListViewModelTest {
     fun `selection mode should work correctly`() = runTest {
         val attendees = listOf(Attendee("1", "John"))
         every { repository.getAllAttendees() } returns flowOf(attendees)
-        every { repository.getQueueItems() } returns flowOf(emptyList())
-        every { repository.getAttendanceRecords(any()) } returns flowOf(emptyList())
-        every { repository.getPendingSyncCount() } returns flowOf(0)
-        every { repository.getManageableEvents() } returns flowOf(emptyList())
-        every { repository.getAllEvents() } returns flowOf(emptyList())
-        every { repository.getAllGroups() } returns flowOf(emptyList())
-        every { repository.getAllMappings() } returns flowOf(emptyList())
-        io.mockk.coEvery { repository.syncMasterList() } returns Unit
-        io.mockk.coEvery { repository.isDemoMode() } returns false
-        io.mockk.coEvery { repository.purgeOldEvents() } returns Unit
         io.mockk.coEvery { repository.replaceQueueWithSelection(any()) } returns Unit
 
         val viewModel = MainListViewModel(repository, authManager, context)
@@ -225,16 +196,9 @@ class MainListViewModelTest {
         )
         val events = listOf(Event("Event", "260223 1030 Sunday Service", "2026-02-23", "1030", "cloudId"))
         every { repository.getAllAttendees() } returns flowOf(attendees)
-        every { repository.getQueueItems() } returns flowOf(emptyList())
         every { repository.getAttendanceRecords(any()) } returns flowOf(records)
-        every { repository.getPendingSyncCount() } returns flowOf(0)
         every { repository.getManageableEvents() } returns flowOf(events)
         every { repository.getAllEvents() } returns flowOf(events)
-        every { repository.getAllGroups() } returns flowOf(emptyList())
-        every { repository.getAllMappings() } returns flowOf(emptyList())
-        io.mockk.coEvery { repository.syncMasterList() } returns Unit
-        io.mockk.coEvery { repository.isDemoMode() } returns false
-        io.mockk.coEvery { repository.purgeOldEvents() } returns Unit
 
         val viewModel = MainListViewModel(repository, authManager, context)
         viewModel.onSwitchEvent("Event")
@@ -274,16 +238,6 @@ class MainListViewModelTest {
 
     @Test
     fun `login error should be cleared when dialog is dismissed or login is triggered`() = runTest {
-        every { repository.getAllAttendees() } returns flowOf(emptyList())
-        every { repository.getQueueItems() } returns flowOf(emptyList())
-        every { repository.getPendingSyncCount() } returns flowOf(0)
-        every { repository.getManageableEvents() } returns flowOf(emptyList())
-        every { repository.getAllEvents() } returns flowOf(emptyList())
-        every { repository.getAllGroups() } returns flowOf(emptyList())
-        every { repository.getAllMappings() } returns flowOf(emptyList())
-        io.mockk.coEvery { repository.purgeOldEvents() } returns Unit
-        io.mockk.coEvery { repository.syncMasterList() } returns Unit
-
         val viewModel = MainListViewModel(repository, authManager, context)
 
         // Set an error
@@ -305,14 +259,6 @@ class MainListViewModelTest {
 
     @Test
     fun `handleOAuthCode should exchange code and sync`() = runTest {
-        every { repository.getAllAttendees() } returns flowOf(emptyList())
-        every { repository.getQueueItems() } returns flowOf(emptyList())
-        every { repository.getPendingSyncCount() } returns flowOf(0)
-        every { repository.getManageableEvents() } returns flowOf(emptyList())
-        every { repository.getAllEvents() } returns flowOf(emptyList())
-        every { repository.getAllGroups() } returns flowOf(emptyList())
-        every { repository.getAllMappings() } returns flowOf(emptyList())
-        io.mockk.coEvery { repository.purgeOldEvents() } returns Unit
         io.mockk.coEvery { repository.clearAllData() } returns Unit
         
         // Mock successful exchange and sync
@@ -333,16 +279,7 @@ class MainListViewModelTest {
 
     @Test
     fun `onLogout should set isSyncing correctly`() = runTest {
-        every { repository.getAllAttendees() } returns flowOf(emptyList())
-        every { repository.getQueueItems() } returns flowOf(emptyList())
-        every { repository.getPendingSyncCount() } returns flowOf(0)
-        every { repository.getManageableEvents() } returns flowOf(emptyList())
-        every { repository.getAllEvents() } returns flowOf(emptyList())
-        every { repository.getAllGroups() } returns flowOf(emptyList())
-        every { repository.getAllMappings() } returns flowOf(emptyList())
-        io.mockk.coEvery { repository.purgeOldEvents() } returns Unit
         io.mockk.coEvery { repository.clearAllData() } returns Unit
-        io.mockk.coEvery { repository.syncMasterList() } returns Unit
         io.mockk.coEvery { authManager.logout() } returns Unit
 
         val viewModel = MainListViewModel(repository, authManager, context)
@@ -358,15 +295,6 @@ class MainListViewModelTest {
 
     @Test
     fun `handleOAuthCode should show error if exchange fails`() = runTest {
-        every { repository.getAllAttendees() } returns flowOf(emptyList())
-        every { repository.getQueueItems() } returns flowOf(emptyList())
-        every { repository.getPendingSyncCount() } returns flowOf(0)
-        every { repository.getManageableEvents() } returns flowOf(emptyList())
-        every { repository.getAllEvents() } returns flowOf(emptyList())
-        every { repository.getAllGroups() } returns flowOf(emptyList())
-        every { repository.getAllMappings() } returns flowOf(emptyList())
-        io.mockk.coEvery { repository.purgeOldEvents() } returns Unit
-        
         // Mock failed exchange
         io.mockk.coEvery { authManager.exchangeCodeForTokens("test_code") } returns false
 
@@ -377,5 +305,33 @@ class MainListViewModelTest {
         testScheduler.advanceUntilIdle()
         
         viewModel.loginError.value?.contains("Failed to exchange code") shouldBe true
+    }
+
+    @Test
+    fun `isDemoMode should be false when identity exists even if token is expired`() = runTest {
+        isAuthedFlow.value = true
+        authStateFlow.value = sg.org.bcc.attendance.data.remote.AuthState.EXPIRED
+        
+        val viewModel = MainListViewModel(repository, authManager, context)
+        
+        testScheduler.advanceUntilIdle()
+        
+        viewModel.isDemoMode.value shouldBe false
+        viewModel.isAuthed.value shouldBe true
+        viewModel.authState.value shouldBe sg.org.bcc.attendance.data.remote.AuthState.EXPIRED
+    }
+
+    @Test
+    fun `isDemoMode should be true only when no identity exists`() = runTest {
+        isAuthedFlow.value = false
+        authStateFlow.value = sg.org.bcc.attendance.data.remote.AuthState.UNAUTHENTICATED
+        
+        val viewModel = MainListViewModel(repository, authManager, context)
+        
+        testScheduler.advanceUntilIdle()
+        
+        viewModel.isDemoMode.value shouldBe true
+        viewModel.isAuthed.value shouldBe false
+        viewModel.authState.value shouldBe sg.org.bcc.attendance.data.remote.AuthState.UNAUTHENTICATED
     }
 }

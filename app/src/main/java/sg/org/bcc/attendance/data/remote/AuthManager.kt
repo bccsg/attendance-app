@@ -68,8 +68,12 @@ class AuthManager @Inject constructor(
     private val _authState = MutableStateFlow(calculateInitialAuthState())
     val authState: StateFlow<AuthState> = _authState.asStateFlow()
 
-    private val _isAuthed = MutableStateFlow(_authState.value == AuthState.AUTHENTICATED)
+    private val _isAuthed = MutableStateFlow(calculateInitialIsAuthed())
     val isAuthed: StateFlow<Boolean> = _isAuthed.asStateFlow()
+
+    private fun calculateInitialIsAuthed(): Boolean {
+        return getEmail() != null && (getRefreshToken() != null || getAccessToken() == "demo_token")
+    }
 
     private fun calculateInitialAuthState(): AuthState {
         val accessToken = prefs.getString("access_token", null)
@@ -84,7 +88,7 @@ class AuthManager @Inject constructor(
     }
 
     private fun updateLegacyIsAuthed() {
-        _isAuthed.value = _authState.value == AuthState.AUTHENTICATED
+        _isAuthed.value = calculateInitialIsAuthed()
     }
 
     fun getAuthUrl(): String {

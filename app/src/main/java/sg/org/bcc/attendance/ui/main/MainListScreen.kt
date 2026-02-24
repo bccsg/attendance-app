@@ -73,6 +73,7 @@ fun MainListScreen(
     val isDemoMode by viewModel.isDemoMode.collectAsState()
     val syncPending by viewModel.syncPending.collectAsState()
     val isAuthed by viewModel.isAuthed.collectAsState()
+    val authState by viewModel.authState.collectAsState()
     val hasSyncError by viewModel.hasSyncError.collectAsState()
     val isSyncing by viewModel.isSyncing.collectAsState()
     val cloudProfile by viewModel.cloudProfile.collectAsState()
@@ -346,6 +347,7 @@ fun MainListScreen(
         SetStatusBarIconsColor(isLight = false)
         CloudStatusDialog(
             isAuthed = isAuthed,
+            authState = authState,
             cloudProfile = cloudProfile,
             syncProgress = syncProgress,
             isDemoMode = isDemoMode,
@@ -535,7 +537,7 @@ fun MainListScreen(
                                     } else {
                                         IconButton(onClick = viewModel::onSyncMasterList) {
                                             val syncIcon = when {
-                                                hasSyncError -> AppIcons.CloudAlert
+                                                hasSyncError || authState == sg.org.bcc.attendance.data.remote.AuthState.EXPIRED -> AppIcons.CloudAlert
                                                 isSyncing -> AppIcons.Cloud
                                                 isDemoMode || !isAuthed -> AppIcons.CloudOff
                                                 else -> AppIcons.CloudDone
@@ -544,7 +546,7 @@ fun MainListScreen(
                                                 resourceId = syncIcon,
                                                 contentDescription = "Sync Status",
                                                 tint = when {
-                                                    hasSyncError -> MaterialTheme.colorScheme.errorContainer
+                                                    hasSyncError || authState == sg.org.bcc.attendance.data.remote.AuthState.EXPIRED -> MaterialTheme.colorScheme.errorContainer
                                                     else -> MaterialTheme.colorScheme.onPrimary
                                                 },
                                                 modifier = if (isSyncing) Modifier.alpha(syncAlpha) else Modifier
@@ -1312,6 +1314,7 @@ fun AttendeeDetailContent(
 @Composable
 fun CloudStatusDialog(
     isAuthed: Boolean,
+    authState: sg.org.bcc.attendance.data.remote.AuthState,
     cloudProfile: CloudProfile?,
     syncProgress: SyncProgress,
     isDemoMode: Boolean,
@@ -1325,7 +1328,7 @@ fun CloudStatusDialog(
     onManualSync: () -> Unit
 ) {
     LaunchedEffect(isAuthed) {
-        if (isAuthed) {
+        if (isAuthed && authState == sg.org.bcc.attendance.data.remote.AuthState.AUTHENTICATED) {
             onManualSync()
         }
     }
@@ -1342,7 +1345,13 @@ fun CloudStatusDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 // Error / Action Required Banner
-                val errorMessage = loginError ?: syncProgress.lastErrors.firstOrNull()?.message ?: if (syncProgress.syncState == SyncState.ERROR) "An unknown synchronization error occurred." else null
+                val errorMessage = when {
+                    loginError != null -> loginError
+                    authState == sg.org.bcc.attendance.data.remote.AuthState.EXPIRED -> "Session expired. Please login again to sync data."
+                    syncProgress.lastErrors.firstOrNull()?.message != null -> syncProgress.lastErrors.firstOrNull()?.message
+                    syncProgress.syncState == SyncState.ERROR -> "An unknown synchronization error occurred."
+                    else -> null
+                }
                 
                 if (errorMessage != null) {
                     Surface(
@@ -1371,7 +1380,7 @@ fun CloudStatusDialog(
                 }
 
                 // Auth Section
-                if (isAuthed && cloudProfile != null) {
+                if (isAuthed && cloudProfile != null && authState == sg.org.bcc.attendance.data.remote.AuthState.AUTHENTICATED) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Surface(
                             shape = CircleShape,
@@ -1399,35 +1408,54 @@ fun CloudStatusDialog(
                     }
                 } else {
                     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                        Surface(
-                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(16.dp),
-                                verticalAlignment = Alignment.CenterVertically
+                        if (!isAuthed) {
+                            Surface(
+                                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.fillMaxWidth()
                             ) {
-                                AppIcon(
-                                    resourceId = AppIcons.CloudOff,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(32.dp)
-                                )
-                                Spacer(modifier = Modifier.width(16.dp))
+                                Row(
+                                    modifier = Modifier.padding(16.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    AppIcon(
+                                        resourceId = AppIcons.CloudOff,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(32.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(16.dp))
+                                    Column {
+                                        Text(
+                                            "Using Demo Data",
+                                            style = MaterialTheme.typography.titleSmall,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                                        )
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        Text(
+                                            "Login to establish connectivity with Master and Event Google Sheets.",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                                        )
+                                    }
+                                }
+                            }
+                        } else if (authState == sg.org.bcc.attendance.data.remote.AuthState.EXPIRED) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Surface(
+                                    shape = CircleShape,
+                                    color = MaterialTheme.colorScheme.errorContainer,
+                                    modifier = Modifier.size(40.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        AppIcon(resourceId = AppIcons.Person, contentDescription = null, tint = MaterialTheme.colorScheme.onErrorContainer)
+                                    }
+                                }
+                                Spacer(modifier = Modifier.width(12.dp))
                                 Column {
-                                    Text(
-                                        "Using Demo Data",
-                                        style = MaterialTheme.typography.titleSmall,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                                    )
-                                    Spacer(modifier = Modifier.height(2.dp))
-                                    Text(
-                                        "Login to establish connectivity with Master and Event Google Sheets.",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
-                                    )
+                                    Text(cloudProfile?.email ?: "Unknown", style = MaterialTheme.typography.titleMedium)
+                                    Text("Session Expired", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
                                 }
                             }
                         }
@@ -1437,7 +1465,16 @@ fun CloudStatusDialog(
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(8.dp)
                         ) {
-                            Text("Login with Google")
+                            Text(if (isAuthed) "Login Again" else "Login with Google")
+                        }
+
+                        if (isAuthed) {
+                            TextButton(
+                                onClick = onLogout,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("Logout", color = MaterialTheme.colorScheme.error)
+                            }
                         }
                     }
                 }
@@ -1488,7 +1525,7 @@ fun CloudStatusDialog(
             }
         },
         dismissButton = {
-            if (isAuthed) {
+            if (isAuthed && authState == sg.org.bcc.attendance.data.remote.AuthState.AUTHENTICATED) {
                 TextButton(onClick = onManualSync) {
                     Text("Sync Now")
                 }
