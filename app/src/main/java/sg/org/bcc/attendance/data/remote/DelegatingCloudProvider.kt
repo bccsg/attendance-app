@@ -28,9 +28,10 @@ class DelegatingCloudProvider @Inject constructor(
     override suspend fun pushAttendance(
         event: Event, 
         records: List<AttendanceRecord>,
-        scope: SyncLogScope
+        scope: SyncLogScope,
+        failIfMissing: Boolean
     ): PushResult {
-        return activeProvider.pushAttendance(event, records, scope)
+        return activeProvider.pushAttendance(event, records, scope, failIfMissing)
     }
 
     override suspend fun fetchMasterAttendees(scope: SyncLogScope): List<Attendee> {

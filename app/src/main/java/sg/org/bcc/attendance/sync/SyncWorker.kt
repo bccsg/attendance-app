@@ -63,7 +63,12 @@ class SyncWorker @AssistedInject constructor(
             ))
             
             val result = try {
-                cloudProvider.pushAttendance(event, records, scope)
+                cloudProvider.pushAttendance(
+                    event = event, 
+                    records = records, 
+                    scope = scope, 
+                    failIfMissing = records.isNotEmpty()
+                )
             } catch (e: Exception) {
                 PushResult.Error(e.message ?: "Unknown error", isRetryable = true)
             }
@@ -99,6 +104,18 @@ class SyncWorker @AssistedInject constructor(
                         ))
                         return Result.retry()
                     } else {
+                        // Requirement: If an attendance push finds its cloud sheet is missing,
+                        // the job MUST fail and remain in the queue (do not auto-create the sheet here).
+                        if (records.isNotEmpty() && result.message.contains("Cloud worksheet not found")) {
+                            setProgress(workDataOf(
+                                PROGRESS_STATE to "RETRYING",
+                                PROGRESS_ERROR to "Missing Cloud Sheet: ${result.message}"
+                            ))
+                            // Returning retry() keeps it in queue but potentially pauses the worker
+                            // depending on WorkManager backoff.
+                            return Result.retry()
+                        }
+
                         // Fatal error for this job, discard it
                         syncJobDao.deleteJob(job.jobId)
                         return Result.failure(workDataOf(

@@ -31,9 +31,10 @@ class DemoCloudProvider @Inject constructor(
     override suspend fun pushAttendance(
         event: Event, 
         records: List<AttendanceRecord>,
-        scope: SyncLogScope
+        scope: SyncLogScope,
+        failIfMissing: Boolean
     ): PushResult {
-        val params = "event='${event.title}', records=${records.size}"
+        val params = "event='${event.title}', records=${records.size}, failIfMissing=$failIfMissing"
         try {
             val eventRecords = sessionPushedRecords.getOrPut(event.id) { mutableListOf() }
             records.forEach { newRecord ->

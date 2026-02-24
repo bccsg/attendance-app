@@ -47,6 +47,15 @@ interface EventDao {
     @Query("UPDATE events SET lastProcessedRowIndex = :index WHERE id = :id")
     suspend fun updateLastProcessedRowIndex(id: String, index: Int)
 
+    @Query("UPDATE events SET notExistOnCloud = 1 WHERE id IN (:ids)")
+    suspend fun markAsMissingOnCloud(ids: List<String>)
+
+    @Query("UPDATE events SET notExistOnCloud = 0 WHERE id = :id")
+    suspend fun clearMissingOnCloud(id: String)
+
+    @Query("SELECT * FROM events WHERE notExistOnCloud = 1")
+    fun getMissingOnCloudEvents(): Flow<List<Event>>
+
     @Query("DELETE FROM events")
     suspend fun clearAll()
 }

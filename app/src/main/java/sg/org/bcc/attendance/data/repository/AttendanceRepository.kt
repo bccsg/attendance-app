@@ -10,6 +10,7 @@ import sg.org.bcc.attendance.data.local.dao.*
 import sg.org.bcc.attendance.data.local.entities.*
 import sg.org.bcc.attendance.data.remote.AttendanceCloudProvider
 import sg.org.bcc.attendance.data.remote.AuthManager
+import sg.org.bcc.attendance.data.remote.PushResult
 import sg.org.bcc.attendance.sync.DatabaseSyncLogScope
 import sg.org.bcc.attendance.sync.NoOpSyncLogScope
 import sg.org.bcc.attendance.sync.SyncLogScope
@@ -350,6 +351,9 @@ class AttendanceRepository @Inject constructor(
         val localEvents = eventDao.getAllEvents().first()
         val localByCloudId = localEvents.filter { it.cloudEventId != null }.associateBy { it.cloudEventId }
         val localByTitle = localEvents.associateBy { it.title }
+        
+        val remoteCloudIds = remoteEvents.mapNotNull { it.cloudEventId }.toSet()
+        val remoteTitles = remoteEvents.map { it.title }.toSet()
 
         val mergedEvents = remoteEvents.map { remote ->
             val date = EventSuggester.parseDate(remote.title)?.toString() ?: ""
@@ -361,13 +365,30 @@ class AttendanceRepository @Inject constructor(
                     title = remote.title,
                     date = date,
                     time = time,
-                    cloudEventId = remote.cloudEventId
+                    cloudEventId = remote.cloudEventId,
+                    notExistOnCloud = false // Rediscovered
                 )
             } else {
-                remote.copy(date = date, time = time)
+                remote.copy(date = date, time = time, notExistOnCloud = false)
             }
         }
         eventDao.insertAll(mergedEvents)
+
+        // Identify local events that are missing from remote (within the same window, e.g., 30 days)
+        val cutoff = LocalDate.now().minusDays(30)
+        val missingEventIds = localEvents.filter { local ->
+            val eventDate = EventSuggester.parseDate(local.title)
+            val isWithinWindow = eventDate != null && (eventDate.isAfter(cutoff) || eventDate.isEqual(cutoff))
+            
+            isWithinWindow && 
+            local.cloudEventId !in remoteCloudIds && 
+            local.title !in remoteTitles &&
+            !local.notExistOnCloud
+        }.map { it.id }
+
+        if (missingEventIds.isNotEmpty()) {
+            eventDao.markAsMissingOnCloud(missingEventIds)
+        }
     }
 
     suspend fun getUpcomingEvent(oneHourAgo: java.time.LocalDateTime): Event? {
@@ -466,9 +487,46 @@ class AttendanceRepository @Inject constructor(
 
     fun getMissingOnCloudAttendees(): Flow<List<Attendee>> = attendeeDao.getMissingOnCloudAttendees()
     fun getMissingOnCloudGroups(): Flow<List<Group>> = groupDao.getMissingOnCloudGroups()
+    fun getMissingOnCloudEvents(): Flow<List<Event>> = eventDao.getMissingOnCloudEvents()
 
     suspend fun removeAttendeeById(id: String) = attendeeDao.deleteById(id)
     suspend fun removeGroupById(id: String) = groupDao.deleteById(id)
+
+    suspend fun resolveEventRecreate(eventId: String) {
+        val event = eventDao.getEventById(eventId) ?: return
+        
+        // Re-create cloud sheet by pushing with failIfMissing = false (the default)
+        // We'll create a special job or call push directly.
+        // Easiest way is to just call cloudProvider.pushAttendance(event, emptyList(), ...)
+        // which will ensure sheet exists and update cloudEventId.
+        
+        val scope = DatabaseSyncLogScope(syncLogDao, "RESOLUTION")
+        val result = cloudProvider.pushAttendance(event, emptyList(), scope, failIfMissing = false)
+        
+        if (result is PushResult.SuccessWithMapping) {
+            eventDao.updateCloudEventId(event.id, result.cloudEventId)
+            eventDao.clearMissingOnCloud(event.id)
+            
+            // Now that sheet is back, SyncWorker will process any pending jobs for this event
+            // when it next runs. We can trigger it now.
+            retrySync()
+        } else if (result is PushResult.Success) {
+            // Already existed?
+            eventDao.clearMissingOnCloud(event.id)
+            retrySync()
+        }
+    }
+
+    suspend fun resolveEventDeleteLocally(eventId: String) {
+        // 1. Clear all pending SyncJobs for this event
+        syncJobDao.deleteJobsForEvent(eventId)
+        
+        // 2. Clear local attendance for this event
+        attendanceDao.deleteForEvent(eventId)
+        
+        // 3. Delete the event from the database
+        eventDao.deleteById(eventId)
+    }
 
     suspend fun replaceQueueWithSelection(attendeeIds: List<String>) {
         val currentQueue = persistentQueueDao.getQueue().first()

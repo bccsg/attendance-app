@@ -12,5 +12,6 @@ data class Event(
     val time: String,  // 24h time: "HHmm"
     val cloudEventId: String? = null,
     val lastSyncTime: Long? = null,
-    val lastProcessedRowIndex: Int = 0
+    val lastProcessedRowIndex: Int = 0,
+    val notExistOnCloud: Boolean = false
 )

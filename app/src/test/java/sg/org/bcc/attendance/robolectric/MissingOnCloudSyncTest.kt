@@ -190,4 +190,44 @@ class MissingOnCloudSyncTest {
             db.groupDao().getAllGroups().first()[0].groupId shouldBe "G1"
         }
     }
+
+    @Test
+    fun `syncMasterList should mark local events as missing if not in remote`() {
+        runBlocking {
+            // Setup local data (within 30 day window)
+            val today = java.time.LocalDate.now()
+            val dateStr = today.format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
+            val e1 = Event(id = "E1", title = "260225 1000 E1", date = dateStr, time = "1000", cloudEventId = "c1")
+            val e2 = Event(id = "E2", title = "260225 1100 E2", date = dateStr, time = "1100", cloudEventId = "c2")
+            db.eventDao().insertAll(listOf(e1, e2))
+
+            // Mock remote data (only E1 exists)
+            coEvery { cloudProvider.fetchRecentEvents(30, any()) } returns listOf(
+                e1.copy(id = "remote_e1") // ID doesn't matter for merge, title/cloudEventId does
+            )
+
+            repository.syncMasterListWithDetailedResult()
+
+            val allEvents = db.eventDao().getAllEvents().first()
+            allEvents.size shouldBe 2
+            allEvents.find { it.id == "E1" }?.notExistOnCloud shouldBe false
+            allEvents.find { it.id == "E2" }?.notExistOnCloud shouldBe true
+        }
+    }
+
+    @Test
+    fun `resolveEventDeleteLocally should clear jobs, attendance and event`() {
+        runBlocking {
+            val eventId = "E1"
+            db.eventDao().insert(Event(id = eventId, title = "260225 1000 E1", date = "2026-02-25", time = "1000"))
+            db.attendanceDao().insert(AttendanceRecord(eventId, "A1", "John", "PRESENT", 123L))
+            db.syncJobDao().insert(SyncJob(eventId = eventId, payloadJson = "[]"))
+
+            repository.resolveEventDeleteLocally(eventId)
+
+            db.eventDao().getEventById(eventId) shouldBe null
+            db.attendanceDao().getAttendanceForEvent(eventId).size shouldBe 0
+            db.syncJobDao().getPendingCount() shouldBe 0
+        }
+    }
 }

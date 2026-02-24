@@ -24,6 +24,9 @@ interface SyncJobDao {
     @Query("SELECT count(*) FROM sync_jobs")
     suspend fun getPendingCount(): Int
 
+    @Query("DELETE FROM sync_jobs WHERE eventId = :eventId")
+    suspend fun deleteJobsForEvent(eventId: String)
+
     @Query("DELETE FROM sync_jobs")
     suspend fun clearAll()
 }

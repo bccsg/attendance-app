@@ -168,9 +168,31 @@ class MainListViewModel @Inject constructor(
     val missingCloudGroupsCount = missingCloudGroups.map { it.size }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
+    val missingCloudEvents = repository.getMissingOnCloudEvents()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val missingCloudEventsCount = missingCloudEvents.map { it.size }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+
     fun onNavigateToResolutionScreen() {
         _navigateToResolutionScreenEvent.tryEmit(Unit)
         _showCloudStatusDialog.value = false
+    }
+
+    fun resolveEventRecreate(eventId: String) {
+        viewModelScope.launch {
+            repository.resolveEventRecreate(eventId)
+        }
+    }
+
+    fun resolveEventDeleteLocally(eventId: String) {
+        viewModelScope.launch {
+            if (_currentEventId.value == eventId) {
+                _currentEventId.value = null
+                prefs.edit { remove("selected_event_id") }
+            }
+            repository.resolveEventDeleteLocally(eventId)
+        }
     }
 
     val syncPendingCount = repository.getPendingSyncCount()

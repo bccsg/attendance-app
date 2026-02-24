@@ -64,8 +64,9 @@ class GoogleSheetsAdapter @Inject constructor(
     override suspend fun pushAttendance(
         event: Event, 
         records: List<AttendanceRecord>,
-        scope: SyncLogScope
-    ): PushResult = runWithLogging(scope, "pushAttendance", "event='${event.title}', records=${records.size}") {
+        scope: SyncLogScope,
+        failIfMissing: Boolean
+    ): PushResult = runWithLogging(scope, "pushAttendance", "event='${event.title}', records=${records.size}, failIfMissing=$failIfMissing") {
         withContext(Dispatchers.IO) {
             try {
                 ensureAuthenticated()
@@ -73,7 +74,12 @@ class GoogleSheetsAdapter @Inject constructor(
                 val sheetTitle = event.title // Format: yyMMdd HHmm Name
                 
                 // 1. Ensure worksheet exists and get its ID
-                val sheetId = ensureWorksheetExists(service, eventSpreadsheetId, sheetTitle)
+                val sheetId = if (failIfMissing) {
+                    getWorksheetId(service, eventSpreadsheetId, sheetTitle) 
+                        ?: return@withContext PushResult.Error("Cloud worksheet not found for '${event.title}'", isRetryable = false)
+                } else {
+                    ensureWorksheetExists(service, eventSpreadsheetId, sheetTitle)
+                }
                 val cloudIdStr = sheetId.toString()
 
                 // 2. Prepare data for push if any records exist
@@ -153,6 +159,11 @@ class GoogleSheetsAdapter @Inject constructor(
                 PushResult.Error(e.message ?: "Sync failed", isRetryable = true)
             }
         }
+    }
+
+    private suspend fun getWorksheetId(service: Sheets, spreadsheetId: String, title: String): Int? = withContext(Dispatchers.IO) {
+        val spreadsheet = service.spreadsheets().get(spreadsheetId).execute()
+        spreadsheet.sheets.find { it.properties.title == title }?.properties?.sheetId
     }
 
     private suspend fun ensureWorksheetExists(service: Sheets, spreadsheetId: String, title: String): Int = withContext(Dispatchers.IO) {

@@ -6,6 +6,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import sg.org.bcc.attendance.data.local.entities.Attendee
+import sg.org.bcc.attendance.data.local.entities.Event
 import sg.org.bcc.attendance.data.local.entities.Group
 import sg.org.bcc.attendance.data.repository.AttendanceRepository
 import javax.inject.Inject
@@ -21,6 +22,9 @@ class CloudResolutionViewModel @Inject constructor(
     val missingGroups: StateFlow<List<Group>> = repository.getMissingOnCloudGroups()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val missingEvents: StateFlow<List<Event>> = repository.getMissingOnCloudEvents()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     fun removeAttendee(id: String) {
         viewModelScope.launch {
             repository.removeAttendeeById(id)
@@ -30,6 +34,18 @@ class CloudResolutionViewModel @Inject constructor(
     fun removeGroup(id: String) {
         viewModelScope.launch {
             repository.removeGroupById(id)
+        }
+    }
+
+    fun recreateEvent(id: String) {
+        viewModelScope.launch {
+            repository.resolveEventRecreate(id)
+        }
+    }
+
+    fun deleteEventLocally(id: String) {
+        viewModelScope.launch {
+            repository.resolveEventDeleteLocally(id)
         }
     }
 

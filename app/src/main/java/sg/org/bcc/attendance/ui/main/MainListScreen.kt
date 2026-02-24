@@ -359,6 +359,7 @@ fun MainListScreen(
     if (showCloudStatusDialog) {
         val missingCloudAttendeesCount by viewModel.missingCloudAttendeesCount.collectAsState()
         val missingCloudGroupsCount by viewModel.missingCloudGroupsCount.collectAsState()
+        val missingCloudEventsCount by viewModel.missingCloudEventsCount.collectAsState()
 
         SetStatusBarIconsColor(isLight = false)
         CloudStatusDialog(
@@ -376,6 +377,7 @@ fun MainListScreen(
             attendeesWithGroupCount = attendeesWithGroupCount,
             missingCloudAttendeesCount = missingCloudAttendeesCount,
             missingCloudGroupsCount = missingCloudGroupsCount,
+            missingCloudEventsCount = missingCloudEventsCount,
             onLogin = viewModel::onLoginTrigger,
             onLogout = viewModel::onLogout,
             onDismiss = { viewModel.setShowCloudStatusDialog(false) },
@@ -1350,6 +1352,7 @@ fun CloudStatusDialog(
     attendeesWithGroupCount: Int = 0,
     missingCloudAttendeesCount: Int = 0,
     missingCloudGroupsCount: Int = 0,
+    missingCloudEventsCount: Int = 0,
     onLogin: () -> Unit,
     onLogout: () -> Unit,
     onDismiss: () -> Unit,
@@ -1444,7 +1447,7 @@ fun CloudStatusDialog(
                     }
                 }
 
-                if (missingCloudAttendeesCount > 0 || missingCloudGroupsCount > 0) {
+                if (missingCloudAttendeesCount > 0 || missingCloudGroupsCount > 0 || missingCloudEventsCount > 0) {
                     banners.add {
                         Surface(
                             color = MaterialTheme.colorScheme.tertiaryContainer,
@@ -1466,14 +1469,21 @@ fun CloudStatusDialog(
                                 Spacer(modifier = Modifier.width(12.dp))
                                 Column(modifier = Modifier.weight(1f)) {
                                     val text = buildString {
+                                        val items = mutableListOf<String>()
                                         if (missingCloudAttendeesCount > 0) {
-                                            append("$missingCloudAttendeesCount attendee${if (missingCloudAttendeesCount > 1) "s" else ""}")
-                                        }
-                                        if (missingCloudAttendeesCount > 0 && missingCloudGroupsCount > 0) {
-                                            append(" and ")
+                                            items.add("$missingCloudAttendeesCount attendee${if (missingCloudAttendeesCount > 1) "s" else ""}")
                                         }
                                         if (missingCloudGroupsCount > 0) {
-                                            append("$missingCloudGroupsCount group${if (missingCloudGroupsCount > 1) "s" else ""}")
+                                            items.add("$missingCloudGroupsCount group${if (missingCloudGroupsCount > 1) "s" else ""}")
+                                        }
+                                        if (missingCloudEventsCount > 0) {
+                                            items.add("$missingCloudEventsCount event${if (missingCloudEventsCount > 1) "s" else ""}")
+                                        }
+                                        
+                                        when (items.size) {
+                                            1 -> append(items[0])
+                                            2 -> append("${items[0]} and ${items[1]}")
+                                            3 -> append("${items[0]}, ${items[1]}, and ${items[2]}")
                                         }
                                         append(" missing on cloud.")
                                     }

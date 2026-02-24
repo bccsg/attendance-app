@@ -26,7 +26,8 @@ interface AttendanceCloudProvider {
     suspend fun pushAttendance(
         event: Event, 
         records: List<AttendanceRecord>,
-        scope: SyncLogScope
+        scope: SyncLogScope,
+        failIfMissing: Boolean = false
     ): PushResult
 
     /**

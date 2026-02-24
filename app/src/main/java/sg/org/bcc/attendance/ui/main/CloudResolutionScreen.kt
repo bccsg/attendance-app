@@ -27,6 +27,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import sg.org.bcc.attendance.data.local.entities.Attendee
+import sg.org.bcc.attendance.data.local.entities.Event
 import sg.org.bcc.attendance.data.local.entities.Group
 import sg.org.bcc.attendance.ui.components.AppIcon
 import sg.org.bcc.attendance.ui.components.AppIcons
@@ -41,10 +42,13 @@ fun CloudResolutionScreen(
 ) {
     val missingAttendees by viewModel.missingAttendees.collectAsState()
     val missingGroups by viewModel.missingGroups.collectAsState()
+    val missingEvents by viewModel.missingEvents.collectAsState()
     
     val scope = rememberCoroutineScope()
     var showDeleteAllDialog by remember { mutableStateOf(false) }
     var processingIds by remember { mutableStateOf(setOf<String>()) }
+    
+    var selectedEventForResolution by remember { mutableStateOf<Event?>(null) }
 
     Scaffold(
         topBar = {
@@ -56,7 +60,7 @@ fun CloudResolutionScreen(
                     }
                 },
                 actions = {
-                    if (missingAttendees.isNotEmpty() || missingGroups.isNotEmpty()) {
+                    if (missingAttendees.isNotEmpty() || missingGroups.isNotEmpty() || missingEvents.isNotEmpty()) {
                         IconButton(onClick = { showDeleteAllDialog = true }) {
                             AppIcon(
                                 resourceId = AppIcons.DeleteSweep, 
@@ -72,7 +76,7 @@ fun CloudResolutionScreen(
         containerColor = MaterialTheme.colorScheme.surfaceContainerLow
     ) { padding ->
         Box(modifier = Modifier.padding(padding).fillMaxSize().background(MaterialTheme.colorScheme.surfaceContainerLow)) {
-            if (missingAttendees.isEmpty() && missingGroups.isEmpty()) {
+            if (missingAttendees.isEmpty() && missingGroups.isEmpty() && missingEvents.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         AppIcon(
@@ -91,6 +95,53 @@ fun CloudResolutionScreen(
                 }
             } else {
                 LazyColumn(modifier = Modifier.fillMaxSize()) {
+                    if (missingEvents.isNotEmpty()) {
+                        item {
+                            SectionHeader("Missing Events")
+                        }
+                        items(missingEvents, key = { "event_${it.id}" }) { event ->
+                            Surface(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { selectedEventForResolution = event },
+                                color = MaterialTheme.colorScheme.surfaceContainerLow
+                            ) {
+                                ListItem(
+                                    headlineContent = {
+                                        Text(event.title)
+                                    },
+                                    supportingContent = {
+                                        Text("${event.date} • ${event.time}")
+                                    },
+                                    leadingContent = {
+                                        Surface(
+                                            shape = CircleShape,
+                                            color = MaterialTheme.colorScheme.tertiaryContainer,
+                                            modifier = Modifier.size(40.dp)
+                                        ) {
+                                            Box(contentAlignment = Alignment.Center) {
+                                                AppIcon(
+                                                    resourceId = AppIcons.CalendarMonth,
+                                                    contentDescription = null,
+                                                    tint = MaterialTheme.colorScheme.onTertiaryContainer,
+                                                    modifier = Modifier.size(24.dp)
+                                                )
+                                            }
+                                        }
+                                    },
+                                    trailingContent = {
+                                        AppIcon(
+                                            resourceId = AppIcons.MoreVert,
+                                            contentDescription = "Resolve",
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    },
+                                    colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+                                )
+                            }
+                        }
+                    }
+
                     if (missingAttendees.isNotEmpty()) {
                         item {
                             SectionHeader("Missing Attendees")
@@ -182,6 +233,57 @@ fun CloudResolutionScreen(
                     item {
                         Spacer(modifier = Modifier.height(100.dp))
                     }
+                }
+            }
+        }
+    }
+
+    if (selectedEventForResolution != null) {
+        ModalBottomSheet(
+            onDismissRequest = { selectedEventForResolution = null }
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 32.dp, start = 16.dp, end = 16.dp)
+            ) {
+                Text(
+                    text = selectedEventForResolution?.title ?: "",
+                    style = MaterialTheme.typography.headlineSmall,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+                Text(
+                    text = "This event exists locally but its cloud sheet is missing. How would you like to resolve this?",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 24.dp)
+                )
+                
+                Button(
+                    onClick = {
+                        selectedEventForResolution?.let { viewModel.recreateEvent(it.id) }
+                        selectedEventForResolution = null
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    AppIcon(resourceId = AppIcons.CloudUpload, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Re-create on Cloud")
+                }
+                
+                Spacer(modifier = Modifier.height(12.dp))
+                
+                OutlinedButton(
+                    onClick = {
+                        selectedEventForResolution?.let { viewModel.deleteEventLocally(it.id) }
+                        selectedEventForResolution = null
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                ) {
+                    AppIcon(resourceId = AppIcons.PersonRemove, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Delete Locally")
                 }
             }
         }

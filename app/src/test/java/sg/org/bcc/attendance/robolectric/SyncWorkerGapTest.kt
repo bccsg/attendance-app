@@ -55,7 +55,7 @@ class SyncWorkerGapTest {
             db.syncJobDao().insert(job)
             
             // M=10, K=1. Cloud returns N=11 (Clean Push)
-            coEvery { cloudProvider.pushAttendance(any(), any(), any()) } returns PushResult.Success(11)
+            coEvery { cloudProvider.pushAttendance(any(), any(), any(), any()) } returns PushResult.Success(11)
             
             val worker = TestListenableWorkerBuilder<SyncWorker>(context)
                 .setWorkerFactory(object : androidx.work.WorkerFactory() {
@@ -82,7 +82,7 @@ class SyncWorkerGapTest {
             db.syncJobDao().insert(job)
             
             // M=10, K=1. Cloud returns N=12 (Gap detected: someone else pushed 1 row)
-            coEvery { cloudProvider.pushAttendance(any(), any(), any()) } returns PushResult.Success(12)
+            coEvery { cloudProvider.pushAttendance(any(), any(), any(), any()) } returns PushResult.Success(12)
             
             val worker = TestListenableWorkerBuilder<SyncWorker>(context)
                 .setWorkerFactory(object : androidx.work.WorkerFactory() {
