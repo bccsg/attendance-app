@@ -639,7 +639,6 @@ class MainListViewModel @Inject constructor(
             val currentQueueIds = repository.getQueueItems().first().map { it.attendee.id }.toSet()
             val combinedIds = (currentQueueIds + memberIds).toList()
             repository.replaceQueueWithSelection(combinedIds)
-            dismissAttendeeDetail()
         }
     }
 

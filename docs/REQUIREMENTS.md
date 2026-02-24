@@ -55,6 +55,9 @@ A local-first Android attendance tracking application for ushers. It allows for 
     *   Initial state: Merges the current Queue into the selection.
     *   **Show Selected Only**: A checklist icon in the TopAppBar filters the list to only currently selected items. Activating this closes search and ensures category chips are visible.
     *   Action: **`PlaylistAdd`** icon replaces the Queue with the selection and automatically opens the Queue sheet.
+*   **Attendee Detail Sheet Action**:
+    *   **`PlaylistAdd`** FAB adds the individual to the queue with a "Queued" success animation.
+    *   **Logic**: Does not automatically open the Queue sheet (preserves context).
 *   **Dynamic Scaling**: Fonts and Attendee Avatars can be scaled by 50% using a **pinch-to-scale gesture** on any list view (pinch-out for Large, pinch-in for Normal) or via the "Text Size" option in the menu.
 
 ### 3. Queue

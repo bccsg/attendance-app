@@ -116,6 +116,54 @@ fun MainListScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
+    val isAdded = remember(selectedAttendeeForDetail, queueIds) {
+        selectedAttendeeForDetail?.id?.let { queueIds.contains(it) } ?: false
+    }
+    
+    val fullyQueuedGroups = remember(groupMembersMap, queueIds) {
+        groupMembersMap.filter { (_, members) -> 
+            members.isNotEmpty() && members.all { queueIds.contains(it.id) } 
+        }.keys
+    }
+
+    var lastQueuedGroupId by remember { mutableStateOf<String?>(null) }
+    var wasIndividualAddedJustNow by remember { mutableStateOf(false) }
+    
+    var showAddedAnimation by remember { mutableStateOf(false) }
+    var animatingGroups by remember { mutableStateOf(setOf<String>()) }
+
+    // Reset interaction state when attendee changes
+    LaunchedEffect(selectedAttendeeForDetail) {
+        lastQueuedGroupId = null
+        wasIndividualAddedJustNow = false
+        showAddedAnimation = false
+        animatingGroups = emptySet()
+    }
+
+    LaunchedEffect(isAdded, fullyQueuedGroups, lastQueuedGroupId, wasIndividualAddedJustNow) {
+        // Animation for Groups - only if user just clicked this group
+        if (lastQueuedGroupId != null && fullyQueuedGroups.contains(lastQueuedGroupId)) {
+            val groupId = lastQueuedGroupId!!
+            animatingGroups = setOf(groupId)
+            delay(1000)
+            animatingGroups = emptySet()
+            lastQueuedGroupId = null
+            viewModel.dismissAttendeeDetail()
+            viewModel.setShowQueueSheet(true)
+        } 
+        // Animation for Individual (FAB) - only if user just clicked the FAB
+        else if (wasIndividualAddedJustNow && isAdded && selectedAttendeeForDetail != null) {
+            showAddedAnimation = true
+            delay(1000)
+            showAddedAnimation = false
+            wasIndividualAddedJustNow = false
+            
+            if (detailAttendeeGroups.isEmpty()) {
+                viewModel.dismissAttendeeDetail()
+            }
+        }
+    }
+
     val infiniteTransition = rememberInfiniteTransition(label = "SyncPulsing")
     val syncAlpha by infiniteTransition.animateFloat(
         initialValue = 1f,
@@ -151,36 +199,31 @@ fun MainListScreen(
             scrimColor = Color.Black.copy(alpha = 0.32f),
             tonalElevation = 0.dp
         ) {
-            Scaffold(
-                containerColor = Color.Transparent,
-                floatingActionButton = {
-                    val state = fabState
-                    if (state is MainListViewModel.FabState.AddAttendee) {
-                        ExtendedFloatingActionButton(
-                            text = { Text("Queue ${state.name}") },
-                            icon = { AppIcon(resourceId = AppIcons.PlaylistAdd, contentDescription = null) },
-                            onClick = {
-                                viewModel.addAttendeeToQueue(selectedAttendeeForDetail!!.id)
-                                viewModel.setShowQueueSheet(true)
-                            },
-                            containerColor = MaterialTheme.colorScheme.primary,
-                            contentColor = MaterialTheme.colorScheme.onPrimary,
-                            shape = CircleShape,
-                            modifier = Modifier.padding(bottom = 16.dp)
-                        )
-                    }
-                },
-                floatingActionButtonPosition = FabPosition.End
-            ) { padding ->
-                Column(modifier = Modifier.fillMaxWidth().padding(padding).navigationBarsPadding()) {
-                    Spacer(modifier = Modifier.height(56.dp))
+            val isGroupsEmpty = detailAttendeeGroups.isEmpty()
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .then(if (isGroupsEmpty) Modifier.wrapContentHeight() else Modifier.fillMaxHeight(0.9f))
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .then(if (isGroupsEmpty) Modifier.wrapContentHeight() else Modifier.fillMaxHeight())
+                        .navigationBarsPadding()
+                ) {
                     Surface(
-                        modifier = Modifier.fillMaxWidth().weight(1f),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .then(if (isGroupsEmpty) Modifier.wrapContentHeight() else Modifier.weight(1f)),
                         shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
                         color = MaterialTheme.colorScheme.surfaceContainerLow,
                         tonalElevation = 0.dp
                     ) {
-                        Column(modifier = Modifier.fillMaxSize()) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .then(if (isGroupsEmpty) Modifier.wrapContentHeight() else Modifier.fillMaxHeight())
+                        ) {
                             // Header area
                             Box(
                                 modifier = Modifier
@@ -209,13 +252,88 @@ fun MainListScreen(
                                 onBack = viewModel::popAttendeeDetail,
                                 onAttendeeClick = viewModel::showAttendeeDetail,
                                 onAddAttendeeToQueue = {
+                                    wasIndividualAddedJustNow = true
                                     viewModel.addAttendeeToQueue(selectedAttendeeForDetail!!.id)
-                                    viewModel.setShowQueueSheet(true)
                                 },
                                 onAddGroupToQueue = { groupId ->
+                                    lastQueuedGroupId = groupId
                                     viewModel.addGroupToQueue(groupId)
-                                    viewModel.setShowQueueSheet(true)
-                                }
+                                },
+                                animatingGroups = animatingGroups
+                            )
+                        }
+                    }
+                }
+
+                // FAB
+                val state = fabState
+                val isInQueue = selectedAttendeeForDetail?.id?.let { queueIds.contains(it) } ?: false
+                
+                // Capture name while it's available
+                val attendeeName = remember(state) {
+                    if (state is MainListViewModel.FabState.AddAttendee) state.name else ""
+                }
+                
+                val isVisible = state is MainListViewModel.FabState.AddAttendee || (showAddedAnimation && isInQueue)
+                
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .then(if (isGroupsEmpty) Modifier.matchParentSize() else Modifier.fillMaxHeight())
+                        .padding(bottom = 16.dp, end = 16.dp),
+                    contentAlignment = Alignment.BottomEnd
+                ) {
+                    Column {
+                        AnimatedVisibility(
+                            visible = isVisible,
+                            enter = fadeIn() + scaleIn(),
+                            exit = fadeOut() + scaleOut()
+                        ) {
+                            val isAnimating = showAddedAnimation && isInQueue
+                            
+                            val containerColor by animateColorAsState(
+                                targetValue = if (isAnimating) DeepGreen else MaterialTheme.colorScheme.primary,
+                                label = "FabColor",
+                                animationSpec = tween(durationMillis = 500)
+                            )
+                            
+                            ExtendedFloatingActionButton(
+                                onClick = {
+                                    if (!isAnimating) {
+                                        wasIndividualAddedJustNow = true
+                                        viewModel.addAttendeeToQueue(selectedAttendeeForDetail!!.id)
+                                    }
+                                },
+                                icon = { 
+                                    AnimatedContent(
+                                        targetState = if (isAnimating) AppIcons.BookmarkAdded else AppIcons.PlaylistAdd,
+                                        transitionSpec = {
+                                            fadeIn(animationSpec = tween(300)) togetherWith
+                                            fadeOut(animationSpec = tween(300))
+                                        },
+                                        label = "IconAnimation"
+                                    ) { iconId ->
+                                        AppIcon(
+                                            resourceId = iconId, 
+                                            contentDescription = null
+                                        ) 
+                                    }
+                                },
+                                text = { 
+                                    AnimatedContent(
+                                        targetState = if (isAnimating) "Queued" else "Queue $attendeeName",
+                                        transitionSpec = {
+                                            fadeIn(animationSpec = tween(300)) togetherWith
+                                            fadeOut(animationSpec = tween(300))
+                                        },
+                                        label = "TextAnimation"
+                                    ) { text ->
+                                        Text(text) 
+                                    }
+                                },
+                                containerColor = containerColor,
+                                contentColor = MaterialTheme.colorScheme.onPrimary,
+                                shape = CircleShape
                             )
                         }
                     }
@@ -947,7 +1065,8 @@ fun AttendeeDetailContent(
     onBack: () -> Unit = {},
     onAttendeeClick: (Attendee) -> Unit,
     onAddAttendeeToQueue: () -> Unit,
-    onAddGroupToQueue: (String) -> Unit
+    onAddGroupToQueue: (String) -> Unit,
+    animatingGroups: Set<String> = emptySet()
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
         // Profile Header area: WHITE
@@ -1024,16 +1143,17 @@ fun AttendeeDetailContent(
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                             )
-                            if (queueIds.contains(attendee.id)) {
-                                Spacer(modifier = Modifier.width(8.dp))
-                                AppIcon(
-                                    resourceId = AppIcons.BookmarkAdded,
-                                    contentDescription = "In Queue",
-                                    modifier = Modifier.size(16.dp),
-                                    tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
-                                )
-                            }
                         }
+                    }
+                },
+                trailingContent = {
+                    if (queueIds.contains(attendee.id)) {
+                        AppIcon(
+                            resourceId = AppIcons.BookmarkAdded,
+                            contentDescription = "In Queue",
+                            modifier = Modifier.size(28.dp).padding(end = 4.dp),
+                            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
+                        )
                     }
                 },
                 colors = ListItemDefaults.colors(containerColor = Color.Transparent)
@@ -1045,10 +1165,30 @@ fun AttendeeDetailContent(
         LazyColumn(
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(1f)
+                .then(if (groups.isEmpty()) Modifier.wrapContentHeight() else Modifier.weight(1f))
                 .pinchToScale(textScale, onTextScaleChange)
                 .background(MaterialTheme.colorScheme.surfaceContainerLow)
         ) {
+            if (groups.isEmpty()) {
+                item {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 48.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "No groups assigned",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                        )
+                    }
+                }
+                item {
+                    Spacer(modifier = Modifier.height(112.dp))
+                }
+            }
+
             groups.forEach { group ->
                 val members = groupMembersMap[group.groupId]?.filter { it.id != attendee.id } ?: emptyList()
                 
@@ -1079,23 +1219,67 @@ fun AttendeeDetailContent(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
-                            TextButton(
+                            val allMembers = groupMembersMap[group.groupId] ?: emptyList()
+                            val isGroupFullyQueued = allMembers.isNotEmpty() && allMembers.all { queueIds.contains(it.id) }
+                            val isAnimating = animatingGroups.contains(group.groupId)
+                            
+                            val containerColor by animateColorAsState(
+                                targetValue = if (isAnimating || isGroupFullyQueued) {
+                                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
+                                } else {
+                                    MaterialTheme.colorScheme.secondaryContainer
+                                },
+                                label = "GroupButtonContainerColor"
+                            )
+                            val contentColor by animateColorAsState(
+                                targetValue = if (isAnimating || isGroupFullyQueued) {
+                                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                                } else {
+                                    MaterialTheme.colorScheme.onSecondaryContainer
+                                },
+                                label = "GroupButtonContentColor"
+                            )
+
+                            FilledTonalButton(
                                 onClick = { onAddGroupToQueue(group.groupId) },
-                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-                                modifier = Modifier.height(32.dp)
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                                modifier = Modifier.height(32.dp),
+                                enabled = !isGroupFullyQueued && !isAnimating,
+                                colors = ButtonDefaults.filledTonalButtonColors(
+                                    containerColor = containerColor,
+                                    contentColor = contentColor,
+                                    disabledContainerColor = containerColor,
+                                    disabledContentColor = contentColor
+                                )
                             ) {
-                                AppIcon(
-                                    resourceId = AppIcons.PlaylistAdd, 
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(18.dp)
-                                )
+                                AnimatedContent(
+                                    targetState = if (isAnimating || isGroupFullyQueued) AppIcons.BookmarkAdded else AppIcons.PlaylistAdd,
+                                    transitionSpec = {
+                                        fadeIn(animationSpec = tween(300)) togetherWith
+                                        fadeOut(animationSpec = tween(300))
+                                    },
+                                    label = "GroupIconAnimation"
+                                ) { iconId ->
+                                    AppIcon(
+                                        resourceId = iconId, 
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp)
+                                    ) 
+                                }
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = "Queue group",
-                                    style = MaterialTheme.typography.labelLarge,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
+                                AnimatedContent(
+                                    targetState = if (isAnimating || isGroupFullyQueued) "Queued" else "Queue group",
+                                    transitionSpec = {
+                                        fadeIn(animationSpec = tween(300)) togetherWith
+                                        fadeOut(animationSpec = tween(300))
+                                    },
+                                    label = "GroupTextAnimation"
+                                ) { text ->
+                                    Text(
+                                        text = text,
+                                        style = MaterialTheme.typography.labelLarge
+                                    )
+                                }
                             }
                         }
                     }

@@ -22,6 +22,11 @@ This document is the absolute source of truth for build configuration, architect
 *   **Test-Driven**: Every feature or fix MUST have corresponding tests (Unit or Robolectric).
 *   **Name Priority**: UI always displays `shortName` as primary; fallback to `fullName`.
 *   **Safety Interaction**: "Mark Present/Absent" actions require a 1.0s hold with a clockwise drawing-border animation.
+*   **Attendee Detail Sheet**:
+    *   **Dynamic Height**: Use `wrapContentHeight()` if the attendee has no groups; otherwise use `weight(1f)` for full expansion.
+    *   **Queue Logic**: Adding an individual from the detail sheet must NOT open the queue sheet automatically.
+    *   **Success Animation**: Queue FAB must morph to "Queued" (Green/Bookmark icon) for 1s before dismissing.
+    *   **Auto-Close**: Close the detail sheet automatically after the success animation if the attendee has no groups.
 *   **Icons**: Use **Material Symbols Rounded**. 
     *   Find icons at: [fonts.google.com/icons](https://fonts.google.com/icons?icon.style=Rounded)
     *   To install: Download the **Android (XML)** version or use direct URLs like `https://fonts.gstatic.com/s/i/short-term/release/materialsymbolsrounded/[icon_name]/default/24px.xml`.

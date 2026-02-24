@@ -46,11 +46,17 @@
 ### 7. Attendee Detail Sheet
 *   **Trigger**: Tapping an attendee in the main list.
 *   **Format**: Modal Bottom Sheet.
-*   **Header**: Compact profile info (Name, Short Name, ID) with presence and queue indicators.
+    *   **Dynamic Height**: If the attendee has no groups, the sheet uses `wrapContentHeight()` to provide a compact view while maintaining FAB clearance. Otherwise, it expands to full height.
+*   **Header**: Compact profile info (Name, Short Name, ID).
+    *   **Queue Indicator**: The **`BookmarkAdded`** icon is displayed in the trailing content area, vertically centered with the avatar, with a size of 28dp (50% of avatar height).
 *   **Navigation**:
     *   **Group Peer Discovery**: Lists other members of the attendee's groups.
     *   **Breadcrumb Back Action**: A "Return to [Name]" line at the top for navigating between group members.
-*   **Action**: A screen-local FAB labeled "Add to Queue" (icon: `PlaylistAdd`) appears if the attendee isn't staged.
+*   **Action**: A screen-local FAB labeled "Add to Queue" (icon: `PlaylistAdd`).
+    *   **Visibility**: Hidden if the attendee was already in the queue when the sheet opened.
+    *   **Animation**: On activation, it transitions to "Queued" with a `BookmarkAdded` icon and a green background (`DeepGreen`) using `AnimatedContent` for morphing.
+    *   **Logic**: Does not open the queue sheet for individual additions.
+    *   **Auto-Close**: If the attendee has no groups, the sheet closes automatically after the 1-second FAB animation completes.
 
 ## Interaction Patterns
 
@@ -80,7 +86,9 @@
     *   **Selection Mode**: Replaced by an "Add to Queue" icon (`PlaylistAdd`) in `Primary`. Replaces the current queue with the selected subset and opens the queue sheet.
 *   **Attendee Sheet**: "Add to Queue" icon (`PlaylistAdd`) in `Primary`. Positioned 16dp from bottom (above navigation handle).
 *   **Behavior**:
-    *   **Visibility**: Automatically hides during sheet transitions to prevent "sliding" artifacts.
+    *   **Visibility**: Hidden if the attendee was already in the queue when the sheet opened.
+    *   **Animation**: On activation, it morphs into a success state ("Queued", `BookmarkAdded` icon, `DeepGreen` color) using `AnimatedVisibility` and `AnimatedContent` for 1 second before hiding or auto-closing the sheet.
+    *   **Transition Awareness**: Automatically hides during sheet transitions to prevent "sliding" artifacts.
     *   **Handle Awareness**: Always adds `navigationBarsPadding` to the base offset when the keyboard is hidden.
 
 ### 3. Hold-to-Activate (Queue)
