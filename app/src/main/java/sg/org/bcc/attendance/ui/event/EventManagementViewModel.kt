@@ -26,6 +26,14 @@ class EventManagementViewModel @Inject constructor(
     val manageableEvents: StateFlow<List<Event>> = repository.getManageableEvents()
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
+    init {
+        viewModelScope.launch {
+            if (!repository.isDemoMode()) {
+                repository.syncRecentEvents()
+            }
+        }
+    }
+
     private val _uiError = MutableStateFlow<String?>(null)
     val uiError: StateFlow<String?> = _uiError.asStateFlow()
 

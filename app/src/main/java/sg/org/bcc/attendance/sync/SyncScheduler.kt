@@ -31,7 +31,32 @@ class SyncScheduler @Inject constructor(
         )
     }
 
+    fun schedulePeriodicPull() {
+        val constraints = Constraints.Builder()
+            .setRequiredNetworkType(NetworkType.CONNECTED)
+            .build()
+
+        val pullRequest = PeriodicWorkRequestBuilder<PullWorker>(
+            PeriodicWorkRequest.MIN_PERIODIC_INTERVAL_MILLIS,
+            java.util.concurrent.TimeUnit.MILLISECONDS
+        )
+            .setConstraints(constraints)
+            .setBackoffCriteria(
+                BackoffPolicy.EXPONENTIAL,
+                WorkRequest.MIN_BACKOFF_MILLIS,
+                java.util.concurrent.TimeUnit.MILLISECONDS
+            )
+            .build()
+
+        WorkManager.getInstance(context).enqueueUniquePeriodicWork(
+            PULL_WORK_NAME,
+            ExistingPeriodicWorkPolicy.KEEP,
+            pullRequest
+        )
+    }
+
     companion object {
-        private const val SYNC_WORK_NAME = "sequential_sync_work"
+        const val SYNC_WORK_NAME = "sequential_sync_work"
+        const val PULL_WORK_NAME = "scheduled_pull_work"
     }
 }

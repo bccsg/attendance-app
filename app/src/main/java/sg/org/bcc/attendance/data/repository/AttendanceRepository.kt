@@ -134,6 +134,10 @@ class AttendanceRepository @Inject constructor(
     suspend fun syncMasterListWithDetailedResult(): Pair<Boolean, String> {
         if (!checkAuthAndRefresh()) return false to "Authentication failed or token expired."
 
+        if (syncJobDao.getPendingCount() > 0) {
+            return false to "Skipped pull due to pending sync jobs."
+        }
+
         val status = mutableListOf<String>()
         try {
             android.util.Log.d("AttendanceSync", "Starting master list sync...")
@@ -260,6 +264,11 @@ class AttendanceRepository @Inject constructor(
 
     suspend fun syncRecentEvents(clearFirst: Boolean = false) {
         if (!checkAuthAndRefresh()) return
+
+        if (syncJobDao.getPendingCount() > 0) {
+            android.util.Log.d("AttendanceSync", "Skipping recent events sync due to pending jobs.")
+            return
+        }
         
         try {
             val remoteEvents = cloudProvider.fetchRecentEvents(30)

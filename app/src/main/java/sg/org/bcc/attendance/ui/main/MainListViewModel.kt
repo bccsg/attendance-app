@@ -16,6 +16,8 @@ import androidx.lifecycle.asFlow
 import androidx.work.WorkManager
 import dagger.hilt.android.qualifiers.ApplicationContext
 import sg.org.bcc.attendance.sync.SyncWorker
+import sg.org.bcc.attendance.sync.PullWorker
+import sg.org.bcc.attendance.sync.SyncScheduler
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
@@ -422,35 +424,62 @@ class MainListViewModel @Inject constructor(
         // Observe WorkManager progress combined with connectivity and pending count
         combine(
             WorkManager.getInstance(context)
-                .getWorkInfosForUniqueWorkLiveData("sequential_sync_work")
+                .getWorkInfosForUniqueWorkLiveData(SyncScheduler.SYNC_WORK_NAME)
+                .asFlow(),
+            WorkManager.getInstance(context)
+                .getWorkInfosForUniqueWorkLiveData(SyncScheduler.PULL_WORK_NAME)
                 .asFlow(),
             _isOnline,
             repository.getPendingSyncCount()
-        ) { workInfos, online, pendingCount ->
-            val workInfo = workInfos?.firstOrNull()
+        ) { syncWorkInfos, pullWorkInfos, online, pendingCount ->
+            val syncWorkInfo = syncWorkInfos?.firstOrNull()
+            val pullWorkInfo = pullWorkInfos?.firstOrNull()
             
+            val syncPrefs = context.getSharedPreferences("sync_prefs", Context.MODE_PRIVATE)
+            val lastPullTimeStored = syncPrefs.getLong("last_pull_time", 0L).let { if (it == 0L) null else it }
+            val lastPullStatusStored = syncPrefs.getString("last_pull_status", "Never")
+            
+            // Use WorkManager's next schedule time if available, otherwise fallback to calculation
+            val nextScheduledPull = pullWorkInfo?.nextScheduleTimeMillis?.let { if (it == 0L) null else it }
+                ?: lastPullTimeStored?.let { it + 15 * 60 * 1000 }
+
             var currentOp: String? = null
             var newState = SyncState.IDLE
             var errorMsg: String? = null
 
-            if (workInfo != null) {
-                val progress = workInfo.progress
+            // 1. Process sync work (pushes)
+            if (syncWorkInfo != null) {
+                val progress = syncWorkInfo.progress
                 currentOp = progress.getString(SyncWorker.PROGRESS_OP)
                 val stateStr = progress.getString(SyncWorker.PROGRESS_STATE)
-                errorMsg = progress.getString(SyncWorker.PROGRESS_ERROR) ?: workInfo.outputData.getString(SyncWorker.PROGRESS_ERROR)
+                errorMsg = progress.getString(SyncWorker.PROGRESS_ERROR) ?: syncWorkInfo.outputData.getString(SyncWorker.PROGRESS_ERROR)
                 
                 newState = when (stateStr) {
                     "SYNCING" -> SyncState.SYNCING
                     "RETRYING" -> SyncState.RETRYING
                     "IDLE" -> SyncState.IDLE
                     else -> {
-                        when (workInfo.state) {
+                        when (syncWorkInfo.state) {
                             androidx.work.WorkInfo.State.RUNNING -> SyncState.SYNCING
                             androidx.work.WorkInfo.State.ENQUEUED -> SyncState.IDLE
                             androidx.work.WorkInfo.State.FAILED -> SyncState.ERROR
                             else -> SyncState.IDLE
                         }
                     }
+                }
+            }
+
+            // 2. Process pull work if sync work is IDLE
+            if (newState == SyncState.IDLE && pullWorkInfo != null) {
+                val progress = pullWorkInfo.progress
+                val stateStr = progress.getString(PullWorker.PROGRESS_STATE)
+                
+                if (stateStr == "SYNCING") {
+                    currentOp = progress.getString(PullWorker.PROGRESS_OP)
+                    newState = SyncState.SYNCING
+                } else if (stateStr == "ERROR") {
+                    errorMsg = progress.getString(PullWorker.PROGRESS_ERROR)
+                    newState = SyncState.ERROR
                 }
             }
 
@@ -471,7 +500,10 @@ class MainListViewModel @Inject constructor(
                 pendingJobs = pendingCount,
                 currentOperation = currentOp,
                 syncState = newState,
-                lastErrors = currentErrors
+                lastErrors = currentErrors,
+                nextScheduledPull = nextScheduledPull,
+                lastPullTime = lastPullTimeStored,
+                lastPullStatus = lastPullStatusStored
             )
             
             isSyncing.value = newState == SyncState.SYNCING
@@ -670,15 +702,23 @@ class MainListViewModel @Inject constructor(
     fun doManualSync() {
         viewModelScope.launch {
             isSyncing.value = true
+            val syncPrefs = context.getSharedPreferences("sync_prefs", Context.MODE_PRIVATE)
+            syncPrefs.edit().putString("last_pull_status", "Syncing...").apply()
+            
             try {
                 val (syncSuccess, detailedStatus) = repository.syncMasterListWithDetailedResult()
+                val now = System.currentTimeMillis()
                 if (!syncSuccess) {
                     _loginError.value = detailedStatus
+                    syncPrefs.edit().putString("last_pull_status", "Failed: $detailedStatus").apply()
                 } else {
                     _loginError.value = null // Clear any previous errors on success
+                    syncPrefs.edit().putLong("last_pull_time", now).putString("last_pull_status", "Success").apply()
                 }
             } catch (e: Exception) {
-                _loginError.value = "Sync failed: ${e.message}"
+                val errorMsg = "Sync failed: ${e.message}"
+                _loginError.value = errorMsg
+                syncPrefs.edit().putString("last_pull_status", "Error: $errorMsg").apply()
             } finally {
                 isSyncing.value = false
             }
