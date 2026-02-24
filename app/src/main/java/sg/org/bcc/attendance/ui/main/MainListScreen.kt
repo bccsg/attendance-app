@@ -51,6 +51,7 @@ import sg.org.bcc.attendance.ui.theme.Purple40
 import sg.org.bcc.attendance.ui.components.AppIcon
 import sg.org.bcc.attendance.ui.components.AppIcons
 import sg.org.bcc.attendance.ui.components.DateIcon
+import sg.org.bcc.attendance.ui.components.pinchToScale
 import sg.org.bcc.attendance.util.EventSuggester
 import sg.org.bcc.attendance.util.SetStatusBarIconsColor
 import java.time.LocalTime
@@ -199,6 +200,7 @@ fun MainListScreen(
                                 groupMembersMap = groupMembersMap,
                                 attendeeGroupsMap = attendeeGroupsMap,
                                 textScale = textScale,
+                                onTextScaleChange = viewModel::setTextScale,
                                 presentIds = presentIds,
                                 queueIds = queueIds,
                                 canNavigateBack = canNavigateBackInDetail,
@@ -282,7 +284,8 @@ fun MainListScreen(
                                                         }
                                                     },
                                                     currentEventId = currentEventId,
-                                                    textScale = textScale
+                                                    textScale = textScale,
+                                                    onTextScaleChange = viewModel::setTextScale
                                                 )                    }
                 }
             }
@@ -731,6 +734,7 @@ fun MainListScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(padding)
+                        .pinchToScale(textScale, viewModel::setTextScale)
                         .background(MaterialTheme.colorScheme.surface)
                 ) {
                     items(attendees, key = { it.id }) { attendee ->
@@ -934,6 +938,7 @@ fun AttendeeDetailContent(
     groupMembersMap: Map<String, List<Attendee>>,
     attendeeGroupsMap: Map<String, List<String>>,
     textScale: Float,
+    onTextScaleChange: (Float) -> Unit = {},
     presentIds: Set<String>,
     queueIds: Set<String>,
     canNavigateBack: Boolean = false,
@@ -1037,7 +1042,11 @@ fun AttendeeDetailContent(
 
         // List Area: surfaceContainerLow
         LazyColumn(
-            modifier = Modifier.fillMaxWidth().weight(1f).background(MaterialTheme.colorScheme.surfaceContainerLow)
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+                .pinchToScale(textScale, onTextScaleChange)
+                .background(MaterialTheme.colorScheme.surfaceContainerLow)
         ) {
             groups.forEach { group ->
                 val members = groupMembersMap[group.groupId]?.filter { it.id != attendee.id } ?: emptyList()

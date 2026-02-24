@@ -40,6 +40,8 @@ import sg.org.bcc.attendance.ui.theme.DeepGreen
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
+import sg.org.bcc.attendance.ui.components.pinchToScale
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun QueueScreen(
@@ -47,6 +49,7 @@ fun QueueScreen(
     onActionComplete: (String, Boolean) -> Unit,
     currentEventId: String?, // Changed from currentEventTitle to ensure DB commit works
     textScale: Float,
+    onTextScaleChange: (Float) -> Unit = {},
     viewModel: QueueViewModel = hiltViewModel()
 ) {
     LaunchedEffect(currentEventId) {
@@ -267,7 +270,11 @@ fun QueueScreen(
                         }
                     }
                 } else {
-                    LazyColumn(modifier = Modifier.fillMaxSize()) {
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .pinchToScale(textScale, onTextScaleChange)
+                    ) {
                         items(queueItems, key = { it.attendee.id }) { item ->
                             val isAlreadyPresent = presentIds.contains(item.attendee.id)
                             val isMarkingPresent = processingIds.contains(item.attendee.id) && processingState == "PRESENT"

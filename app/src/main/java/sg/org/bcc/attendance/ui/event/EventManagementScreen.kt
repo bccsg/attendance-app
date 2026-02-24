@@ -32,12 +32,15 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
+import sg.org.bcc.attendance.ui.components.pinchToScale
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EventManagementScreen(
     viewModel: EventManagementViewModel = hiltViewModel(),
     currentEventId: String?,
     textScale: Float = 1.0f,
+    onTextScaleChange: (Float) -> Unit = {},
     onEventSelected: (String) -> Unit,
     onBack: () -> Unit,
     onLogout: () -> Unit
@@ -147,6 +150,7 @@ fun EventManagementScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding)
+                    .pinchToScale(textScale, onTextScaleChange)
                     .background(MaterialTheme.colorScheme.surface)
             ) {
                 items(events, key = { it.id }) { event ->

@@ -64,6 +64,9 @@ class MainActivity : ComponentActivity() {
                         EventManagementScreen(
                             currentEventId = currentEventId,
                             textScale = textScale,
+                            onTextScaleChange = { scale ->
+                                mainViewModel.setTextScale(scale)
+                            },
                             onEventSelected = { id ->
                                 mainViewModel.onSwitchEvent(id)
                             },

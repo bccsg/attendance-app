@@ -107,4 +107,4 @@
     *   "Clear All / Keep those set aside for later" dialog if any "Later" items exist.
 
 ## Accessibility
-*   **Text Size**: Configurable via a radio-button selection in the overflow menu (Normal/Large). Scales UI elements (fonts, icons, photos) by 50%.
+*   **Text Size**: Configurable via a radio-button selection in the overflow menu (Normal/Large) or by using a **pinch gesture** (pinch-out for Large, pinch-in for Normal) on any list view. Scales UI elements (fonts, icons, photos) by 50%.
