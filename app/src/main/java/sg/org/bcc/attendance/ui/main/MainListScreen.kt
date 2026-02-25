@@ -105,6 +105,7 @@ fun MainListScreen(
     val sortMode by viewModel.sortMode.collectAsState()
     val textScale by viewModel.textScale.collectAsState()
     val isOnline by viewModel.isOnline.collectAsState()
+    val isBlockingEventMissing by viewModel.isBlockingEventMissing.collectAsState()
 
     val totalAttendeesCount by viewModel.totalAttendeesCount.collectAsState()
     val totalGroupsCount by viewModel.totalGroupsCount.collectAsState()
@@ -360,7 +361,6 @@ fun MainListScreen(
         val missingCloudAttendeesCount by viewModel.missingCloudAttendeesCount.collectAsState()
         val missingCloudGroupsCount by viewModel.missingCloudGroupsCount.collectAsState()
         val missingCloudEventsCount by viewModel.missingCloudEventsCount.collectAsState()
-        val isBlockingEventMissing by viewModel.isBlockingEventMissing.collectAsState()
 
         SetStatusBarIconsColor(isLight = false)
         CloudStatusDialog(
@@ -566,14 +566,8 @@ fun MainListScreen(
                                         }
                                     } else {
                                         IconButton(onClick = viewModel::onSyncMasterList) {
-                                            val syncIcon = when {
-                                                !isOnline || hasSyncError || authState == sg.org.bcc.attendance.data.remote.AuthState.EXPIRED -> AppIcons.CloudAlert
-                                                isSyncing -> AppIcons.Sync
-                                                isDemoMode || !isAuthed -> AppIcons.CloudOff
-                                                else -> AppIcons.CloudDone
-                                            }
                                             AppIcon(
-                                                resourceId = syncIcon,
+                                                resourceId = syncProgress.cloudStatusIcon,
                                                 contentDescription = "Sync Status",
                                                 tint = MaterialTheme.colorScheme.onPrimary,
                                                 modifier = if (isSyncing) Modifier.graphicsLayer { rotationZ = syncRotation } else Modifier
@@ -1371,21 +1365,10 @@ fun CloudStatusDialog(
         onDismissRequest = onDismiss,
         title = {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                val titleIcon = when {
-                    isSyncing -> AppIcons.Sync
-                    !isOnline -> AppIcons.CloudOff
-                    isBlockingEventMissing || loginError != null || syncProgress.syncState == SyncState.ERROR -> AppIcons.CloudAlert
-                    else -> AppIcons.CloudDone
-                }
-                val iconTint = when {
-                    !isOnline || isBlockingEventMissing || loginError != null || syncProgress.syncState == SyncState.ERROR -> MaterialTheme.colorScheme.error
-                    else -> MaterialTheme.colorScheme.primary
-                }
-
                 AppIcon(
-                    resourceId = titleIcon, 
+                    resourceId = syncProgress.cloudStatusIcon, 
                     contentDescription = null, 
-                    tint = iconTint,
+                    tint = MaterialTheme.colorScheme.primary,
                     modifier = if (isSyncing) Modifier.graphicsLayer { rotationZ = syncRotation } else Modifier
                 )
                 Spacer(modifier = Modifier.width(8.dp))
@@ -1394,37 +1377,6 @@ fun CloudStatusDialog(
         },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                // Error / Action Required Banners
-                val banners = mutableListOf<@Composable () -> Unit>()
-
-                if (!isOnline) {
-                    banners.add {
-                        Surface(
-                            color = MaterialTheme.colorScheme.errorContainer,
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                AppIcon(
-                                    resourceId = AppIcons.CloudOff,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onErrorContainer,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Text(
-                                    text = "No internet connection. Cloud features are unavailable.",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onErrorContainer
-                                )
-                            }
-                        }
-                    }
-                }
-
                 val errorMessage = when {
                     loginError != null -> loginError
                     authState == sg.org.bcc.attendance.data.remote.AuthState.EXPIRED -> "Session expired. Please login again to sync data."
@@ -1432,102 +1384,82 @@ fun CloudStatusDialog(
                     syncProgress.syncState == SyncState.ERROR -> "An unknown synchronization error occurred."
                     else -> null
                 }
-                
-                if (errorMessage != null) {
-                    banners.add {
-                        Surface(
-                            color = MaterialTheme.colorScheme.errorContainer,
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                AppIcon(
-                                    resourceId = AppIcons.Warning,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onErrorContainer,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Text(
-                                    text = errorMessage,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onErrorContainer
-                                )
-                            }
-                        }
-                    }
+
+                // Single Error / Progress Banner
+                val bannerData = when {
+                    !isOnline -> Triple(
+                        "No internet connection. Cloud features are unavailable.",
+                        AppIcons.CloudAlert,
+                        MaterialTheme.colorScheme.errorContainer
+                    )
+                    isBlockingEventMissing -> Triple(
+                        "Current sync event sheet missing on cloud. Attendance cannot be pushed.",
+                        AppIcons.CloudAlert,
+                        MaterialTheme.colorScheme.errorContainer
+                    )
+                    errorMessage != null -> Triple(
+                        errorMessage,
+                        AppIcons.CloudAlert,
+                        MaterialTheme.colorScheme.errorContainer
+                    )
+                    syncProgress.currentOperation != null && syncProgress.syncState == SyncState.SYNCING -> Triple(
+                        syncProgress.currentOperation,
+                        AppIcons.Sync,
+                        MaterialTheme.colorScheme.secondaryContainer
+                    )
+                    else -> null
                 }
 
-                if (isBlockingEventMissing) {
-                    banners.add {
-                        Surface(
-                            color = MaterialTheme.colorScheme.errorContainer,
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { onResolveMissing() }
+                if (bannerData != null) {
+                    val (text, icon, containerColor) = bannerData
+                    val contentColor = if (containerColor == MaterialTheme.colorScheme.errorContainer) {
+                        MaterialTheme.colorScheme.onErrorContainer
+                    } else {
+                        MaterialTheme.colorScheme.onSecondaryContainer
+                    }
+
+                    Surface(
+                        color = containerColor,
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .let { 
+                                if (isBlockingEventMissing && text == "Current sync event sheet missing on cloud. Attendance cannot be pushed.") {
+                                    it.clickable { onResolveMissing() }
+                                } else it
+                            }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(
-                                modifier = Modifier.padding(12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                AppIcon(
-                                    resourceId = AppIcons.CloudAlert,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onErrorContainer,
-                                    modifier = Modifier.size(20.dp)
+                            AppIcon(
+                                resourceId = icon,
+                                contentDescription = null,
+                                tint = contentColor,
+                                modifier = Modifier
+                                    .size(20.dp)
+                                    .let { 
+                                        if (icon == AppIcons.Sync) it.graphicsLayer { rotationZ = syncRotation } else it
+                                    }
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = text,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = contentColor
                                 )
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = "Current sync event sheet missing on cloud. Attendance cannot be pushed.",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onErrorContainer
-                                    )
+                                if (isBlockingEventMissing && text == "Current sync event sheet missing on cloud. Attendance cannot be pushed.") {
                                     Text(
                                         text = "Tap to resolve.",
                                         style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.7f)
+                                        color = contentColor.copy(alpha = 0.7f)
                                     )
                                 }
                             }
                         }
                     }
-                }
-
-                if (syncProgress.currentOperation != null && syncProgress.syncState == SyncState.SYNCING) {
-                    banners.add {
-                        Surface(
-                            color = MaterialTheme.colorScheme.secondaryContainer,
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                AppIcon(
-                                    resourceId = AppIcons.Sync,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Text(
-                                    text = syncProgress.currentOperation ?: "",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSecondaryContainer
-                                )
-                            }
-                        }
-                    }
-                }
-
-                banners.forEach { banner ->
-                    banner()
                 }
 
                 // Auth Section

@@ -9,6 +9,7 @@ import sg.org.bcc.attendance.data.local.entities.Attendee
 import sg.org.bcc.attendance.data.local.entities.Event
 import sg.org.bcc.attendance.data.repository.AttendanceRepository
 import sg.org.bcc.attendance.data.remote.AuthManager
+import sg.org.bcc.attendance.data.remote.AuthState
 import sg.org.bcc.attendance.util.FuzzySearchScorer
 import sg.org.bcc.attendance.util.EventSuggester
 import android.content.Context
@@ -31,33 +32,10 @@ data class CloudProfile(
     val profileImageUrl: String? = null
 )
 
-data class SyncError(
-    val timestamp: Long,
-    val message: String
-)
-
-enum class SyncState {
-    IDLE,
-    SYNCING,
-    RETRYING,
-    ERROR,
-    NO_INTERNET
-}
-
 enum class SortMode {
     NAME_ASC,
     RECENT_UPDATED
 }
-
-data class SyncProgress(
-    val pendingJobs: Int,
-    val currentOperation: String? = null,
-    val syncState: SyncState = SyncState.IDLE,
-    val nextScheduledPull: Long?,
-    val lastPullTime: Long?,
-    val lastPullStatus: String?,
-    val lastErrors: List<SyncError>
-)
 
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 @HiltViewModel
@@ -130,7 +108,9 @@ class MainListViewModel @Inject constructor(
         nextScheduledPull = System.currentTimeMillis() + 15 * 60 * 1000,
         lastPullTime = null,
         lastPullStatus = "Never",
-        lastErrors = emptyList()
+        lastErrors = emptyList(),
+        isOnline = isCurrentlyOnline(),
+        isDemoMode = authManager.isDemoMode.value
     ))
     val syncProgress: StateFlow<SyncProgress> = _syncProgress.asStateFlow()
 
@@ -475,8 +455,21 @@ class MainListViewModel @Inject constructor(
                 .getWorkInfosForUniqueWorkLiveData(SyncScheduler.PULL_WORK_NAME)
                 .asFlow(),
             _isOnline,
-            repository.getPendingSyncCount()
-        ) { syncWorkInfos, pullWorkInfos, online, pendingCount ->
+            repository.getPendingSyncCount(),
+            authManager.authState,
+            authManager.isAuthed,
+            authManager.isDemoMode,
+            isBlockingEventMissing
+        ) { flows ->
+            val syncWorkInfos = flows[0] as List<androidx.work.WorkInfo>
+            val pullWorkInfos = flows[1] as List<androidx.work.WorkInfo>
+            val online = flows[2] as Boolean
+            val pendingCount = flows[3] as Int
+            val authState = flows[4] as AuthState
+            val isAuthed = flows[5] as Boolean
+            val isDemoMode = flows[6] as Boolean
+            val blockingMissing = flows[7] as Boolean
+
             val syncWorkInfo = syncWorkInfos.firstOrNull()
             val pullWorkInfo = pullWorkInfos.firstOrNull()
             
@@ -543,7 +536,12 @@ class MainListViewModel @Inject constructor(
                 lastErrors = currentErrors,
                 nextScheduledPull = nextScheduledPull,
                 lastPullTime = lastPullTimeStored,
-                lastPullStatus = lastPullStatusStored
+                lastPullStatus = lastPullStatusStored,
+                authState = authState,
+                isAuthed = isAuthed,
+                isDemoMode = isDemoMode,
+                isOnline = online,
+                isBlockingEventMissing = blockingMissing
             )
             
             isSyncing.value = newState == SyncState.SYNCING

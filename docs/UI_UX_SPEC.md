@@ -25,16 +25,19 @@
 ### 5. Cloud Status Dialog
 *   **Trigger**: Tapping the Cloud Icon in the TopAppBar.
 *   **Behaviors**:
-    *   **Manual Sync Only**: Tapping the cloud icon opens the dialog but does **not** automatically trigger a sync. Synchronization must be explicitly started via the "Sync Now" button.
-    *   **Connectivity Awareness**: Displays a "No Internet Connection" banner and disables the "Sync Now" button when offline.
+    *   **Connectivity Awareness**: Displays a "No Internet Connection" banner and disables sync actions when offline.
     *   **Data Protection**: If there are pending `sync_jobs`, a mandatory acknowledgment checkbox must be ticked before the user can Logout or Login with a different account.
 *   **States**:
     *   **Authenticated**: Shows Google profile (email, name) and a **Logout** button. If the session is expired, it shows a "Login Again" repair path.
     *   **Unauthenticated**: Shows a "Not Authenticated" warning and a **Login** button. If in Demo Mode, includes a notice that logging in will clear demo data.
 *   **Content**:
-    *   **Title Icon**: Matches the TopAppBar sync status (Rotating `Sync` if active, otherwise `CloudDone`).
+    *   **Title Icon**: Matches the TopAppBar sync status (Syncing, Alert, Demo, or OK). Icons use the theme's primary color consistently without color overrides for error states.
+    *   **Single Prioritized Banner**: Displays a single banner for the most critical state:
+        1. **Offline**: Error Container (`CloudAlert` icon).
+        2. **Missing Event Sheet**: Error Container (`CloudAlert` icon).
+        3. **Auth/Sync Error**: Error Container (`CloudAlert` icon).
+        4. **Syncing**: Secondary Container (`Sync` icon) showing the current operation.
     *   **Sync Jobs**: Displays the count of pending `sync_jobs`.
-    *   **Pull Schedule**: Shows the next scheduled time for a cloud master list pull.
     *   **Sync History**: Displays the last pull status and a list of recent sync errors (if any).
 
 ### 6. Events Screen
