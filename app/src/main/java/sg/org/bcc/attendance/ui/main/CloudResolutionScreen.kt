@@ -4,35 +4,29 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import sg.org.bcc.attendance.data.local.entities.Attendee
 import sg.org.bcc.attendance.data.local.entities.Event
 import sg.org.bcc.attendance.data.local.entities.Group
 import sg.org.bcc.attendance.ui.components.AppIcon
 import sg.org.bcc.attendance.ui.components.AppIcons
-import kotlin.math.abs
-import kotlin.math.roundToInt
+import sg.org.bcc.attendance.ui.components.DateIcon
+import sg.org.bcc.attendance.util.EventSuggester
+import java.time.LocalTime
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -43,12 +37,23 @@ fun CloudResolutionScreen(
     val missingAttendees by viewModel.missingAttendees.collectAsState()
     val missingGroups by viewModel.missingGroups.collectAsState()
     val missingEvents by viewModel.missingEvents.collectAsState()
-    
-    val scope = rememberCoroutineScope()
-    var showDeleteAllDialog by remember { mutableStateOf(false) }
-    var processingIds by remember { mutableStateOf(setOf<String>()) }
+    val isProcessing by viewModel.isProcessing.collectAsState()
+    val resolutionError by viewModel.resolutionError.collectAsState()
     
     var selectedEventForResolution by remember { mutableStateOf<Event?>(null) }
+    var selectedAttendeeForResolution by remember { mutableStateOf<Attendee?>(null) }
+    var selectedGroupForResolution by remember { mutableStateOf<Group?>(null) }
+
+    val infiniteTransition = rememberInfiniteTransition(label = "SyncRotation")
+    val rotation by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1500, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "Rotation"
+    )
 
     Scaffold(
         topBar = {
@@ -60,14 +65,16 @@ fun CloudResolutionScreen(
                     }
                 },
                 actions = {
-                    if (missingAttendees.isNotEmpty() || missingGroups.isNotEmpty() || missingEvents.isNotEmpty()) {
-                        IconButton(onClick = { showDeleteAllDialog = true }) {
-                            AppIcon(
-                                resourceId = AppIcons.DeleteSweep, 
-                                contentDescription = "Delete All",
-                                tint = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
+                    if (isProcessing) {
+                        AppIcon(
+                            resourceId = AppIcons.Sync,
+                            contentDescription = "Processing",
+                            modifier = Modifier
+                                .size(24.dp)
+                                .graphicsLayer { rotationZ = rotation },
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.width(16.dp))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
@@ -100,45 +107,13 @@ fun CloudResolutionScreen(
                             SectionHeader("Missing Events")
                         }
                         items(missingEvents, key = { "event_${it.id}" }) { event ->
-                            Surface(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable { selectedEventForResolution = event },
-                                color = MaterialTheme.colorScheme.surfaceContainerLow
-                            ) {
-                                ListItem(
-                                    headlineContent = {
-                                        Text(event.title)
-                                    },
-                                    supportingContent = {
-                                        Text("${event.date} • ${event.time}")
-                                    },
-                                    leadingContent = {
-                                        Surface(
-                                            shape = CircleShape,
-                                            color = MaterialTheme.colorScheme.tertiaryContainer,
-                                            modifier = Modifier.size(40.dp)
-                                        ) {
-                                            Box(contentAlignment = Alignment.Center) {
-                                                AppIcon(
-                                                    resourceId = AppIcons.CalendarMonth,
-                                                    contentDescription = null,
-                                                    tint = MaterialTheme.colorScheme.onTertiaryContainer,
-                                                    modifier = Modifier.size(24.dp)
-                                                )
-                                            }
-                                        }
-                                    },
-                                    trailingContent = {
-                                        AppIcon(
-                                            resourceId = AppIcons.MoreVert,
-                                            contentDescription = "Resolve",
-                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    },
-                                    colors = ListItemDefaults.colors(containerColor = Color.Transparent)
-                                )
-                            }
+                            MissingEventItem(
+                                event = event,
+                                onClick = { 
+                                    viewModel.clearError()
+                                    selectedEventForResolution = event 
+                                }
+                            )
                         }
                     }
 
@@ -147,24 +122,35 @@ fun CloudResolutionScreen(
                             SectionHeader("Missing Attendees")
                         }
                         items(missingAttendees, key = { "attendee_${it.id}" }) { attendee ->
-                            SwipeToDeleteItem(
-                                id = attendee.id,
-                                processingIds = processingIds,
-                                onRemove = {
-                                    processingIds = processingIds + attendee.id
-                                    scope.launch {
-                                        delay(100)
-                                        viewModel.removeAttendee(attendee.id)
-                                    }
-                                }
+                            Surface(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { 
+                                        viewModel.clearError()
+                                        selectedAttendeeForResolution = attendee 
+                                    },
+                                color = MaterialTheme.colorScheme.surfaceContainerLow
                             ) {
                                 ListItem(
                                     headlineContent = {
-                                        Text(attendee.shortName ?: attendee.fullName)
+                                        Text(
+                                            text = attendee.shortName ?: attendee.fullName,
+                                            style = MaterialTheme.typography.titleMedium
+                                        )
                                     },
                                     supportingContent = {
-                                        if (attendee.shortName != null) {
-                                            Text(attendee.fullName)
+                                        Column {
+                                            Text(
+                                                text = "ID: ${attendee.id}", 
+                                                style = MaterialTheme.typography.labelSmall, 
+                                                color = MaterialTheme.colorScheme.primary
+                                            )
+                                            if (attendee.shortName != null) {
+                                                Text(
+                                                    text = attendee.fullName,
+                                                    style = MaterialTheme.typography.bodyMedium
+                                                )
+                                            }
                                         }
                                     },
                                     leadingContent = {
@@ -193,20 +179,28 @@ fun CloudResolutionScreen(
                             SectionHeader("Missing Groups")
                         }
                         items(missingGroups, key = { "group_${it.groupId}" }) { group ->
-                            SwipeToDeleteItem(
-                                id = group.groupId,
-                                processingIds = processingIds,
-                                onRemove = {
-                                    processingIds = processingIds + group.groupId
-                                    scope.launch {
-                                        delay(100)
-                                        viewModel.removeGroup(group.groupId)
-                                    }
-                                }
+                            Surface(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { 
+                                        viewModel.clearError()
+                                        selectedGroupForResolution = group 
+                                    },
+                                color = MaterialTheme.colorScheme.surfaceContainerLow
                             ) {
                                 ListItem(
                                     headlineContent = {
-                                        Text(group.name)
+                                        Text(
+                                            text = group.name,
+                                            style = MaterialTheme.typography.titleMedium
+                                        )
+                                    },
+                                    supportingContent = {
+                                        Text(
+                                            text = "ID: ${group.groupId}", 
+                                            style = MaterialTheme.typography.labelSmall, 
+                                            color = MaterialTheme.colorScheme.secondary
+                                        )
                                     },
                                     leadingContent = {
                                         Surface(
@@ -240,7 +234,7 @@ fun CloudResolutionScreen(
 
     if (selectedEventForResolution != null) {
         ModalBottomSheet(
-            onDismissRequest = { selectedEventForResolution = null }
+            onDismissRequest = { if (!isProcessing) selectedEventForResolution = null }
         ) {
             Column(
                 modifier = Modifier
@@ -258,15 +252,38 @@ fun CloudResolutionScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(bottom = 24.dp)
                 )
+
+                if (resolutionError != null) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.errorContainer,
+                        shape = MaterialTheme.shapes.small,
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
+                    ) {
+                        Text(
+                            text = resolutionError ?: "",
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(12.dp)
+                        )
+                    }
+                }
                 
                 Button(
                     onClick = {
-                        selectedEventForResolution?.let { viewModel.recreateEvent(it.id) }
-                        selectedEventForResolution = null
+                        selectedEventForResolution?.let { 
+                            viewModel.recreateEvent(it.id) {
+                                selectedEventForResolution = null
+                            }
+                        }
                     },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !isProcessing
                 ) {
-                    AppIcon(resourceId = AppIcons.CloudUpload, contentDescription = null)
+                    if (isProcessing) {
+                        CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
+                    } else {
+                        AppIcon(resourceId = AppIcons.CloudUpload, contentDescription = null)
+                    }
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("Re-create on Cloud")
                 }
@@ -275,13 +292,21 @@ fun CloudResolutionScreen(
                 
                 OutlinedButton(
                     onClick = {
-                        selectedEventForResolution?.let { viewModel.deleteEventLocally(it.id) }
-                        selectedEventForResolution = null
+                        selectedEventForResolution?.let { 
+                            viewModel.deleteEventLocally(it.id) {
+                                selectedEventForResolution = null
+                            }
+                        }
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                    enabled = !isProcessing
                 ) {
-                    AppIcon(resourceId = AppIcons.PersonRemove, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                    if (isProcessing) {
+                        CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.error)
+                    } else {
+                        AppIcon(resourceId = AppIcons.PersonRemove, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                    }
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("Delete Locally")
                 }
@@ -289,24 +314,178 @@ fun CloudResolutionScreen(
         }
     }
 
-    if (showDeleteAllDialog) {
-        AlertDialog(
-            onDismissRequest = { showDeleteAllDialog = false },
-            title = { Text("Delete All Missing") },
-            text = { Text("This will permanently remove all local records that do not exist on the cloud. Are you sure?") },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        viewModel.purgeAll()
-                        showDeleteAllDialog = false
-                    },
-                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
-                ) { Text("Delete All") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDeleteAllDialog = false }) { Text("Cancel") }
+    if (selectedAttendeeForResolution != null) {
+        ResolutionBottomSheet(
+            title = selectedAttendeeForResolution?.shortName ?: selectedAttendeeForResolution?.fullName ?: "",
+            id = selectedAttendeeForResolution?.id ?: "",
+            isProcessing = isProcessing,
+            resolutionError = resolutionError,
+            onDismiss = { if (!isProcessing) selectedAttendeeForResolution = null },
+            onResolve = {
+                selectedAttendeeForResolution?.let { 
+                    viewModel.removeAttendee(it.id) {
+                        selectedAttendeeForResolution = null
+                    }
+                }
             }
         )
+    }
+
+    if (selectedGroupForResolution != null) {
+        ResolutionBottomSheet(
+            title = selectedGroupForResolution?.name ?: "",
+            id = selectedGroupForResolution?.groupId ?: "",
+            isProcessing = isProcessing,
+            resolutionError = resolutionError,
+            onDismiss = { if (!isProcessing) selectedGroupForResolution = null },
+            onResolve = {
+                selectedGroupForResolution?.let { 
+                    viewModel.removeGroup(it.groupId) {
+                        selectedGroupForResolution = null
+                    }
+                }
+            }
+        )
+    }
+}
+
+@Composable
+fun MissingEventItem(
+    event: Event,
+    onClick: () -> Unit
+) {
+    // Parse title: yyMMdd HHmm Name
+    val parts = event.title.split(" ", limit = 3)
+    val date = if (parts.isNotEmpty()) EventSuggester.parseDate(parts[0]) else null
+    val timeStr = if (parts.size > 1) parts[1] else "0000"
+    val name = if (parts.size > 2) parts[2] else "Unnamed Event"
+
+    val time = try {
+        LocalTime.of(timeStr.take(2).toInt(), timeStr.takeLast(2).toInt())
+    } catch (e: Exception) {
+        LocalTime.MIDNIGHT
+    }
+    val formattedTime = time.format(DateTimeFormatter.ofPattern("h:mm a", Locale.ENGLISH))
+
+    Column {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { onClick() },
+            color = MaterialTheme.colorScheme.surfaceContainerLow
+        ) {
+            Row(
+                modifier = Modifier
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                DateIcon(date = date, textScale = 1.0f)
+                
+                Spacer(modifier = Modifier.width(16.dp))
+                
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = name,
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = formattedTime,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Cloud ID: ${event.cloudEventId ?: "N/A"}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
+                        )
+                    }
+                }
+            }
+        }
+        HorizontalDivider(
+            modifier = Modifier.padding(horizontal = 16.dp),
+            thickness = 0.5.dp,
+            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ResolutionBottomSheet(
+    title: String,
+    id: String,
+    isProcessing: Boolean,
+    resolutionError: String?,
+    onDismiss: () -> Unit,
+    onResolve: () -> Unit
+) {
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 32.dp, start = 16.dp, end = 16.dp)
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.headlineSmall,
+                modifier = Modifier.padding(bottom = 4.dp)
+            )
+            Text(
+                text = "ID: $id",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(bottom = 12.dp)
+            )
+            Text(
+                text = "This item exists locally but is missing on the cloud. Removing it locally will not affect existing cloud data.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = 24.dp)
+            )
+
+            if (resolutionError != null) {
+                Surface(
+                    color = MaterialTheme.colorScheme.errorContainer,
+                    shape = MaterialTheme.shapes.small,
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
+                ) {
+                    Text(
+                        text = resolutionError ?: "",
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(12.dp)
+                    )
+                }
+            }
+            
+            Button(
+                onClick = onResolve,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                enabled = !isProcessing
+            ) {
+                if (isProcessing) {
+                    CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onError)
+                } else {
+                    AppIcon(resourceId = AppIcons.PersonRemove, contentDescription = null)
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Remove Locally")
+            }
+            
+            Spacer(modifier = Modifier.height(12.dp))
+            
+            TextButton(
+                onClick = onDismiss,
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !isProcessing
+            ) {
+                Text("Cancel")
+            }
+        }
     }
 }
 
@@ -318,90 +497,4 @@ fun SectionHeader(title: String) {
         color = MaterialTheme.colorScheme.primary,
         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
     )
-}
-
-@Composable
-fun SwipeToDeleteItem(
-    id: String,
-    processingIds: Set<String>,
-    onRemove: () -> Unit,
-    content: @Composable () -> Unit
-) {
-    val haptic = LocalHapticFeedback.current
-    val scope = rememberCoroutineScope()
-    val isProcessing = processingIds.contains(id)
-    
-    val swipeOffset = remember { Animatable(0f) }
-    var itemWidth by remember { mutableFloatStateOf(0f) }
-    var isArmed by remember { mutableStateOf(false) }
-
-    LaunchedEffect(itemWidth) {
-        if (itemWidth > 0) {
-            val threshold = itemWidth * 0.25f
-            snapshotFlow { swipeOffset.value }.collect { currentOffset ->
-                val currentlyBeyond = abs(currentOffset) >= threshold
-                if (currentlyBeyond != isArmed) {
-                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                    isArmed = currentlyBeyond
-                }
-            }
-        }
-    }
-
-    AnimatedVisibility(
-        visible = !isProcessing,
-        exit = shrinkVertically(animationSpec = tween(400, delayMillis = 100)) + 
-               fadeOut(animationSpec = tween(400, delayMillis = 100))
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .onSizeChanged { itemWidth = it.width.toFloat() }
-                .background(MaterialTheme.colorScheme.surfaceVariant)
-        ) {
-            Box(
-                modifier = Modifier.matchParentSize().padding(horizontal = 24.dp),
-                contentAlignment = if (swipeOffset.value > 0) Alignment.CenterStart else Alignment.CenterEnd
-            ) {
-                AppIcon(
-                    resourceId = AppIcons.PlaylistRemove, 
-                    contentDescription = "Remove", 
-                    tint = if (isArmed) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
-                )
-            }
-
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .offset { IntOffset(swipeOffset.value.roundToInt(), 0) }
-                    .pointerInput(itemWidth) {
-                        if (itemWidth <= 0) return@pointerInput
-                        val maxSwipe = itemWidth * 0.30f
-                        
-                        detectHorizontalDragGestures(
-                            onDragEnd = {
-                                if (isArmed) {
-                                    onRemove()
-                                } else {
-                                    scope.launch {
-                                        swipeOffset.animateTo(0f, spring(stiffness = Spring.StiffnessMediumLow))
-                                    }
-                                }
-                            },
-                            onHorizontalDrag = { change, dragAmount ->
-                                change.consume()
-                                val newOffset = (swipeOffset.value + dragAmount)
-                                    .coerceIn(-maxSwipe, maxSwipe)
-                                scope.launch {
-                                    swipeOffset.snapTo(newOffset)
-                                }
-                            }
-                        )
-                    }
-                    .background(MaterialTheme.colorScheme.surfaceContainerLow)
-            ) {
-                content()
-            }
-        }
-    }
 }

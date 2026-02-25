@@ -21,6 +21,11 @@ import sg.org.bcc.attendance.data.remote.AttendanceCloudProvider
 import sg.org.bcc.attendance.data.remote.AuthManager
 import sg.org.bcc.attendance.data.repository.AttendanceRepository
 
+import androidx.work.ListenableWorker
+import androidx.work.testing.TestListenableWorkerBuilder
+import sg.org.bcc.attendance.data.remote.PushResult
+import sg.org.bcc.attendance.sync.SyncWorker
+
 @RunWith(RobolectricTestRunner::class)
 class MissingOnCloudSyncTest {
     private lateinit var context: Context
@@ -228,6 +233,32 @@ class MissingOnCloudSyncTest {
             db.eventDao().getEventById(eventId) shouldBe null
             db.attendanceDao().getAttendanceForEvent(eventId).size shouldBe 0
             db.syncJobDao().getPendingCount() shouldBe 0
+        }
+    }
+
+    @Test
+    fun `SyncWorker should mark event as missing on cloud if push fails due to missing sheet`() {
+        runBlocking {
+            val eventId = "E1"
+            db.eventDao().insert(Event(id = eventId, title = "260225 1000 E1", date = "2026-02-25", time = "1000"))
+            
+            val job = SyncJob(eventId = eventId, payloadJson = """[{"id":"a1","name":"John","state":"PRESENT","time":1000}]""")
+            db.syncJobDao().insert(job)
+            
+            coEvery { cloudProvider.pushAttendance(any(), any(), any(), any()) } returns PushResult.Error("Cloud worksheet not found", isRetryable = false)
+            
+            val worker = TestListenableWorkerBuilder<SyncWorker>(context)
+                .setWorkerFactory(object : androidx.work.WorkerFactory() {
+                    override fun createWorker(appContext: Context, workerClassName: String, workerParameters: androidx.work.WorkerParameters): ListenableWorker {
+                        return SyncWorker(appContext, workerParameters, db.syncJobDao(), db.eventDao(), db.syncLogDao(), cloudProvider, authManager)
+                    }
+                })
+                .build()
+            
+            worker.doWork() shouldBe ListenableWorker.Result.retry()
+            
+            val updatedEvent = db.eventDao().getEventById(eventId)
+            updatedEvent?.notExistOnCloud shouldBe true
         }
     }
 }

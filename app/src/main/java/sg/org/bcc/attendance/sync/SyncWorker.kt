@@ -107,6 +107,9 @@ class SyncWorker @AssistedInject constructor(
                         // Requirement: If an attendance push finds its cloud sheet is missing,
                         // the job MUST fail and remain in the queue (do not auto-create the sheet here).
                         if (records.isNotEmpty() && result.message.contains("Cloud worksheet not found")) {
+                            // Surface the issue as missing event on cloud
+                            eventDao.markAsMissingOnCloud(listOf(event.id))
+                            
                             setProgress(workDataOf(
                                 PROGRESS_STATE to "RETRYING",
                                 PROGRESS_ERROR to "Missing Cloud Sheet: ${result.message}"
