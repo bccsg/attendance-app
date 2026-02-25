@@ -17,7 +17,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import sg.org.bcc.attendance.data.local.entities.Attendee
 import sg.org.bcc.attendance.data.local.entities.Event
 import sg.org.bcc.attendance.data.local.entities.Group

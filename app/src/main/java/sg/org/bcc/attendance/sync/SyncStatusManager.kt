@@ -21,7 +21,7 @@ import javax.inject.Singleton
 
 @Singleton
 class SyncStatusManager @Inject constructor(
-    @ApplicationContext private val context: Context,
+    @param:ApplicationContext private val context: Context,
     private val repository: AttendanceRepository,
     private val authManager: AuthManager
 ) {
@@ -75,6 +75,7 @@ class SyncStatusManager @Inject constructor(
         _isBlockingEventMissing.value = missing
     }
 
+    @Suppress("UNCHECKED_CAST")
     private fun observeSyncStatus() {
         combine(
             WorkManager.getInstance(context)

@@ -22,7 +22,7 @@ object DatabaseModule {
             context,
             AttendanceDatabase::class.java,
             "attendance.db"
-        ).fallbackToDestructiveMigration() // For development phase
+        ).fallbackToDestructiveMigration(true) // For development phase
         .build()
     }
 

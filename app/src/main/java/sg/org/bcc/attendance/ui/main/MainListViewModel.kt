@@ -254,7 +254,7 @@ class MainListViewModel @Inject constructor(
             }
             combine(flows.values) { attendeeLists ->
                 groups.mapIndexed { index, group ->
-                    group.groupId to (attendeeLists[index] as List<Attendee>)
+                    group.groupId to attendeeLists[index]
                 }.toMap()
             }
         }

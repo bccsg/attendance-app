@@ -20,6 +20,7 @@ class DelegatingCloudProvider @Inject constructor(
     private val gsheetsProvider: Provider<GoogleSheetsAdapter>
 ) : AttendanceCloudProvider {
 
+    private val providerScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Main)
     private val _activeOperationsCount = MutableStateFlow(0)
     
     override val isSyncing: StateFlow<Boolean> = _activeOperationsCount
@@ -27,7 +28,7 @@ class DelegatingCloudProvider @Inject constructor(
         .debounce { active -> if (active) 0L else 500L }
         .distinctUntilChanged()
         .stateIn(
-            scope = kotlinx.coroutines.GlobalScope,
+            scope = providerScope,
             started = SharingStarted.Eagerly,
             initialValue = false
         )
