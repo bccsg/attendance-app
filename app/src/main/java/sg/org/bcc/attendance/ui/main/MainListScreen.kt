@@ -105,7 +105,6 @@ fun MainListScreen(
     val sortMode by viewModel.sortMode.collectAsState()
     val textScale by viewModel.textScale.collectAsState()
     val isOnline by viewModel.isOnline.collectAsState()
-    val isBlockingEventMissing by viewModel.isBlockingEventMissing.collectAsState()
 
     val totalAttendeesCount by viewModel.totalAttendeesCount.collectAsState()
     val totalGroupsCount by viewModel.totalGroupsCount.collectAsState()
@@ -379,7 +378,6 @@ fun MainListScreen(
             missingCloudAttendeesCount = missingCloudAttendeesCount,
             missingCloudGroupsCount = missingCloudGroupsCount,
             missingCloudEventsCount = missingCloudEventsCount,
-            isBlockingEventMissing = isBlockingEventMissing,
             onLogin = viewModel::onLoginTrigger,
             onLogout = viewModel::onLogout,
             onDismiss = { viewModel.setShowCloudStatusDialog(false) },
@@ -1349,7 +1347,6 @@ fun CloudStatusDialog(
     missingCloudAttendeesCount: Int = 0,
     missingCloudGroupsCount: Int = 0,
     missingCloudEventsCount: Int = 0,
-    isBlockingEventMissing: Boolean = false,
     onLogin: () -> Unit,
     onLogout: () -> Unit,
     onDismiss: () -> Unit,
@@ -1392,11 +1389,6 @@ fun CloudStatusDialog(
                         AppIcons.CloudAlert,
                         MaterialTheme.colorScheme.errorContainer
                     )
-                    isBlockingEventMissing -> Triple(
-                        "Current sync event sheet missing on cloud. Attendance cannot be pushed.",
-                        AppIcons.CloudAlert,
-                        MaterialTheme.colorScheme.errorContainer
-                    )
                     errorMessage != null -> Triple(
                         errorMessage,
                         AppIcons.CloudAlert,
@@ -1421,13 +1413,7 @@ fun CloudStatusDialog(
                     Surface(
                         color = containerColor,
                         shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .let { 
-                                if (isBlockingEventMissing && text == "Current sync event sheet missing on cloud. Attendance cannot be pushed.") {
-                                    it.clickable { onResolveMissing() }
-                                } else it
-                            }
+                        modifier = Modifier.fillMaxWidth()
                     ) {
                         Row(
                             modifier = Modifier.padding(12.dp),
@@ -1450,13 +1436,6 @@ fun CloudStatusDialog(
                                     style = MaterialTheme.typography.bodySmall,
                                     color = contentColor
                                 )
-                                if (isBlockingEventMissing && text == "Current sync event sheet missing on cloud. Attendance cannot be pushed.") {
-                                    Text(
-                                        text = "Tap to resolve.",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = contentColor.copy(alpha = 0.7f)
-                                    )
-                                }
                             }
                         }
                     }
@@ -1643,26 +1622,15 @@ fun CloudStatusDialog(
                     SyncInfoRow("Last Pull Status", syncProgress.lastPullStatus ?: "Unknown", onClick = onShowLogs)
 
                     if (missingCloudAttendeesCount > 0 || missingCloudGroupsCount > 0 || missingCloudEventsCount > 0) {
+                        val missingSummary = buildString {
+                            if (missingCloudEventsCount > 0) append("${missingCloudEventsCount}E ")
+                            if (missingCloudAttendeesCount > 0) append("${missingCloudAttendeesCount}A ")
+                            if (missingCloudGroupsCount > 0) append("${missingCloudGroupsCount}G")
+                        }.trim()
+                        
                         SyncInfoRow(
                             label = "Missing on cloud",
-                            value = buildString {
-                                val items = mutableListOf<String>()
-                                if (missingCloudEventsCount > 0) {
-                                    items.add("$missingCloudEventsCount event${if (missingCloudEventsCount > 1) "s" else ""}")
-                                }
-                                if (missingCloudAttendeesCount > 0) {
-                                    items.add("$missingCloudAttendeesCount attendee${if (missingCloudAttendeesCount > 1) "s" else ""}")
-                                }
-                                if (missingCloudGroupsCount > 0) {
-                                    items.add("$missingCloudGroupsCount group${if (missingCloudGroupsCount > 1) "s" else ""}")
-                                }
-                                
-                                when (items.size) {
-                                    1 -> append(items[0])
-                                    2 -> append("${items[0]} and ${items[1]}")
-                                    3 -> append("${items[0]}, ${items[1]} and ${items[2]}")
-                                }
-                            },
+                            value = missingSummary,
                             onClick = onResolveMissing
                         )
                     }
