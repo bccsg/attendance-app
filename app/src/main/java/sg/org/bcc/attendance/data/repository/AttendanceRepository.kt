@@ -2,10 +2,7 @@ package sg.org.bcc.attendance.data.repository
 
 import android.content.Context
 import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.*
 import sg.org.bcc.attendance.data.local.dao.*
 import sg.org.bcc.attendance.data.local.entities.*
 import sg.org.bcc.attendance.data.remote.AttendanceCloudProvider
@@ -20,11 +17,6 @@ import sg.org.bcc.attendance.util.time.TimeProvider
 import java.time.LocalDate
 import javax.inject.Inject
 import javax.inject.Singleton
-
-data class QueueItem(
-    val attendee: Attendee,
-    val isLater: Boolean
-)
 
 @Singleton
 class AttendanceRepository @Inject constructor(
@@ -49,6 +41,8 @@ class AttendanceRepository @Inject constructor(
     }
 
     private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+
+    val isSyncing: StateFlow<Boolean> = cloudProvider.isSyncing
 
     fun getSyncLogsSummary() = syncLogDao.getTriggersSummary()
     fun getLogsForTrigger(triggerId: String) = syncLogDao.getLogsForTrigger(triggerId)
@@ -210,8 +204,6 @@ class AttendanceRepository @Inject constructor(
                         val remoteGroups = cloudProvider.fetchMasterGroups(scope)
                         val remoteGroupIds = remoteGroups.map { it.groupId }.toSet()
                         
-                        // We used to clearAll here, but now we should only update/insert and mark missing.
-                        // groupDao.clearAll() 
                         if (remoteGroups.isNotEmpty()) {
                             groupDao.insertAll(remoteGroups)
                         }
@@ -652,3 +644,8 @@ class AttendanceRepository @Inject constructor(
         }
     }
 }
+
+data class QueueItem(
+    val attendee: Attendee,
+    val isLater: Boolean
+)

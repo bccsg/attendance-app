@@ -181,7 +181,7 @@ fun MainListScreen(
 
     val syncRotation by infiniteTransition.animateFloat(
         initialValue = 0f,
-        targetValue = 360f,
+        targetValue = -360f,
         animationSpec = infiniteRepeatable(
             animation = tween(2000, easing = LinearEasing),
             repeatMode = RepeatMode.Restart
@@ -368,7 +368,6 @@ fun MainListScreen(
             cloudProfile = cloudProfile,
             syncProgress = syncProgress,
             isDemoMode = isDemoMode,
-            isSyncing = isSyncing,
             isOnline = isOnline,
             syncRotation = syncRotation,
             loginError = loginError,
@@ -568,7 +567,7 @@ fun MainListScreen(
                                                 resourceId = syncProgress.cloudStatusIcon,
                                                 contentDescription = "Sync Status",
                                                 tint = MaterialTheme.colorScheme.onPrimary,
-                                                modifier = if (isSyncing) Modifier.graphicsLayer { rotationZ = syncRotation } else Modifier
+                                                modifier = if (syncProgress.shouldRotate) Modifier.graphicsLayer { rotationZ = syncRotation } else Modifier
                                             )
                                         }
                                         IconButton(onClick = { showMenu = true }) {
@@ -829,91 +828,95 @@ fun MainListScreen(
                 }
             }
     
-            if (attendees.isEmpty() && searchQuery.isEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(padding)
-                        .background(MaterialTheme.colorScheme.surface),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(16.dp),
-                        modifier = Modifier.padding(32.dp)
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+            ) {
+                if (attendees.isEmpty() && searchQuery.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(MaterialTheme.colorScheme.surface),
+                        contentAlignment = Alignment.Center
                     ) {
-                        AppIcon(
-                            resourceId = AppIcons.PersonSearch,
-                            contentDescription = null,
-                            modifier = Modifier.size(64.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
-                        )
-                        Text(
-                            text = "No attendees found",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            text = "Try syncing with the master list to download data.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                            textAlign = TextAlign.Center
-                        )
-                        Button(
-                            onClick = viewModel::onSyncMasterList,
-                            modifier = Modifier.padding(top = 8.dp)
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(16.dp),
+                            modifier = Modifier.padding(32.dp)
                         ) {
-                            AppIcon(resourceId = AppIcons.Cloud, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Sync Master List")
+                            AppIcon(
+                                resourceId = AppIcons.PersonSearch,
+                                contentDescription = null,
+                                modifier = Modifier.size(64.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
+                            )
+                            Text(
+                                text = "No attendees found",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = "Try syncing with the master list to download data.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                textAlign = TextAlign.Center
+                            )
+                            Button(
+                                onClick = viewModel::onSyncMasterList,
+                                modifier = Modifier.padding(top = 8.dp)
+                            ) {
+                                AppIcon(resourceId = AppIcons.Cloud, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Sync Master List")
+                            }
                         }
                     }
-                }
-            } else {
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(padding)
-                        .pinchToScale(textScale, viewModel::setTextScale)
-                        .background(MaterialTheme.colorScheme.surface)
-                ) {
-                    items(attendees, key = { it.id }) { attendee ->
-                        val isSelected = selectedIds.contains(attendee.id)
-                        val isPresent = presentIds.contains(attendee.id)
-                        val isPending = pendingIds.contains(attendee.id)
-                        val isInQueue = queueIds.contains(attendee.id)
-                        val groups = attendeeGroupsMap[attendee.id] ?: emptyList()
-    
-                        AttendeeListItem(
-                            attendee = attendee,
-                            searchQuery = searchQuery,
-                            textScale = textScale,
-                            isSelected = isSelected,
-                            isPresent = isPresent,
-                            isPending = isPending,
-                            isInQueue = queueIds.contains(attendee.id),
-                            isSelectionMode = isSelectionMode,
-                            groups = groups,
-                            onClick = {
-                                if (isSelectionMode) {
-                                    viewModel.toggleSelection(attendee.id)
-                                } else {
-                                    viewModel.showAttendeeDetail(attendee)
+                } else {
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .pinchToScale(textScale, viewModel::setTextScale)
+                            .background(MaterialTheme.colorScheme.surface)
+                    ) {
+                        items(attendees, key = { it.id }) { attendee ->
+                            val isSelected = selectedIds.contains(attendee.id)
+                            val isPresent = presentIds.contains(attendee.id)
+                            val isPending = pendingIds.contains(attendee.id)
+                            val isInQueue = queueIds.contains(attendee.id)
+                            val groups = attendeeGroupsMap[attendee.id] ?: emptyList()
+        
+                            AttendeeListItem(
+                                attendee = attendee,
+                                searchQuery = searchQuery,
+                                textScale = textScale,
+                                isSelected = isSelected,
+                                isPresent = isPresent,
+                                isPending = isPending,
+                                isInQueue = queueIds.contains(attendee.id),
+                                isSelectionMode = isSelectionMode,
+                                groups = groups,
+                                onClick = {
+                                    if (isSelectionMode) {
+                                        viewModel.toggleSelection(attendee.id)
+                                    } else {
+                                        viewModel.showAttendeeDetail(attendee)
+                                    }
+                                },
+                                onLongClick = {
+                                    if (!isSelectionMode) {
+                                        viewModel.enterSelectionMode(attendee.id)
+                                    }
+                                },
+                                onAvatarClick = {
+                                    if (isSelectionMode) {
+                                        viewModel.toggleSelection(attendee.id)
+                                    } else {
+                                        viewModel.enterSelectionMode(attendee.id)
+                                    }
                                 }
-                            },
-                            onLongClick = {
-                                if (!isSelectionMode) {
-                                    viewModel.enterSelectionMode(attendee.id)
-                                }
-                            },
-                            onAvatarClick = {
-                                if (isSelectionMode) {
-                                    viewModel.toggleSelection(attendee.id)
-                                } else {
-                                    viewModel.enterSelectionMode(attendee.id)
-                                }
-                            }
-                        )
+                            )
+                        }
                     }
                 }
             }
@@ -1337,7 +1340,6 @@ fun CloudStatusDialog(
     cloudProfile: CloudProfile?,
     syncProgress: SyncProgress,
     isDemoMode: Boolean,
-    isSyncing: Boolean,
     isOnline: Boolean,
     syncRotation: Float,
     loginError: String? = null,
@@ -1366,7 +1368,7 @@ fun CloudStatusDialog(
                     resourceId = syncProgress.cloudStatusIcon, 
                     contentDescription = null, 
                     tint = MaterialTheme.colorScheme.primary,
-                    modifier = if (isSyncing) Modifier.graphicsLayer { rotationZ = syncRotation } else Modifier
+                    modifier = if (syncProgress.shouldRotate) Modifier.graphicsLayer { rotationZ = syncRotation } else Modifier
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text("Cloud Status")
@@ -1386,55 +1388,49 @@ fun CloudStatusDialog(
                 val bannerData = when {
                     !isOnline -> Triple(
                         "No internet connection. Cloud features are unavailable.",
-                        AppIcons.CloudAlert,
+                        syncProgress.cloudStatusIcon,
+                        MaterialTheme.colorScheme.errorContainer
+                    )
+                    syncProgress.isBlockingEventMissing && !isDemoMode -> Triple(
+                        "Event missing on cloud. Attendance cannot be pushed.",
+                        syncProgress.cloudStatusIcon,
                         MaterialTheme.colorScheme.errorContainer
                     )
                     errorMessage != null -> Triple(
                         errorMessage,
-                        AppIcons.CloudAlert,
+                        syncProgress.cloudStatusIcon,
                         MaterialTheme.colorScheme.errorContainer
-                    )
-                    syncProgress.currentOperation != null && syncProgress.syncState == SyncState.SYNCING -> Triple(
-                        syncProgress.currentOperation,
-                        AppIcons.Sync,
-                        MaterialTheme.colorScheme.secondaryContainer
                     )
                     else -> null
                 }
 
                 if (bannerData != null) {
-                    val (text, icon, containerColor) = bannerData
-                    val contentColor = if (containerColor == MaterialTheme.colorScheme.errorContainer) {
-                        MaterialTheme.colorScheme.onErrorContainer
-                    } else {
-                        MaterialTheme.colorScheme.onSecondaryContainer
-                    }
-
+                    val (text, _, _) = bannerData
+                    val isMissingEventError = syncProgress.isBlockingEventMissing && !isDemoMode && text.startsWith("Event missing")
+                    
                     Surface(
-                        color = containerColor,
+                        color = MaterialTheme.colorScheme.errorContainer,
                         shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .then(if (isMissingEventError) Modifier.clickable { onResolveMissing() } else Modifier)
                     ) {
-                        Row(
-                            modifier = Modifier.padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp)
                         ) {
-                            AppIcon(
-                                resourceId = icon,
-                                contentDescription = null,
-                                tint = contentColor,
-                                modifier = Modifier
-                                    .size(20.dp)
-                                    .let { 
-                                        if (icon == AppIcons.Sync) it.graphicsLayer { rotationZ = syncRotation } else it
-                                    }
+                            Text(
+                                text = text,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onErrorContainer,
+                                fontWeight = FontWeight.Normal
                             )
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Column(modifier = Modifier.weight(1f)) {
+                            if (isMissingEventError) {
                                 Text(
-                                    text = text,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = contentColor
+                                    text = "Tap to resolve",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.8f)
                                 )
                             }
                         }
@@ -1483,7 +1479,7 @@ fun CloudStatusDialog(
                     Button(
                         onClick = onLogout,
                         modifier = Modifier.fillMaxWidth(),
-                        enabled = canProceedWithAuthAction && !isSyncing,
+                        enabled = canProceedWithAuthAction && !syncProgress.shouldRotate,
                         colors = ButtonDefaults.buttonColors(
                             containerColor = MaterialTheme.colorScheme.secondaryContainer,
                             contentColor = MaterialTheme.colorScheme.onSecondaryContainer
@@ -1504,7 +1500,7 @@ fun CloudStatusDialog(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     AppIcon(
-                                        resourceId = AppIcons.CloudOff,
+                                        resourceId = syncProgress.cloudStatusIcon,
                                         contentDescription = null,
                                         tint = MaterialTheme.colorScheme.primary,
                                         modifier = Modifier.size(32.dp)
@@ -1569,7 +1565,7 @@ fun CloudStatusDialog(
                         Button(
                             onClick = onLogin, 
                             modifier = Modifier.fillMaxWidth(),
-                            enabled = canProceedWithAuthAction && !isSyncing,
+                            enabled = canProceedWithAuthAction && !syncProgress.shouldRotate,
                             shape = RoundedCornerShape(8.dp)
                         ) {
                             Text(if (isAuthed) "Login Again" else "Login with Google")
@@ -1578,10 +1574,10 @@ fun CloudStatusDialog(
                         if (isAuthed) {
                             TextButton(
                                 onClick = onLogout,
-                                enabled = canProceedWithAuthAction && !isSyncing,
+                                enabled = canProceedWithAuthAction && !syncProgress.shouldRotate,
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                Text("Logout", color = if (canProceedWithAuthAction && !isSyncing) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.error.copy(alpha = 0.38f))
+                                Text("Logout", color = if (canProceedWithAuthAction && !syncProgress.shouldRotate) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.error.copy(alpha = 0.38f))
                             }
                         }
                     }
@@ -1645,9 +1641,9 @@ fun CloudStatusDialog(
         dismissButton = {
             if (isAuthed && authState == sg.org.bcc.attendance.data.remote.AuthState.AUTHENTICATED) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (isSyncing) {
+                    if (syncProgress.shouldRotate) {
                         AppIcon(
-                            resourceId = AppIcons.Sync,
+                            resourceId = syncProgress.cloudStatusIcon,
                             contentDescription = "Syncing",
                             modifier = Modifier
                                 .size(18.dp)
@@ -1658,7 +1654,7 @@ fun CloudStatusDialog(
                     }
                     TextButton(
                         onClick = onManualSync,
-                        enabled = !isSyncing && isOnline
+                        enabled = !syncProgress.shouldRotate && isOnline
                     ) {
                         Text("Sync Now")
                     }

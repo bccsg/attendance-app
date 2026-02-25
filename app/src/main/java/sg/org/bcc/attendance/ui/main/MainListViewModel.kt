@@ -92,7 +92,7 @@ class MainListViewModel @Inject constructor(
     val isDemoMode = authManager.isDemoMode
 
     val hasSyncError = MutableStateFlow(false)
-    val isSyncing = MutableStateFlow(false)
+    val isSyncing = repository.isSyncing
 
     val cloudProfile: StateFlow<CloudProfile?> = isAuthed.map { authed ->
         if (authed) {
@@ -153,11 +153,26 @@ class MainListViewModel @Inject constructor(
     val missingCloudEventsCount = missingCloudEvents.map { it.size }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
+    val syncPendingCount = repository.getPendingSyncCount()
+        .stateIn(viewModelScope, SharingStarted.Eagerly, 0)
+
+    val syncPending = syncPendingCount.map { it > 0 }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    val availableEvents: StateFlow<List<Event>> = repository.getManageableEvents()
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    private val _currentEventId = MutableStateFlow<String?>(prefs.getString("selected_event_id", null))
+    val currentEventId: StateFlow<String?> = _currentEventId.asStateFlow()
+
     val isBlockingEventMissing: StateFlow<Boolean> = combine(
         repository.getOldestPendingEventId(),
+        _currentEventId,
         missingCloudEvents
-    ) { oldestId, missingEvents ->
-        oldestId != null && missingEvents.any { it.id == oldestId }
+    ) { oldestId, currentId, missingEvents ->
+        val oldestMissing = oldestId != null && missingEvents.any { it.id == oldestId }
+        val currentMissing = currentId != null && missingEvents.any { it.id == currentId }
+        oldestMissing || currentMissing
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     fun onNavigateToResolutionScreen() {
@@ -180,18 +195,6 @@ class MainListViewModel @Inject constructor(
             repository.resolveEventDeleteLocally(eventId)
         }
     }
-
-    val syncPendingCount = repository.getPendingSyncCount()
-        .stateIn(viewModelScope, SharingStarted.Eagerly, 0)
-
-    val syncPending = syncPendingCount.map { it > 0 }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
-
-    val availableEvents: StateFlow<List<Event>> = repository.getManageableEvents()
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
-
-    private val _currentEventId = MutableStateFlow<String?>(prefs.getString("selected_event_id", null))
-    val currentEventId: StateFlow<String?> = _currentEventId.asStateFlow()
 
     val currentEvent = _currentEventId.flatMapLatest { id ->
         if (id == null) flowOf(null)
@@ -456,7 +459,8 @@ class MainListViewModel @Inject constructor(
             authManager.authState.onStart { emit(authManager.authState.value) },
             authManager.isAuthed.onStart { emit(authManager.isAuthed.value) },
             authManager.isDemoMode.onStart { emit(authManager.isDemoMode.value) },
-            isBlockingEventMissing.onStart { emit(isBlockingEventMissing.value) }
+            isBlockingEventMissing.onStart { emit(isBlockingEventMissing.value) },
+            isSyncing
         ) { flows ->
             val syncWorkInfos = flows[0] as List<androidx.work.WorkInfo>
             val pullWorkInfos = flows[1] as List<androidx.work.WorkInfo>
@@ -466,6 +470,7 @@ class MainListViewModel @Inject constructor(
             val isAuthed = flows[5] as Boolean
             val isDemoMode = flows[6] as Boolean
             val blockingMissing = flows[7] as Boolean
+            val isCloudActive = flows[8] as Boolean
 
             val syncWorkInfo = syncWorkInfos.firstOrNull()
             val pullWorkInfo = pullWorkInfos.firstOrNull()
@@ -478,25 +483,29 @@ class MainListViewModel @Inject constructor(
                 ?: lastPullTimeStored?.let { it + 15 * 60 * 1000 }
 
             var currentOp: String? = null
-            var newState = SyncState.IDLE
+            var newState = if (isCloudActive) SyncState.SYNCING else SyncState.IDLE
             var errorMsg: String? = null
 
             if (syncWorkInfo != null) {
                 val progress = syncWorkInfo.progress
-                currentOp = progress.getString(SyncWorker.PROGRESS_OP)
+                val op = progress.getString(SyncWorker.PROGRESS_OP)
+                if (op != null) currentOp = op
+                
                 val stateStr = progress.getString(SyncWorker.PROGRESS_STATE)
                 errorMsg = progress.getString(SyncWorker.PROGRESS_ERROR) ?: syncWorkInfo.outputData.getString(SyncWorker.PROGRESS_ERROR)
                 
-                newState = when (stateStr) {
-                    "SYNCING" -> SyncState.SYNCING
-                    "RETRYING" -> SyncState.RETRYING
-                    "IDLE" -> SyncState.IDLE
-                    else -> {
-                        when (syncWorkInfo.state) {
-                            androidx.work.WorkInfo.State.RUNNING -> SyncState.SYNCING
-                            androidx.work.WorkInfo.State.ENQUEUED -> SyncState.IDLE
-                            androidx.work.WorkInfo.State.FAILED -> SyncState.ERROR
-                            else -> SyncState.IDLE
+                if (newState == SyncState.IDLE) {
+                    newState = when (stateStr) {
+                        "SYNCING" -> SyncState.SYNCING
+                        "RETRYING" -> SyncState.RETRYING
+                        "IDLE" -> SyncState.IDLE
+                        else -> {
+                            when (syncWorkInfo.state) {
+                                androidx.work.WorkInfo.State.RUNNING -> SyncState.SYNCING
+                                androidx.work.WorkInfo.State.ENQUEUED -> SyncState.IDLE
+                                androidx.work.WorkInfo.State.FAILED -> SyncState.ERROR
+                                else -> SyncState.IDLE
+                            }
                         }
                     }
                 }
@@ -507,12 +516,17 @@ class MainListViewModel @Inject constructor(
                 val stateStr = progress.getString(PullWorker.PROGRESS_STATE)
                 
                 if (stateStr == "SYNCING") {
-                    currentOp = progress.getString(PullWorker.PROGRESS_OP)
+                    val op = progress.getString(PullWorker.PROGRESS_OP)
+                    if (op != null) currentOp = op
                     newState = SyncState.SYNCING
                 } else if (stateStr == "ERROR") {
                     errorMsg = progress.getString(PullWorker.PROGRESS_ERROR)
                     newState = SyncState.ERROR
                 }
+            }
+
+            if (isCloudActive && currentOp == null) {
+                currentOp = "Synchronizing..."
             }
 
             if ((newState == SyncState.IDLE || newState == SyncState.RETRYING) && pendingCount > 0 && !online) {
@@ -541,7 +555,6 @@ class MainListViewModel @Inject constructor(
                 isBlockingEventMissing = blockingMissing
             )
             
-            isSyncing.value = newState == SyncState.SYNCING
             hasSyncError.value = newState == SyncState.ERROR
         }.launchIn(viewModelScope)
 
@@ -551,13 +564,10 @@ class MainListViewModel @Inject constructor(
 
         viewModelScope.launch {
             if (!repository.isDemoMode()) {
-                isSyncing.value = true
                 try {
                     repository.syncMasterList(targetEventId = null)
                 } catch (e: Exception) {
                     android.util.Log.e("AttendanceSync", "App start sync failed: ${e.message}")
-                } finally {
-                    isSyncing.value = false
                 }
             }
         }
@@ -742,7 +752,6 @@ class MainListViewModel @Inject constructor(
 
     fun doManualSync() {
         viewModelScope.launch {
-            isSyncing.value = true
             val syncPrefs = context.getSharedPreferences("sync_prefs", Context.MODE_PRIVATE)
             syncPrefs.edit().putString("last_pull_status", "Syncing...").apply()
             
@@ -760,8 +769,6 @@ class MainListViewModel @Inject constructor(
                 val errorMsg = "Sync failed: ${e.message}"
                 _loginError.value = errorMsg
                 syncPrefs.edit().putString("last_pull_status", "Error: $errorMsg").apply()
-            } finally {
-                isSyncing.value = false
             }
         }
     }
@@ -792,7 +799,6 @@ class MainListViewModel @Inject constructor(
 
     fun handleOAuthCode(code: String) {
         viewModelScope.launch {
-            isSyncing.value = true
             try {
                 val oldEmail = authManager.getEmail()
                 val oldIsDemo = authManager.isDemoMode.value
@@ -825,15 +831,12 @@ class MainListViewModel @Inject constructor(
                 }
             } catch (e: Exception) {
                 _loginError.value = "Login error: ${e.message}"
-            } finally {
-                isSyncing.value = false
             }
         }
     }
 
     fun onLogout() {
         viewModelScope.launch {
-            isSyncing.value = true
             try {
                 authManager.logout()
                 repository.clearAllData()
@@ -841,7 +844,7 @@ class MainListViewModel @Inject constructor(
                 prefs.edit { remove("selected_event_id") }
                 repository.syncMasterList(targetEventId = null)
             } finally {
-                isSyncing.value = false
+                // No-op
             }
         }
     }

@@ -64,6 +64,7 @@ Instead of immediate deletion (which could break local history), records missing
 | **Concurrent Edit** | Silent (Last Commit Wins). | Merge cloud state using synchronized NTP timestamps. |
 | **API Rate Limit (429)** | Cloud icon: `CloudAlert`. | Enter backoff (up to 30s). Pause all pull operations. |
 | **GSheet Workbook Denied** | Cloud icon: `CloudAlert`. | Engine pauses. User must tap icon to re-auth or check permissions. |
+| **Missing Event Sheet** | Cloud icon: `CloudAlert`. Dialog shows "Missing Event Sheet" banner. | Flag event with `notExistOnCloud = true`. Retain job in queue for manual resolution. |
 | **Event > 30 Days Old** | Auto-removal from list. | Purge event and associated records from local database. |
 
 ### Current Status

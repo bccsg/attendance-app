@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -233,39 +234,76 @@ fun CloudResolutionScreen(
     }
 
     if (selectedEventForResolution != null) {
+        val event = selectedEventForResolution!!
+        val parts = event.title.split(" ", limit = 3)
+        val date = if (parts.isNotEmpty()) EventSuggester.parseDate(parts[0]) else null
+        val timeStr = if (parts.size > 1) parts[1] else "0000"
+        val name = if (parts.size > 2) parts[2] else "Unnamed Event"
+        val time = try {
+            LocalTime.of(timeStr.take(2).toInt(), timeStr.takeLast(2).toInt())
+        } catch (e: Exception) {
+            LocalTime.MIDNIGHT
+        }
+        val formattedTime = time.format(DateTimeFormatter.ofPattern("h:mm a", Locale.ENGLISH))
+
         ResolutionBottomSheet(
-            title = selectedEventForResolution?.title ?: "",
-            id = selectedEventForResolution?.id ?: "",
             description = "This event exists locally but its cloud sheet is missing. You can manually restore the sheet on the cloud and sync again, or use the actions below.",
             inUseWarning = null,
             isProcessing = isProcessing,
             resolutionError = resolutionError,
             canRemove = true,
+            resolveButtonLabel = "Remove locally",
             onDismiss = { if (!isProcessing) selectedEventForResolution = null },
             onResolve = {
-                selectedEventForResolution?.let { 
+                event.let { 
                     viewModel.deleteEventLocally(it.id) {
                         selectedEventForResolution = null
                     }
                 }
             },
+            header = {
+                ListItem(
+                    modifier = Modifier.fillMaxWidth(),
+                    leadingContent = {
+                        DateIcon(date = date, textScale = 1.0f)
+                    },
+                    headlineContent = {
+                        Text(
+                            text = name,
+                            style = MaterialTheme.typography.titleLarge
+                        )
+                    },
+                    supportingContent = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = formattedTime,
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Cloud ID: ${event.cloudEventId ?: "N/A"}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
+                            )
+                        }
+                    },
+                    colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+                )
+            },
             extraAction = {
                 Button(
                     onClick = {
-                        selectedEventForResolution?.let { 
+                        event.let { 
                             viewModel.recreateEvent(it.id) {
                                 selectedEventForResolution = null
                             }
                         }
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    enabled = !isProcessing
+                    enabled = !isProcessing,
+                    shape = RoundedCornerShape(8.dp)
                 ) {
-                    if (isProcessing) {
-                        CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
-                    } else {
-                        AppIcon(resourceId = AppIcons.CloudUpload, contentDescription = null)
-                    }
+                    AppIcon(resourceId = AppIcons.CloudUpload, contentDescription = null)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("Re-create on Cloud")
                 }
@@ -347,47 +385,37 @@ fun MissingEventItem(
     }
     val formattedTime = time.format(DateTimeFormatter.ofPattern("h:mm a", Locale.ENGLISH))
 
-    Column {
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable { onClick() },
-            color = MaterialTheme.colorScheme.surfaceContainerLow
-        ) {
-            Row(
-                modifier = Modifier
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
-                    .fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() },
+        color = MaterialTheme.colorScheme.surfaceContainerLow
+    ) {
+        ListItem(
+            leadingContent = {
                 DateIcon(date = date, textScale = 1.0f)
-                
-                Spacer(modifier = Modifier.width(16.dp))
-                
-                Column(modifier = Modifier.weight(1f)) {
+            },
+            headlineContent = {
+                Text(
+                    text = name,
+                    style = MaterialTheme.typography.titleMedium
+                )
+            },
+            supportingContent = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = name,
-                        style = MaterialTheme.typography.titleMedium
+                        text = formattedTime,
+                        style = MaterialTheme.typography.bodyMedium
                     )
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = formattedTime,
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Cloud ID: ${event.cloudEventId ?: "N/A"}",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
-                        )
-                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Cloud ID: ${event.cloudEventId ?: "N/A"}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
+                    )
                 }
-            }
-        }
-        HorizontalDivider(
-            modifier = Modifier.padding(horizontal = 16.dp),
-            thickness = 0.5.dp,
-            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+            },
+            colors = ListItemDefaults.colors(containerColor = Color.Transparent)
         )
     }
 }
@@ -395,15 +423,17 @@ fun MissingEventItem(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ResolutionBottomSheet(
-    title: String,
-    id: String,
+    title: String = "",
+    id: String = "",
     description: String,
     inUseWarning: String?,
     isProcessing: Boolean,
     resolutionError: String?,
     canRemove: Boolean,
+    resolveButtonLabel: String = "Remove",
     onDismiss: () -> Unit,
     onResolve: () -> Unit,
+    header: @Composable (() -> Unit)? = null,
     extraAction: @Composable (ColumnScope.() -> Unit)? = null
 ) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
@@ -412,17 +442,22 @@ fun ResolutionBottomSheet(
                 .fillMaxWidth()
                 .padding(bottom = 32.dp, start = 16.dp, end = 16.dp)
         ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.headlineSmall,
-                modifier = Modifier.padding(bottom = 4.dp)
-            )
-            Text(
-                text = "ID: $id",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(bottom = 12.dp)
-            )
+            if (header != null) {
+                header()
+                Spacer(modifier = Modifier.height(16.dp))
+            } else {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.headlineSmall,
+                    modifier = Modifier.padding(bottom = 4.dp)
+                )
+                Text(
+                    text = "ID: $id",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(bottom = 12.dp)
+                )
+            }
             Text(
                 text = description,
                 style = MaterialTheme.typography.bodyMedium,
@@ -474,7 +509,8 @@ fun ResolutionBottomSheet(
                 OutlinedButton(
                     onClick = onDismiss,
                     modifier = Modifier.weight(1f),
-                    enabled = !isProcessing
+                    enabled = !isProcessing,
+                    shape = RoundedCornerShape(8.dp)
                 ) {
                     Text("Cancel")
                 }
@@ -483,15 +519,12 @@ fun ResolutionBottomSheet(
                     onClick = onResolve,
                     modifier = Modifier.weight(1f),
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
-                    enabled = !isProcessing && canRemove
+                    enabled = !isProcessing && canRemove,
+                    shape = RoundedCornerShape(8.dp)
                 ) {
-                    if (isProcessing) {
-                        CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onError)
-                    } else {
-                        AppIcon(resourceId = AppIcons.Delete, contentDescription = null)
-                    }
+                    AppIcon(resourceId = AppIcons.Delete, contentDescription = null)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Remove")
+                    Text(resolveButtonLabel)
                 }
             }
         }

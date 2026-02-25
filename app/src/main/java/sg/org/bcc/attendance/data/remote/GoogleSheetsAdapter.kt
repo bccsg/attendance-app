@@ -8,6 +8,9 @@ import com.google.auth.http.HttpCredentialsAdapter
 import com.google.auth.oauth2.AccessToken
 import com.google.auth.oauth2.GoogleCredentials
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 import sg.org.bcc.attendance.data.local.entities.*
 import sg.org.bcc.attendance.sync.SyncLogScope
@@ -20,6 +23,8 @@ import javax.inject.Singleton
 class GoogleSheetsAdapter @Inject constructor(
     private val authManager: AuthManager
 ) : AttendanceCloudProvider {
+
+    override val isSyncing: StateFlow<Boolean> = MutableStateFlow(false).asStateFlow()
 
     private val jsonFactory = GsonFactory.getDefaultInstance()
     private val httpTransport = GoogleNetHttpTransport.newTrustedTransport()

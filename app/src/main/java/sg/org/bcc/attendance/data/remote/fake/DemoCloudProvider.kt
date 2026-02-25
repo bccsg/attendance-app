@@ -17,12 +17,17 @@ import java.time.format.DateTimeFormatter
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 
 @Singleton
 class DemoCloudProvider @Inject constructor(
     private val eventDao: EventDao,
     private val attendanceDao: AttendanceDao
 ) : AttendanceCloudProvider {
+
+    override val isSyncing: StateFlow<Boolean> = MutableStateFlow(false).asStateFlow()
     
     // In-memory "cloud" state for the demo session to simulate real-time push/pull
     // This allows immediate feedback without waiting for Room's asynchronous cycles in some cases

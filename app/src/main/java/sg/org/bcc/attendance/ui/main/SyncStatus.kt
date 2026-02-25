@@ -37,4 +37,7 @@ data class SyncProgress(
             isDemoMode || !isAuthed -> AppIcons.CloudOff
             else -> AppIcons.CloudDone
         }
+
+    val shouldRotate: Boolean
+        get() = syncState == SyncState.SYNCING
 }
