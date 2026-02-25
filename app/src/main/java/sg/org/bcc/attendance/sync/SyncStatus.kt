@@ -1,4 +1,4 @@
-package sg.org.bcc.attendance.ui.main
+package sg.org.bcc.attendance.sync
 
 import sg.org.bcc.attendance.data.remote.AuthState
 import sg.org.bcc.attendance.ui.components.AppIcons

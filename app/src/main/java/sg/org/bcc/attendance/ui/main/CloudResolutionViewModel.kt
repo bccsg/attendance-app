@@ -9,15 +9,19 @@ import sg.org.bcc.attendance.data.local.entities.Attendee
 import sg.org.bcc.attendance.data.local.entities.Event
 import sg.org.bcc.attendance.data.local.entities.Group
 import sg.org.bcc.attendance.data.repository.AttendanceRepository
+import sg.org.bcc.attendance.sync.SyncStatusManager
 import javax.inject.Inject
 
 @HiltViewModel
 class CloudResolutionViewModel @Inject constructor(
-    private val repository: AttendanceRepository
+    private val repository: AttendanceRepository,
+    private val syncStatusManager: SyncStatusManager
 ) : ViewModel() {
 
     private val _isProcessing = MutableStateFlow(false)
     val isProcessing: StateFlow<Boolean> = _isProcessing.asStateFlow()
+
+    val syncProgress = syncStatusManager.syncProgress
 
     private val _resolutionError = MutableStateFlow<String?>(null)
     val resolutionError: StateFlow<String?> = _resolutionError.asStateFlow()

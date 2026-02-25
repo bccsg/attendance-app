@@ -13,16 +13,8 @@ import sg.org.bcc.attendance.data.remote.AuthState
 import sg.org.bcc.attendance.util.FuzzySearchScorer
 import sg.org.bcc.attendance.util.EventSuggester
 import android.content.Context
-import androidx.lifecycle.asFlow
-import androidx.work.WorkManager
 import dagger.hilt.android.qualifiers.ApplicationContext
-import sg.org.bcc.attendance.sync.SyncWorker
-import sg.org.bcc.attendance.sync.PullWorker
-import sg.org.bcc.attendance.sync.SyncScheduler
-import android.net.ConnectivityManager
-import android.net.Network
-import android.net.NetworkCapabilities
-import android.net.NetworkRequest
+import sg.org.bcc.attendance.sync.*
 import java.time.LocalDate
 import javax.inject.Inject
 import androidx.core.content.edit
@@ -42,20 +34,14 @@ enum class SortMode {
 class MainListViewModel @Inject constructor(
     private val repository: AttendanceRepository,
     private val authManager: AuthManager,
+    private val syncStatusManager: SyncStatusManager,
     @param:ApplicationContext private val context: Context
 ) : ViewModel() {
 
     private val prefs = context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
 
-    private val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-    private val _isOnline = MutableStateFlow(isCurrentlyOnline())
-    val isOnline: StateFlow<Boolean> = _isOnline.asStateFlow()
-
-    private fun isCurrentlyOnline(): Boolean {
-        val network = connectivityManager.activeNetwork ?: return false
-        val capabilities = connectivityManager.getNetworkCapabilities(network) ?: return false
-        return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-    }
+    val isOnline = syncStatusManager.isOnline
+    val syncProgress = syncStatusManager.syncProgress
 
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
@@ -91,7 +77,8 @@ class MainListViewModel @Inject constructor(
     val authState = authManager.authState
     val isDemoMode = authManager.isDemoMode
 
-    val hasSyncError = MutableStateFlow(false)
+    val hasSyncError = syncProgress.map { it.syncState == SyncState.ERROR }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
     val isSyncing = repository.isSyncing
 
     val cloudProfile: StateFlow<CloudProfile?> = isAuthed.map { authed ->
@@ -101,17 +88,6 @@ class MainListViewModel @Inject constructor(
             )
         } else null
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
-
-    private val _syncProgress = MutableStateFlow(SyncProgress(
-        pendingJobs = 0,
-        nextScheduledPull = System.currentTimeMillis() + 15 * 60 * 1000,
-        lastPullTime = null,
-        lastPullStatus = "Never",
-        lastErrors = emptyList(),
-        isOnline = isCurrentlyOnline(),
-        isDemoMode = authManager.isDemoMode.value
-    ))
-    val syncProgress: StateFlow<SyncProgress> = _syncProgress.asStateFlow()
 
     private val _showCloudStatusDialog = MutableStateFlow(false)
     val showCloudStatusDialog: StateFlow<Boolean> = _showCloudStatusDialog.asStateFlow()
@@ -148,16 +124,13 @@ class MainListViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
     val missingCloudEvents = repository.getMissingOnCloudEvents()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val missingCloudEventsCount = missingCloudEvents.map { it.size }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
-    val syncPendingCount = repository.getPendingSyncCount()
-        .stateIn(viewModelScope, SharingStarted.Eagerly, 0)
-
-    val syncPending = syncPendingCount.map { it > 0 }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+    val syncPending = syncProgress.map { it.pendingJobs > 0 }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     val availableEvents: StateFlow<List<Event>> = repository.getManageableEvents()
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
@@ -165,15 +138,8 @@ class MainListViewModel @Inject constructor(
     private val _currentEventId = MutableStateFlow<String?>(prefs.getString("selected_event_id", null))
     val currentEventId: StateFlow<String?> = _currentEventId.asStateFlow()
 
-    val isBlockingEventMissing: StateFlow<Boolean> = combine(
-        repository.getOldestPendingEventId(),
-        _currentEventId,
-        missingCloudEvents
-    ) { oldestId, currentId, missingEvents ->
-        val oldestMissing = oldestId != null && missingEvents.any { it.id == oldestId }
-        val currentMissing = currentId != null && missingEvents.any { it.id == currentId }
-        oldestMissing || currentMissing
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+    val isBlockingEventMissing: StateFlow<Boolean> = syncProgress.map { it.isBlockingEventMissing }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     fun onNavigateToResolutionScreen() {
         _navigateToResolutionScreenEvent.tryEmit(Unit)
@@ -429,133 +395,16 @@ class MainListViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
     init {
-        val networkRequest = NetworkRequest.Builder()
-            .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-            .build()
-        
-        connectivityManager.registerNetworkCallback(networkRequest, object : ConnectivityManager.NetworkCallback() {
-            override fun onAvailable(network: Network) {
-                _isOnline.value = isCurrentlyOnline()
-            }
-            override fun onLost(network: Network) {
-                _isOnline.value = isCurrentlyOnline()
-            }
-            override fun onCapabilitiesChanged(network: Network, capabilities: NetworkCapabilities) {
-                _isOnline.value = isCurrentlyOnline()
-            }
-        })
-
         combine(
-            WorkManager.getInstance(context)
-                .getWorkInfosForUniqueWorkLiveData(SyncScheduler.SYNC_WORK_NAME)
-                .asFlow()
-                .onStart { emit(emptyList()) },
-            WorkManager.getInstance(context)
-                .getWorkInfosForUniqueWorkLiveData(SyncScheduler.PULL_WORK_NAME)
-                .asFlow()
-                .onStart { emit(emptyList()) },
-            _isOnline,
-            repository.getPendingSyncCount().onStart { emit(0) },
-            authManager.authState.onStart { emit(authManager.authState.value) },
-            authManager.isAuthed.onStart { emit(authManager.isAuthed.value) },
-            authManager.isDemoMode.onStart { emit(authManager.isDemoMode.value) },
-            isBlockingEventMissing.onStart { emit(isBlockingEventMissing.value) },
-            isSyncing
-        ) { flows ->
-            val syncWorkInfos = flows[0] as List<androidx.work.WorkInfo>
-            val pullWorkInfos = flows[1] as List<androidx.work.WorkInfo>
-            val online = flows[2] as Boolean
-            val pendingCount = flows[3] as Int
-            val authState = flows[4] as AuthState
-            val isAuthed = flows[5] as Boolean
-            val isDemoMode = flows[6] as Boolean
-            val blockingMissing = flows[7] as Boolean
-            val isCloudActive = flows[8] as Boolean
-
-            val syncWorkInfo = syncWorkInfos.firstOrNull()
-            val pullWorkInfo = pullWorkInfos.firstOrNull()
-            
-            val syncPrefs = context.getSharedPreferences("sync_prefs", Context.MODE_PRIVATE)
-            val lastPullTimeStored = syncPrefs.getLong("last_pull_time", 0L).let { if (it == 0L) null else it }
-            val lastPullStatusStored = syncPrefs.getString("last_pull_status", "Never")
-            
-            val nextScheduledPull = pullWorkInfo?.nextScheduleTimeMillis?.let { if (it == 0L) null else it }
-                ?: lastPullTimeStored?.let { it + 15 * 60 * 1000 }
-
-            var currentOp: String? = null
-            var newState = if (isCloudActive) SyncState.SYNCING else SyncState.IDLE
-            var errorMsg: String? = null
-
-            if (syncWorkInfo != null) {
-                val progress = syncWorkInfo.progress
-                val op = progress.getString(SyncWorker.PROGRESS_OP)
-                if (op != null) currentOp = op
-                
-                val stateStr = progress.getString(SyncWorker.PROGRESS_STATE)
-                errorMsg = progress.getString(SyncWorker.PROGRESS_ERROR) ?: syncWorkInfo.outputData.getString(SyncWorker.PROGRESS_ERROR)
-                
-                if (newState == SyncState.IDLE) {
-                    newState = when (stateStr) {
-                        "SYNCING" -> SyncState.SYNCING
-                        "RETRYING" -> SyncState.RETRYING
-                        "IDLE" -> SyncState.IDLE
-                        else -> {
-                            when (syncWorkInfo.state) {
-                                androidx.work.WorkInfo.State.RUNNING -> SyncState.SYNCING
-                                androidx.work.WorkInfo.State.ENQUEUED -> SyncState.IDLE
-                                androidx.work.WorkInfo.State.FAILED -> SyncState.ERROR
-                                else -> SyncState.IDLE
-                            }
-                        }
-                    }
-                }
-            }
-
-            if (newState == SyncState.IDLE && pullWorkInfo != null) {
-                val progress = pullWorkInfo.progress
-                val stateStr = progress.getString(PullWorker.PROGRESS_STATE)
-                
-                if (stateStr == "SYNCING") {
-                    val op = progress.getString(PullWorker.PROGRESS_OP)
-                    if (op != null) currentOp = op
-                    newState = SyncState.SYNCING
-                } else if (stateStr == "ERROR") {
-                    errorMsg = progress.getString(PullWorker.PROGRESS_ERROR)
-                    newState = SyncState.ERROR
-                }
-            }
-
-            if (isCloudActive && currentOp == null) {
-                currentOp = "Synchronizing..."
-            }
-
-            if ((newState == SyncState.IDLE || newState == SyncState.RETRYING) && pendingCount > 0 && !online) {
-                newState = SyncState.NO_INTERNET
-            }
-
-            val currentErrors = _syncProgress.value.lastErrors.toMutableList()
-            if (errorMsg != null && (currentErrors.isEmpty() || currentErrors.first().message != errorMsg)) {
-                currentErrors.add(0, SyncError(System.currentTimeMillis(), errorMsg))
-            } else if (newState == SyncState.SYNCING && errorMsg == null) {
-                currentErrors.clear()
-            }
-
-            _syncProgress.value = _syncProgress.value.copy(
-                pendingJobs = pendingCount,
-                currentOperation = currentOp,
-                syncState = newState,
-                lastErrors = currentErrors,
-                nextScheduledPull = nextScheduledPull,
-                lastPullTime = lastPullTimeStored,
-                lastPullStatus = lastPullStatusStored,
-                authState = authState,
-                isAuthed = isAuthed,
-                isDemoMode = isDemoMode,
-                isOnline = online,
-                isBlockingEventMissing = blockingMissing
-            )
-            
-            hasSyncError.value = newState == SyncState.ERROR
+            repository.getOldestPendingEventId(),
+            _currentEventId,
+            missingCloudEvents
+        ) { oldestId, currentId, missingEvents ->
+            val oldestMissing = oldestId != null && missingEvents.any { it.id == oldestId }
+            val currentMissing = currentId != null && missingEvents.any { it.id == currentId }
+            oldestMissing || currentMissing
+        }.onEach {
+            syncStatusManager.setBlockingEventMissing(it)
         }.launchIn(viewModelScope)
 
         viewModelScope.launch {

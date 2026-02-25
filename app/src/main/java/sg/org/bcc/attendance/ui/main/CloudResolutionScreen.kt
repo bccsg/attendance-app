@@ -23,8 +23,10 @@ import sg.org.bcc.attendance.data.local.entities.Event
 import sg.org.bcc.attendance.data.local.entities.Group
 import sg.org.bcc.attendance.ui.components.AppIcon
 import sg.org.bcc.attendance.ui.components.AppIcons
+import sg.org.bcc.attendance.ui.components.RotatingSyncIcon
 import sg.org.bcc.attendance.ui.components.DateIcon
 import sg.org.bcc.attendance.util.EventSuggester
+import sg.org.bcc.attendance.sync.SyncState
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -39,22 +41,12 @@ fun CloudResolutionScreen(
     val missingGroups by viewModel.missingGroups.collectAsState()
     val missingEvents by viewModel.missingEvents.collectAsState()
     val isProcessing by viewModel.isProcessing.collectAsState()
+    val syncProgress by viewModel.syncProgress.collectAsState()
     val resolutionError by viewModel.resolutionError.collectAsState()
     
     var selectedEventForResolution by remember { mutableStateOf<Event?>(null) }
     var selectedAttendeeForResolution by remember { mutableStateOf<Attendee?>(null) }
     var selectedGroupForResolution by remember { mutableStateOf<Group?>(null) }
-
-    val infiniteTransition = rememberInfiniteTransition(label = "SyncRotation")
-    val rotation by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1500, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "Rotation"
-    )
 
     Scaffold(
         topBar = {
@@ -66,14 +58,15 @@ fun CloudResolutionScreen(
                     }
                 },
                 actions = {
-                    if (isProcessing) {
-                        AppIcon(
-                            resourceId = AppIcons.Sync,
-                            contentDescription = "Processing",
-                            modifier = Modifier
-                                .size(24.dp)
-                                .graphicsLayer { rotationZ = rotation },
-                            tint = MaterialTheme.colorScheme.primary
+                    if (syncProgress.syncState != SyncState.IDLE || isProcessing) {
+                        val icon = if (syncProgress.syncState != SyncState.IDLE) syncProgress.cloudStatusIcon else AppIcons.Sync
+                        val shouldRotate = if (syncProgress.syncState != SyncState.IDLE) syncProgress.shouldRotate else true
+                        
+                        RotatingSyncIcon(
+                            resourceId = icon,
+                            contentDescription = "Syncing",
+                            tint = MaterialTheme.colorScheme.primary,
+                            shouldRotate = shouldRotate
                         )
                         Spacer(modifier = Modifier.width(16.dp))
                     }

@@ -8,13 +8,15 @@ import kotlinx.coroutines.launch
 import sg.org.bcc.attendance.data.local.entities.Event
 import sg.org.bcc.attendance.data.remote.AuthManager
 import sg.org.bcc.attendance.data.repository.AttendanceRepository
+import sg.org.bcc.attendance.sync.SyncStatusManager
 import java.time.LocalDate
 import javax.inject.Inject
 
 @HiltViewModel
 class EventManagementViewModel @Inject constructor(
     private val repository: AttendanceRepository,
-    private val authManager: AuthManager
+    private val authManager: AuthManager,
+    private val syncStatusManager: SyncStatusManager
 ) : ViewModel() {
 
     private val _events = repository.getAllEvents()
@@ -26,7 +28,7 @@ class EventManagementViewModel @Inject constructor(
     val manageableEvents: StateFlow<List<Event>> = repository.getManageableEvents()
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
-    val isSyncing = repository.isSyncing
+    val syncProgress = syncStatusManager.syncProgress
 
     init {
         viewModelScope.launch {

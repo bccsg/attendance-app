@@ -23,6 +23,7 @@ import sg.org.bcc.attendance.data.remote.AttendanceCloudProvider
 import sg.org.bcc.attendance.data.remote.AuthManager
 import sg.org.bcc.attendance.data.repository.AttendanceRepository
 import sg.org.bcc.attendance.ui.main.CloudResolutionViewModel
+import sg.org.bcc.attendance.sync.*
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
@@ -30,6 +31,7 @@ class CloudResolutionViewModelTest {
     private lateinit var context: Context
     private lateinit var db: AttendanceDatabase
     private lateinit var repository: AttendanceRepository
+    private lateinit var syncStatusManager: SyncStatusManager
     private lateinit var viewModel: CloudResolutionViewModel
     private val testDispatcher = StandardTestDispatcher()
 
@@ -42,8 +44,11 @@ class CloudResolutionViewModelTest {
         
         val cloudProvider = mockk<AttendanceCloudProvider>(relaxed = true)
         val authManager = mockk<AuthManager>(relaxed = true)
+        syncStatusManager = mockk<SyncStatusManager>(relaxed = true)
         
         every { authManager.isDemoMode } returns MutableStateFlow(false)
+        every { syncStatusManager.syncProgress } returns MutableStateFlow(SyncProgress(0, nextScheduledPull = null, lastPullTime = null, lastPullStatus = null, lastErrors = emptyList()))
+        
         Dispatchers.setMain(testDispatcher)
         
         repository = AttendanceRepository(
@@ -62,7 +67,7 @@ class CloudResolutionViewModelTest {
             sg.org.bcc.attendance.util.time.TrueTimeProvider(),
             mockk(relaxed = true)
         )
-        viewModel = CloudResolutionViewModel(repository)
+        viewModel = CloudResolutionViewModel(repository, syncStatusManager)
     }
 
     @After

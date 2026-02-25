@@ -24,9 +24,11 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import sg.org.bcc.attendance.data.local.entities.Event
 import sg.org.bcc.attendance.ui.components.AppIcon
 import sg.org.bcc.attendance.ui.components.AppIcons
+import sg.org.bcc.attendance.ui.components.RotatingSyncIcon
 import sg.org.bcc.attendance.ui.components.DateIcon
 import sg.org.bcc.attendance.util.EventSuggester
 import sg.org.bcc.attendance.util.SetStatusBarIconsColor
+import sg.org.bcc.attendance.sync.SyncState
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
@@ -49,21 +51,10 @@ fun EventManagementScreen(
 ) {
     val events by viewModel.manageableEvents.collectAsState()
     val isDemoMode by viewModel.isDemoMode.collectAsState()
-    val isSyncing by viewModel.isSyncing.collectAsState()
+    val syncProgress by viewModel.syncProgress.collectAsState()
     val uiError by viewModel.uiError.collectAsState()
     var showCreateDialog by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
-
-    val infiniteTransition = rememberInfiniteTransition(label = "SyncRotation")
-    val rotation by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1500, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "Rotation"
-    )
 
     LaunchedEffect(uiError) {
         uiError?.let {
@@ -90,14 +81,12 @@ fun EventManagementScreen(
                         }
                     },
                     actions = {
-                        if (isSyncing) {
-                            AppIcon(
-                                resourceId = AppIcons.Sync,
-                                contentDescription = "Syncing",
-                                modifier = Modifier
-                                    .size(24.dp)
-                                    .graphicsLayer { rotationZ = rotation },
-                                tint = MaterialTheme.colorScheme.onPrimary
+                        if (syncProgress.syncState != SyncState.IDLE || syncProgress.isBlockingEventMissing) {
+                            RotatingSyncIcon(
+                                resourceId = syncProgress.cloudStatusIcon,
+                                contentDescription = "Sync Status",
+                                tint = MaterialTheme.colorScheme.onPrimary,
+                                shouldRotate = syncProgress.shouldRotate
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                         }

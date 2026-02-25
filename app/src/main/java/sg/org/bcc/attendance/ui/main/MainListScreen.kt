@@ -48,9 +48,11 @@ import sg.org.bcc.attendance.data.local.entities.Event
 import sg.org.bcc.attendance.ui.queue.QueueScreen
 import sg.org.bcc.attendance.ui.theme.DeepGreen
 import sg.org.bcc.attendance.ui.theme.PastelGreen
+import sg.org.bcc.attendance.sync.*
 import sg.org.bcc.attendance.ui.theme.Purple40
 import sg.org.bcc.attendance.ui.components.AppIcon
 import sg.org.bcc.attendance.ui.components.AppIcons
+import sg.org.bcc.attendance.ui.components.RotatingSyncIcon
 import sg.org.bcc.attendance.ui.components.DateIcon
 import sg.org.bcc.attendance.ui.components.pinchToScale
 import sg.org.bcc.attendance.util.EventSuggester
@@ -167,27 +169,6 @@ fun MainListScreen(
             }
         }
     }
-
-    val infiniteTransition = rememberInfiniteTransition(label = "SyncPulsing")
-    val syncAlpha by infiniteTransition.animateFloat(
-        initialValue = 1f,
-        targetValue = 0.3f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1000, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "SyncAlpha"
-    )
-
-    val syncRotation by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = -360f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(2000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "SyncRotation"
-    )
 
     // Ensure status bar content remains white
     val view = LocalView.current
@@ -369,7 +350,6 @@ fun MainListScreen(
             syncProgress = syncProgress,
             isDemoMode = isDemoMode,
             isOnline = isOnline,
-            syncRotation = syncRotation,
             loginError = loginError,
             totalAttendeesCount = totalAttendeesCount,
             totalGroupsCount = totalGroupsCount,
@@ -563,11 +543,11 @@ fun MainListScreen(
                                         }
                                     } else {
                                         IconButton(onClick = viewModel::onSyncMasterList) {
-                                            AppIcon(
+                                            RotatingSyncIcon(
                                                 resourceId = syncProgress.cloudStatusIcon,
                                                 contentDescription = "Sync Status",
                                                 tint = MaterialTheme.colorScheme.onPrimary,
-                                                modifier = if (syncProgress.shouldRotate) Modifier.graphicsLayer { rotationZ = syncRotation } else Modifier
+                                                shouldRotate = syncProgress.shouldRotate
                                             )
                                         }
                                         IconButton(onClick = { showMenu = true }) {
@@ -1341,7 +1321,6 @@ fun CloudStatusDialog(
     syncProgress: SyncProgress,
     isDemoMode: Boolean,
     isOnline: Boolean,
-    syncRotation: Float,
     loginError: String? = null,
     totalAttendeesCount: Int = 0,
     totalGroupsCount: Int = 0,
@@ -1364,11 +1343,11 @@ fun CloudStatusDialog(
         onDismissRequest = onDismiss,
         title = {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                AppIcon(
+                RotatingSyncIcon(
                     resourceId = syncProgress.cloudStatusIcon, 
                     contentDescription = null, 
                     tint = MaterialTheme.colorScheme.primary,
-                    modifier = if (syncProgress.shouldRotate) Modifier.graphicsLayer { rotationZ = syncRotation } else Modifier
+                    shouldRotate = syncProgress.shouldRotate
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text("Cloud Status")
@@ -1642,13 +1621,12 @@ fun CloudStatusDialog(
             if (isAuthed && authState == sg.org.bcc.attendance.data.remote.AuthState.AUTHENTICATED) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (syncProgress.shouldRotate) {
-                        AppIcon(
+                        RotatingSyncIcon(
                             resourceId = syncProgress.cloudStatusIcon,
                             contentDescription = "Syncing",
-                            modifier = Modifier
-                                .size(18.dp)
-                                .graphicsLayer { rotationZ = syncRotation },
-                            tint = MaterialTheme.colorScheme.primary
+                            modifier = Modifier.size(18.dp),
+                            tint = MaterialTheme.colorScheme.primary,
+                            shouldRotate = true
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                     }
