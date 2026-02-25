@@ -50,6 +50,7 @@ fun QueueScreen(
     currentEventId: String?, // Changed from currentEventTitle to ensure DB commit works
     textScale: Float,
     onTextScaleChange: (Float) -> Unit = {},
+    onNavigateToQrScanner: () -> Unit = {},
     viewModel: QueueViewModel = hiltViewModel()
 ) {
     LaunchedEffect(currentEventId) {
@@ -203,9 +204,7 @@ fun QueueScreen(
 
                     // RIGHT-ALIGNED SCAN QR FAB
                     FloatingActionButton(
-                        onClick = {
-                            scope.launch { snackbarHostState.showSnackbar("QR Scanner coming soon") }
-                        },
+                        onClick = onNavigateToQrScanner,
                         modifier = Modifier.align(Alignment.CenterEnd),
                         containerColor = MaterialTheme.colorScheme.primaryContainer,
                         contentColor = MaterialTheme.colorScheme.onPrimaryContainer,

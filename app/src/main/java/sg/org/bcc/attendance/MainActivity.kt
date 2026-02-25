@@ -25,6 +25,8 @@ import sg.org.bcc.attendance.ui.main.CloudResolutionScreen
 import sg.org.bcc.attendance.ui.event.EventManagementScreen
 import sg.org.bcc.attendance.ui.queue.SyncLogsScreen
 import sg.org.bcc.attendance.ui.theme.AttendanceTheme
+import androidx.navigation.navArgument
+import androidx.navigation.NavType
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {

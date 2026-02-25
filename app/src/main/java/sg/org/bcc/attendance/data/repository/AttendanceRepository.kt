@@ -13,6 +13,7 @@ import sg.org.bcc.attendance.sync.NoOpSyncLogScope
 import sg.org.bcc.attendance.sync.SyncLogScope
 import sg.org.bcc.attendance.sync.SyncScheduler
 import sg.org.bcc.attendance.util.EventSuggester
+import sg.org.bcc.attendance.util.qr.QrInfo
 import sg.org.bcc.attendance.util.time.TimeProvider
 import java.time.LocalDate
 import javax.inject.Inject
@@ -642,6 +643,49 @@ class AttendanceRepository @Inject constructor(
                 deleteEvent(event.id)
             }
         }
+    }
+
+    suspend fun processQrInfo(info: QrInfo): String {
+        // 1. Group Logic Priority
+        if (info.groupId != null) {
+            val group = groupDao.getAllGroups().first().find { it.groupId == info.groupId }
+            if (group != null) {
+                val members = getAttendeesByGroup(group.groupId).first()
+                if (members.isNotEmpty()) {
+                    val currentQueue = persistentQueueDao.getQueue().first().map { it.attendeeId }.toSet()
+                    val newMembers = members.filter { it.id !in currentQueue }
+                    if (newMembers.isNotEmpty()) {
+                        persistentQueueDao.insertAll(newMembers.map { PersistentQueue(it.id) })
+                        return "Queued ${newMembers.size} members from ${group.name}"
+                    }
+                    return "${group.name} members already in queue"
+                }
+            }
+            // Fallback: If group not found or empty, try to queue individual if present
+        }
+
+        // 2. Individual Logic
+        if (info.personId != null) {
+            var attendee = attendeeDao.getAttendeeById(info.personId)
+            if (attendee == null) {
+                // Auto-create if missing
+                attendee = Attendee(
+                    id = info.personId,
+                    fullName = info.personName ?: info.personId,
+                    notExistOnCloud = true
+                )
+                attendeeDao.upsert(attendee)
+            }
+            
+            val currentQueue = persistentQueueDao.getQueue().first().map { it.attendeeId }.toSet()
+            if (attendee.id !in currentQueue) {
+                persistentQueueDao.insertAll(listOf(PersistentQueue(attendee.id)))
+                return "Queued ${attendee.shortName ?: attendee.fullName}"
+            }
+            return "${attendee.shortName ?: attendee.fullName} already in queue"
+        }
+
+        return "Invalid QR payload"
     }
 }
 

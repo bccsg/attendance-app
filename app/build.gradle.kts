@@ -54,6 +54,9 @@ android {
     kotlin {
         compilerOptions {
             jvmTarget.set(JvmTarget.JVM_21)
+            freeCompilerArgs.addAll(
+                "-opt-in=androidx.compose.material3.ExperimentalMaterial3Api",
+            )
         }
     }
     buildFeatures {
@@ -62,6 +65,12 @@ android {
     }
     room {
         schemaDirectory("$projectDir/schemas")
+    }
+
+    testOptions {
+        unitTests {
+            isIncludeAndroidResources = true
+        }
     }
 
     packaging {
@@ -104,6 +113,18 @@ dependencies {
     implementation(libs.androidxCredentialsPlayServices)
     implementation(libs.googleId)
     ksp(libs.androidxHiltCompiler)
+
+    // CameraX
+    implementation(libs.androidxCameraCore)
+    implementation(libs.androidxCameraCamera2)
+    implementation(libs.androidxCameraLifecycle)
+    implementation(libs.androidxCameraView)
+
+    // ML Kit
+    implementation(libs.mlkitBarcodeScanning)
+
+    // ZXing
+    implementation(libs.zxingCore)
 
     // Room
     implementation(libs.roomRuntime)

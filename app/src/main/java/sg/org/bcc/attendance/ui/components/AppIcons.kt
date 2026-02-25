@@ -22,6 +22,7 @@ object AppIcons {
     val Close = R.drawable.ic_close
     val Check = R.drawable.ic_check
     val BookmarkAdded = R.drawable.ic_bookmark_added
+    val Share = R.drawable.ic_share
     val Visibility = R.drawable.ic_visibility
     val VisibilityOff = R.drawable.ic_visibility_off
     val ClearQueue = R.drawable.ic_playlist_remove
@@ -33,6 +34,7 @@ object AppIcons {
     val CloudAlert = R.drawable.ic_cloud_alert
     val Sync = R.drawable.ic_sync
     val Warning = R.drawable.ic_warning
+    val QrCode = R.drawable.ic_qr_code
     val QrCodeScanner = R.drawable.ic_qr_code_scanner
     val MoreVert = R.drawable.ic_more_vert
     val TextFields = R.drawable.ic_text_fields

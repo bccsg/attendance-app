@@ -23,8 +23,10 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.AnnotatedString
@@ -57,6 +59,7 @@ import sg.org.bcc.attendance.ui.components.DateIcon
 import sg.org.bcc.attendance.ui.components.pinchToScale
 import sg.org.bcc.attendance.util.EventSuggester
 import sg.org.bcc.attendance.util.SetStatusBarIconsColor
+import sg.org.bcc.attendance.util.qr.QrInfo
 import java.time.LocalTime
 import java.util.Locale
 
@@ -65,7 +68,8 @@ import java.util.Locale
 fun MainListScreen(
     viewModel: MainListViewModel = hiltViewModel(),
     onNavigateToEventManagement: () -> Unit = {},
-    onNavigateToSyncLogs: () -> Unit = {}
+    onNavigateToSyncLogs: () -> Unit = {},
+    onNavigateToQrScanner: () -> Unit = {}
 ) {
     val searchQuery by viewModel.searchQuery.collectAsState()
     val attendees by viewModel.attendees.collectAsState()
@@ -98,11 +102,14 @@ fun MainListScreen(
     val currentEventTitle by viewModel.currentEventTitle.collectAsState()
     val availableEvents by viewModel.availableEvents.collectAsState()
     val selectedAttendeeForDetail by viewModel.selectedAttendeeForDetail.collectAsState()
+    val qrSelection by viewModel.qrSelection.collectAsState()
+    val activeQrInfo by viewModel.activeQrInfo.collectAsState()
     val canNavigateBackInDetail by viewModel.canNavigateBackInDetail.collectAsState()
     val previousAttendeeName by viewModel.previousAttendeeName.collectAsState()
     val detailAttendeeGroups by viewModel.detailAttendeeGroups.collectAsState()
     val groupMembersMap by viewModel.groupMembersMap.collectAsState()
     val showQueueSheet by viewModel.showQueueSheet.collectAsState()
+    val showScannerSheet by viewModel.showScannerSheet.collectAsState()
     val fabState by viewModel.fabState.collectAsState()
     val sortMode by viewModel.sortMode.collectAsState()
     val textScale by viewModel.textScale.collectAsState()
@@ -183,6 +190,12 @@ fun MainListScreen(
         }
     }
 
+    LaunchedEffect(Unit) {
+        viewModel.qrMessageEvent.collect { message ->
+            snackbarHostState.showSnackbar(message)
+        }
+    }
+
     if (selectedAttendeeForDetail != null) {
         ModalBottomSheet(
             onDismissRequest = {
@@ -236,6 +249,8 @@ fun MainListScreen(
                             AttendeeDetailContent(
                                 attendee = selectedAttendeeForDetail!!,
                                 groups = detailAttendeeGroups,
+                                activeQrInfo = activeQrInfo,
+                                attendeeName = selectedAttendeeForDetail!!.shortName ?: selectedAttendeeForDetail!!.fullName,
                                 groupMembersMap = groupMembersMap,
                                 attendeeGroupsMap = attendeeGroupsMap,
                                 textScale = textScale,
@@ -249,6 +264,9 @@ fun MainListScreen(
                                 onAddAttendeeToQueue = {
                                     wasIndividualAddedJustNow = true
                                     viewModel.addAttendeeToQueue(selectedAttendeeForDetail!!.id)
+                                },
+                                onQrClick = {
+                                    viewModel.onQrTrigger(selectedAttendeeForDetail!!, detailAttendeeGroups)
                                 },
                                 onAddGroupToQueue = { groupId ->
                                     lastQueuedGroupId = groupId
@@ -278,7 +296,37 @@ fun MainListScreen(
                         .padding(bottom = 16.dp, end = 16.dp),
                     contentAlignment = Alignment.BottomEnd
                 ) {
-                    Column {
+                    Column(horizontalAlignment = Alignment.End) {
+                        if (activeQrInfo != null) {
+                            val context = LocalContext.current
+                            val bitmap = remember(activeQrInfo) {
+                                val name = selectedAttendeeForDetail?.shortName ?: selectedAttendeeForDetail?.fullName ?: ""
+                                sg.org.bcc.attendance.util.qr.QrImageGenerator.createQrWithText(activeQrInfo!!, name)
+                            }
+                            
+                            ExtendedFloatingActionButton(
+                                onClick = {
+                                    val fileName = "qr_${activeQrInfo!!.personId ?: activeQrInfo!!.groupId}.png"
+                                    val uri = sg.org.bcc.attendance.util.qr.QrImageGenerator.saveAndGetUri(context, bitmap, fileName)
+                                    if (uri != null) {
+                                        val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                                            type = "image/png"
+                                            putExtra(android.content.Intent.EXTRA_STREAM, uri)
+                                            addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                        }
+                                        context.startActivity(android.content.Intent.createChooser(intent, "Share QR Code"))
+                                    }
+                                                                    },
+                                                                    text = { Text("Share QR") },
+                                                                    icon = { AppIcon(resourceId = AppIcons.Share, contentDescription = null) },
+                                                                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                
+                                contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                                shape = CircleShape
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                        }
+
                         AnimatedVisibility(
                             visible = isVisible,
                             enter = fadeIn() + scaleIn(),
@@ -369,56 +417,115 @@ fun MainListScreen(
         )
     }
 
-    if (showQueueSheet) {
-        ModalBottomSheet(
-            onDismissRequest = {
-                viewModel.setShowQueueSheet(false)
-            },
-            sheetState = sheetState,
-            dragHandle = null,
-            containerColor = Color.Transparent,
-            scrimColor = Color.Black.copy(alpha = 0.32f),
-            tonalElevation = 0.dp
-        ) {
-            Column(modifier = Modifier.fillMaxWidth().navigationBarsPadding()) {
-                Spacer(modifier = Modifier.height(56.dp))
-                Surface(
-                    modifier = Modifier.fillMaxWidth().weight(1f),
-                    shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
-                    color = MaterialTheme.colorScheme.surfaceContainerLow,
-                    tonalElevation = 0.dp
-                ) {
-                    Column {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(Color.White),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            BottomSheetDefaults.DragHandle()
-                        }
-                        
-                        SetStatusBarIconsColor(isLight = false)
-                                                QueueScreen(
-                                                    onBack = {
-                                                        viewModel.setShowQueueSheet(false)
-                                                    },
-                                                    onActionComplete = { message: String, shouldClose: Boolean ->
-                                                        if (shouldClose) {
+    if (qrSelection != null) {
+        QrSelectionDialog(
+            selection = qrSelection!!,
+            onDismiss = viewModel::dismissQrSelection,
+            onConfirm = { group -> 
+                viewModel.onQrSelected(qrSelection!!.attendee, group)
+            }
+        )
+    }
+
+        if (showQueueSheet) {
+            ModalBottomSheet(
+                onDismissRequest = {
+                    viewModel.setShowQueueSheet(false)
+                },
+                sheetState = sheetState,
+                dragHandle = null,
+                containerColor = Color.Transparent,
+                scrimColor = Color.Black.copy(alpha = 0.32f),
+                tonalElevation = 0.dp
+            ) {
+                Column(modifier = Modifier.fillMaxWidth().navigationBarsPadding()) {
+                    Spacer(modifier = Modifier.height(56.dp))
+                    Surface(
+                        modifier = Modifier.fillMaxWidth().weight(1f),
+                        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainerLow,
+                        tonalElevation = 0.dp
+                    ) {
+                        Column {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(Color.White),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                BottomSheetDefaults.DragHandle()
+                            }
+                            
+                            SetStatusBarIconsColor(isLight = false)
+                                                    QueueScreen(
+                                                        onBack = {
                                                             viewModel.setShowQueueSheet(false)
+                                                        },
+                                                        onActionComplete = { message: String, shouldClose: Boolean ->
+                                                            if (shouldClose) {
+                                                                viewModel.setShowQueueSheet(false)
+                                                            }
+                                                            scope.launch {
+                                                                snackbarHostState.showSnackbar(message)
+                                                            }
+                                                        },
+                                                        currentEventId = currentEventId,
+                                                        textScale = textScale,
+                                                        onTextScaleChange = viewModel::setTextScale,
+                                                        onNavigateToQrScanner = {
+                                                            viewModel.setShowQueueSheet(false)
+                                                            viewModel.setShowScannerSheet(true)
                                                         }
-                                                        scope.launch {
-                                                            snackbarHostState.showSnackbar(message)
-                                                        }
-                                                    },
-                                                    currentEventId = currentEventId,
-                                                    textScale = textScale,
-                                                    onTextScaleChange = viewModel::setTextScale
-                                                )                    }
+                                                    )                    }
+                    }
                 }
             }
         }
-    }
+    
+        if (showScannerSheet) {
+            ModalBottomSheet(
+                onDismissRequest = {
+                    viewModel.setShowScannerSheet(false)
+                },
+                sheetState = sheetState,
+                dragHandle = null,
+                containerColor = Color.Transparent,
+                scrimColor = Color.Black.copy(alpha = 0.32f),
+                tonalElevation = 0.dp
+            ) {
+                Column(modifier = Modifier.fillMaxWidth().navigationBarsPadding()) {
+                    Spacer(modifier = Modifier.height(56.dp))
+                    Surface(
+                        modifier = Modifier.fillMaxWidth().weight(1f),
+                        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainerLow,
+                        tonalElevation = 0.dp
+                    ) {
+                        Column {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(Color.White),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                BottomSheetDefaults.DragHandle()
+                            }
+                            
+                            SetStatusBarIconsColor(isLight = false)
+                            sg.org.bcc.attendance.ui.qr.QrScannerContent(
+                                onScanResult = { code ->
+                                    viewModel.processQrResult(code)
+                                },
+                                onBack = {
+                                    viewModel.setShowScannerSheet(false)
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    
 
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
@@ -445,9 +552,7 @@ fun MainListScreen(
                             modifier = Modifier.padding(bottom = 16.dp),
                             text = { Text("Scan QR") },
                             icon = { AppIcon(resourceId = AppIcons.QrCodeScanner, contentDescription = null) },
-                            onClick = {
-                                scope.launch { snackbarHostState.showSnackbar("QR Scanner coming soon") }
-                            },
+                            onClick = { viewModel.setShowScannerSheet(true) },
                             containerColor = MaterialTheme.colorScheme.primaryContainer,
                             contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
                             shape = CircleShape
@@ -1058,6 +1163,8 @@ fun AttendeeListItem(
 fun AttendeeDetailContent(
     attendee: Attendee,
     groups: List<sg.org.bcc.attendance.data.local.entities.Group>,
+    activeQrInfo: QrInfo?,
+    attendeeName: String,
     groupMembersMap: Map<String, List<Attendee>>,
     attendeeGroupsMap: Map<String, List<String>>,
     textScale: Float,
@@ -1068,6 +1175,7 @@ fun AttendeeDetailContent(
     previousName: String? = null,
     onBack: () -> Unit = {},
     onAttendeeClick: (Attendee) -> Unit,
+    onQrClick: () -> Unit,
     onAddAttendeeToQueue: () -> Unit,
     onAddGroupToQueue: (String) -> Unit,
     animatingGroups: Set<String> = emptySet()
@@ -1151,13 +1259,22 @@ fun AttendeeDetailContent(
                     }
                 },
                 trailingContent = {
-                    if (queueIds.contains(attendee.id)) {
-                        AppIcon(
-                            resourceId = AppIcons.BookmarkAdded,
-                            contentDescription = "In Queue",
-                            modifier = Modifier.size(28.dp).padding(end = 4.dp),
-                            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
-                        )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = onQrClick) {
+                            AppIcon(
+                                resourceId = AppIcons.QrCode,
+                                contentDescription = "Generate QR",
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                        if (queueIds.contains(attendee.id)) {
+                            AppIcon(
+                                resourceId = AppIcons.BookmarkAdded,
+                                contentDescription = "In Queue",
+                                modifier = Modifier.size(28.dp).padding(end = 4.dp),
+                                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
+                            )
+                        }
                     }
                 },
                 colors = ListItemDefaults.colors(containerColor = Color.Transparent)
@@ -1173,6 +1290,36 @@ fun AttendeeDetailContent(
                 .pinchToScale(textScale, onTextScaleChange)
                 .background(MaterialTheme.colorScheme.surfaceContainerLow)
         ) {
+            if (activeQrInfo != null) {
+                item {
+                    val bitmap = remember(activeQrInfo) {
+                        sg.org.bcc.attendance.util.qr.QrImageGenerator.createQrWithText(activeQrInfo, attendeeName)
+                    }
+                    
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        color = Color.White
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            androidx.compose.foundation.Image(
+                                bitmap = bitmap.asImageBitmap(),
+                                contentDescription = "QR Code Preview",
+                                modifier = Modifier
+                                    .fillMaxWidth(0.8f)
+                                    .aspectRatio(bitmap.width.toFloat() / bitmap.height.toFloat()),
+                                contentScale = androidx.compose.ui.layout.ContentScale.Fit
+                            )
+                        }
+                    }
+                    HorizontalDivider()
+                }
+            }
+
             if (groups.isEmpty()) {
                 item {
                     Box(
@@ -1653,4 +1800,68 @@ private fun getHighlightedText(fullText: String, query: String): AnnotatedString
         pop()
         append(fullText.substring(endIndex))
     }
+}
+
+@Composable
+fun QrSelectionDialog(
+    selection: QrSelection,
+    onDismiss: () -> Unit,
+    onConfirm: (sg.org.bcc.attendance.data.local.entities.Group?) -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Generate QR Code") },
+        text = {
+            Column {
+                Text(
+                    text = "Select whether to generate a QR code for the individual or an associated group.",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                // Individual Option
+                Surface(
+                    onClick = { onConfirm(null) },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(8.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        AppIcon(resourceId = AppIcons.Person, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text(text = selection.attendee.fullName, style = MaterialTheme.typography.bodyLarge)
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                // Group Options
+                selection.groups.forEach { group ->
+                    Surface(
+                        onClick = { onConfirm(group) },
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                        shape = RoundedCornerShape(8.dp),
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            AppIcon(resourceId = AppIcons.Groups, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text(text = group.name, style = MaterialTheme.typography.bodyLarge)
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
 }

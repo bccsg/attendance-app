@@ -15,6 +15,7 @@ import sg.org.bcc.attendance.util.EventSuggester
 import android.content.Context
 import dagger.hilt.android.qualifiers.ApplicationContext
 import sg.org.bcc.attendance.sync.*
+import sg.org.bcc.attendance.util.qr.QrInfo
 import java.time.LocalDate
 import javax.inject.Inject
 import androidx.core.content.edit
@@ -22,6 +23,11 @@ import androidx.core.content.edit
 data class CloudProfile(
     val email: String,
     val profileImageUrl: String? = null
+)
+
+data class QrSelection(
+    val attendee: Attendee,
+    val groups: List<sg.org.bcc.attendance.data.local.entities.Group>
 )
 
 enum class SortMode {
@@ -100,6 +106,9 @@ class MainListViewModel @Inject constructor(
     private val _showQueueSheet = MutableStateFlow(false)
     val showQueueSheet: StateFlow<Boolean> = _showQueueSheet.asStateFlow()
 
+    private val _showScannerSheet = MutableStateFlow(false)
+    val showScannerSheet: StateFlow<Boolean> = _showScannerSheet.asStateFlow()
+
     // Events for MainActivity to observe
     private val _loginRequestEvent = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val loginRequestEvent = _loginRequestEvent.asSharedFlow()
@@ -107,8 +116,62 @@ class MainListViewModel @Inject constructor(
     private val _navigateToResolutionScreenEvent = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val navigateToResolutionScreenEvent = _navigateToResolutionScreenEvent.asSharedFlow()
 
+    private val _qrSelection = MutableStateFlow<QrSelection?>(null)
+    val qrSelection: StateFlow<QrSelection?> = _qrSelection.asStateFlow()
+
+    private val _activeQrInfo = MutableStateFlow<QrInfo?>(null)
+    val activeQrInfo: StateFlow<QrInfo?> = _activeQrInfo.asStateFlow()
+
+    fun onQrTrigger(attendee: Attendee, groups: List<sg.org.bcc.attendance.data.local.entities.Group>) {
+        if (groups.isEmpty()) {
+            onQrSelected(attendee, null)
+        } else {
+            _qrSelection.value = QrSelection(attendee, groups)
+        }
+    }
+
+    fun onQrSelected(attendee: Attendee, group: sg.org.bcc.attendance.data.local.entities.Group?) {
+        _qrSelection.value = null
+        val info = if (group != null) {
+            QrInfo(
+                personId = attendee.id,
+                personName = attendee.shortName ?: attendee.fullName,
+                groupId = group.groupId,
+                groupName = group.name
+            )
+        } else {
+            QrInfo(personId = attendee.id, personName = attendee.shortName ?: attendee.fullName)
+        }
+        _activeQrInfo.value = info
+    }
+
+    fun dismissQrSelection() {
+        _qrSelection.value = null
+    }
+
+    private val _qrMessageEvent = MutableSharedFlow<String>(extraBufferCapacity = 1)
+    val qrMessageEvent = _qrMessageEvent.asSharedFlow()
+
+    fun processQrResult(code: String): Boolean {
+        val info = sg.org.bcc.attendance.util.qr.QrUrlParser.parse(code)
+        if (info != null && info.isValid()) {
+            viewModelScope.launch {
+                val message = repository.processQrInfo(info)
+                _qrMessageEvent.emit(message)
+                _showScannerSheet.value = false
+                _showQueueSheet.value = true
+            }
+            return true
+        }
+        return false
+    }
+
     fun setShowQueueSheet(show: Boolean) {
         _showQueueSheet.value = show
+    }
+
+    fun setShowScannerSheet(show: Boolean) {
+        _showScannerSheet.value = show
     }
 
     val missingCloudAttendees = repository.getMissingOnCloudAttendees()
@@ -544,6 +607,7 @@ class MainListViewModel @Inject constructor(
                 detailNavigationStack.add(current)
                 _canNavigateBackInDetail.value = true
                 _previousAttendeeName.value = current.shortName ?: current.fullName
+                _activeQrInfo.value = null
             }
         }
         _selectedAttendeeForDetail.value = attendee
@@ -553,6 +617,7 @@ class MainListViewModel @Inject constructor(
         if (detailNavigationStack.isNotEmpty()) {
             val previous = detailNavigationStack.removeAt(detailNavigationStack.size - 1)
             _selectedAttendeeForDetail.value = previous
+            _activeQrInfo.value = null
             _canNavigateBackInDetail.value = detailNavigationStack.isNotEmpty()
             _previousAttendeeName.value = detailNavigationStack.lastOrNull()?.let { it.shortName ?: it.fullName }
         }
@@ -560,6 +625,7 @@ class MainListViewModel @Inject constructor(
 
     fun dismissAttendeeDetail() {
         _selectedAttendeeForDetail.value = null
+        _activeQrInfo.value = null
         detailNavigationStack.clear()
         _canNavigateBackInDetail.value = false
         _previousAttendeeName.value = null

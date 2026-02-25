@@ -28,6 +28,9 @@ credentials = "1.5.0"
 googleid = "1.2.0"
 junit = "4.13.2"
 junit-jupiter = "6.0.3"
+camerax = "1.5.0-alpha05"
+mlkitBarcode = "17.3.0"
+zxing = "3.5.3"
 
 [libraries]
 androidxCoreKtx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -58,6 +61,18 @@ googleHttpJson = { group = "com.google.http-client", name = "google-http-client-
 androidxCredentials = { group = "androidx.credentials", name = "credentials", version.ref = "credentials" }
 androidxCredentialsPlayServices = { group = "androidx.credentials", name = "credentials-play-services-auth", version.ref = "credentials" }
 googleId = { group = "com.google.android.libraries.identity.googleid", name = "googleid", version.ref = "googleid" }
+
+# CameraX
+androidxCameraCore = { group = "androidx.camera", name = "camera-core", version.ref = "camerax" }
+androidxCameraCamera2 = { group = "androidx.camera", name = "camera-camera2", version.ref = "camerax" }
+androidxCameraLifecycle = { group = "androidx.camera", name = "camera-lifecycle", version.ref = "camerax" }
+androidxCameraView = { group = "androidx.camera", name = "camera-view", version.ref = "camerax" }
+
+# ML Kit
+mlkitBarcodeScanning = { group = "com.google.mlkit", name = "barcode-scanning", version.ref = "mlkitBarcode" }
+
+# ZXing
+zxingCore = { group = "com.google.zxing", name = "core", version.ref = "zxing" }
 
 # Room
 roomRuntime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }

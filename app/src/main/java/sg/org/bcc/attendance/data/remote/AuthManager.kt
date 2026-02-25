@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION")
+
 package sg.org.bcc.attendance.data.remote
 
 import android.content.Context
