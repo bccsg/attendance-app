@@ -126,51 +126,81 @@ class MissingOnCloudSyncTest {
     }
 
     @Test
-    fun `syncMasterList should upsert placeholders for unknown IDs in mappings`() {
+    fun `syncMasterList should create multiple placeholders for unknown IDs in mappings`() {
         runBlocking {
-            // Mock remote data with mapping referencing unknown attendee and group
+            // Mock remote data with mappings referencing multiple unknown attendees and groups
             coEvery { cloudProvider.fetchMasterListVersion(any()) } returns "v2"
             coEvery { cloudProvider.fetchMasterAttendees(any()) } returns emptyList()
             coEvery { cloudProvider.fetchMasterGroups(any()) } returns emptyList()
             coEvery { cloudProvider.fetchAttendeeGroupMappings(any()) } returns listOf(
-                AttendeeGroupMapping("UnknownA", "UnknownG")
+                AttendeeGroupMapping("UnknownA1", "UnknownG1"),
+                AttendeeGroupMapping("UnknownA2", "UnknownG1"),
+                AttendeeGroupMapping("UnknownA1", "UnknownG2")
             )
             coEvery { cloudProvider.fetchRecentEvents(30, any()) } returns emptyList()
 
             repository.syncMasterListWithDetailedResult()
 
-            val attendees = db.attendeeDao().getAllAttendees().first()
-            attendees.size shouldBe 1
-            attendees[0].id shouldBe "UnknownA"
+            val attendees = db.attendeeDao().getAllAttendees().first().sortedBy { it.id }
+            attendees.size shouldBe 2
+            attendees[0].id shouldBe "UnknownA1"
             attendees[0].notExistOnCloud shouldBe true
+            attendees[1].id shouldBe "UnknownA2"
+            attendees[1].notExistOnCloud shouldBe true
 
-            val groups = db.groupDao().getAllGroups().first()
-            groups.size shouldBe 1
-            groups[0].groupId shouldBe "UnknownG"
+            val groups = db.groupDao().getAllGroups().first().sortedBy { it.groupId }
+            groups.size shouldBe 2
+            groups[0].groupId shouldBe "UnknownG1"
             groups[0].notExistOnCloud shouldBe true
+            groups[1].groupId shouldBe "UnknownG2"
+            groups[1].notExistOnCloud shouldBe true
         }
     }
 
     @Test
-    fun `syncAttendanceForEvent should upsert placeholders for unknown IDs in records`() {
+    fun `syncAttendanceForEvent should create multiple placeholders from records`() {
         runBlocking {
-            val event = Event(id = "E1", title = "2026-02-25 1000 Test", date = "2026-02-25", time = "1000")
+            val event = Event(id = "E1", title = "260225 1000 Test", date = "2026-02-25", time = "1000")
             db.eventDao().insertAll(listOf(event))
 
-            // Mock remote attendance with unknown attendee
+            // Mock remote attendance with multiple unknown attendees
             coEvery { cloudProvider.fetchAttendanceForEvent(any(), any(), any()) } returns sg.org.bcc.attendance.data.remote.PullResult(
                 records = listOf(
-                    AttendanceRecord("E1", "UnknownA", "Unknown FullName", "PRESENT", 123456789L)
+                    AttendanceRecord("E1", "UnknownA1", "Name 1", "PRESENT", 100L),
+                    AttendanceRecord("E1", "UnknownA2", "Name 2", "PRESENT", 200L),
+                    AttendanceRecord("E1", "UnknownA1", "Name 1 Updated", "PRESENT", 300L)
                 ),
-                lastRowIndex = 1
+                lastRowIndex = 3
             )
 
             repository.syncAttendanceForEvent(event)
 
-            val attendees = db.attendeeDao().getAllAttendees().first()
-            attendees.size shouldBe 1
-            attendees[0].id shouldBe "UnknownA"
+            val attendees = db.attendeeDao().getAllAttendees().first().sortedBy { it.id }
+            attendees.size shouldBe 2
+            attendees[0].id shouldBe "UnknownA1"
+            attendees[0].fullName shouldBe "Name 1 Updated" // Latest name should be picked
             attendees[0].notExistOnCloud shouldBe true
+            attendees[1].id shouldBe "UnknownA2"
+            attendees[1].fullName shouldBe "Name 2"
+            attendees[1].notExistOnCloud shouldBe true
+        }
+    }
+
+    @Test
+    fun `syncMasterList status message should use correct Missing on cloud terminology`() {
+        runBlocking {
+            db.attendeeDao().insertAll(listOf(Attendee("A1", "Local Only")))
+            db.groupDao().insertAll(listOf(Group("G1", "Local Only")))
+
+            coEvery { cloudProvider.fetchMasterListVersion(any()) } returns "v2"
+            coEvery { cloudProvider.fetchMasterAttendees(any()) } returns emptyList()
+            coEvery { cloudProvider.fetchMasterGroups(any()) } returns emptyList()
+            coEvery { cloudProvider.fetchAttendeeGroupMappings(any()) } returns emptyList()
+            coEvery { cloudProvider.fetchRecentEvents(30, any()) } returns emptyList()
+
+            val (_, status) = repository.syncMasterListWithDetailedResult()
+            
+            status shouldBe "Attendees: OK (0), Missing on cloud: 1\nGroups: OK (0), Missing on cloud: 1\nMappings: OK (0)\nEvents Discovery: OK (0)\nAttendance: Skipped (No event selected)"
         }
     }
 

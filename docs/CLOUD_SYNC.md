@@ -50,9 +50,9 @@ The application is designed for immediate feedback in high-traffic environments.
 
 ### "Missing on Cloud" Flagging
 Instead of immediate deletion (which could break local history), records missing from the cloud are handled via a flagging strategy:
-*   **Attendee/Group/Event**: Marked with a \`notExistOnCloud = true\` flag.
-*   **Placeholders**: If a cloud pull references an unknown ID (e.g., a person added by another device), a local placeholder is created and flagged.
-*   **UI Resolution**: Discrepancy counts are displayed in the **Cloud Status Dialog**, linking to a **Resolution Screen** for manual cleanup (Swipe-to-Delete or Purge All).
+*   **Attendee/Group/Event**: Marked with a `notExistOnCloud = true` flag when they exist locally but were not found during a remote master list pull.
+*   **Placeholders (Missing locally)**: If a cloud pull (mappings or attendance) references an unknown ID (e.g., a person added by another device that is not yet in the master list), a local placeholder is created and flagged with `notExistOnCloud = true`.
+*   **UI Resolution**: Discrepancy counts (e.g., "Missing on cloud: 5") are displayed in the **Cloud Status Dialog**, linking to a **Resolution Screen** for managing these discrepancies.
 
 ### Error Scenarios & UX Indicators
 

@@ -195,7 +195,7 @@ class AttendanceRepository @Inject constructor(
                         val missingAttendeeIds = localAttendeeIds.filter { it !in remoteAttendeeIds }
                         if (missingAttendeeIds.isNotEmpty()) {
                             attendeeDao.markAsMissingOnCloud(missingAttendeeIds)
-                            status.add("Attendees: OK (${remoteAttendees.size}), Missing locally: ${missingAttendeeIds.size}")
+                            status.add("Attendees: OK (${remoteAttendees.size}), Missing on cloud: ${missingAttendeeIds.size}")
                         } else {
                             status.add("Attendees: OK (${remoteAttendees.size})")
                         }
@@ -219,7 +219,7 @@ class AttendanceRepository @Inject constructor(
                         val missingGroupIds = localGroupIds.filter { it !in remoteGroupIds }
                         if (missingGroupIds.isNotEmpty()) {
                             groupDao.markAsMissingOnCloud(missingGroupIds)
-                            status.add("Groups: OK (${remoteGroups.size}), Missing locally: ${missingGroupIds.size}")
+                            status.add("Groups: OK (${remoteGroups.size}), Missing on cloud: ${missingGroupIds.size}")
                         } else {
                             status.add("Groups: OK (${remoteGroups.size})")
                         }
@@ -234,17 +234,25 @@ class AttendanceRepository @Inject constructor(
                         if (remoteMappings.isNotEmpty()) {
                             attendeeGroupMappingDao.insertAll(remoteMappings)
                             
-                            // Requirement: If a mapping references an unknown ID, upsertPlaceholder.
-                            val localAttendeeIds = attendeeDao.getAllAttendeeIds().toSet()
-                            val localGroupIds = groupDao.getAllGroupIds().toSet()
+                            // Requirement: If a mapping references an unknown ID, create placeholder.
+                            val currentAttendeeIds = attendeeDao.getAllAttendeeIds().toSet()
+                            val currentGroupIds = groupDao.getAllGroupIds().toSet()
                             
-                            remoteMappings.forEach { mapping ->
-                                if (mapping.attendeeId !in localAttendeeIds) {
-                                    attendeeDao.upsert(Attendee(id = mapping.attendeeId, fullName = mapping.attendeeId, notExistOnCloud = true))
-                                }
-                                if (mapping.groupId !in localGroupIds) {
-                                    groupDao.upsert(Group(groupId = mapping.groupId, name = mapping.groupId, notExistOnCloud = true))
-                                }
+                            val missingAttendeeIds = remoteMappings.map { it.attendeeId }.toSet() - currentAttendeeIds
+                            val missingGroupIds = remoteMappings.map { it.groupId }.toSet() - currentGroupIds
+                            
+                            if (missingAttendeeIds.isNotEmpty()) {
+                                android.util.Log.d("AttendanceSync", "Creating ${missingAttendeeIds.size} attendee placeholders from mappings")
+                                attendeeDao.insertAll(missingAttendeeIds.map { 
+                                    Attendee(id = it, fullName = it, notExistOnCloud = true) 
+                                })
+                            }
+                            
+                            if (missingGroupIds.isNotEmpty()) {
+                                android.util.Log.d("AttendanceSync", "Creating ${missingGroupIds.size} group placeholders from mappings")
+                                groupDao.insertAll(missingGroupIds.map { 
+                                    Group(groupId = it, name = it, notExistOnCloud = true) 
+                                })
                             }
                         }
                         status.add("Mappings: OK (${remoteMappings.size})")
@@ -320,15 +328,25 @@ class AttendanceRepository @Inject constructor(
             
             if (pullResult.records.isNotEmpty()) {
                 val currentAttendeeIds = attendeeDao.getAllAttendeeIds().toSet()
-                pullResult.records.forEach { record ->
-                    if (record.attendeeId !in currentAttendeeIds) {
-                        attendeeDao.upsert(Attendee(
-                            id = record.attendeeId, 
-                            fullName = record.fullName, // Use extracted fullName
-                            notExistOnCloud = true
-                        ))
-                    }
+                val missingAttendeeIds = pullResult.records.map { it.attendeeId }.toSet() - currentAttendeeIds
+                
+                if (missingAttendeeIds.isNotEmpty()) {
+                    android.util.Log.d("AttendanceSync", "Creating ${missingAttendeeIds.size} attendee placeholders from pull result")
+                    // Map unique missing IDs back to their latest fullName found in pull records
+                    val placeholders = pullResult.records
+                        .filter { it.attendeeId in missingAttendeeIds }
+                        .associateBy { it.attendeeId }
+                        .values
+                        .map { record ->
+                            Attendee(
+                                id = record.attendeeId,
+                                fullName = record.fullName,
+                                notExistOnCloud = true
+                            )
+                        }
+                    attendeeDao.insertAll(placeholders)
                 }
+                
                 attendanceDao.upsertAllIfNewer(pullResult.records)
                 actualScope.log(
                     operation = "pull", 
