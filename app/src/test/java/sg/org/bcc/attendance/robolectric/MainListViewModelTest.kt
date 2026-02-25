@@ -68,6 +68,7 @@ class MainListViewModelTest {
         every { repository.getMissingOnCloudAttendees() } returns flowOf(emptyList())
         every { repository.getMissingOnCloudGroups() } returns flowOf(emptyList())
         every { repository.getMissingOnCloudEvents() } returns flowOf(emptyList())
+        every { repository.getOldestPendingEventId() } returns flowOf(null)
         
         io.mockk.coEvery { repository.syncMasterList(any()) } returns Unit
         io.mockk.coEvery { repository.syncMasterListWithDetailedResult(any(), any(), any()) } returns (true to "OK")

@@ -15,6 +15,9 @@ interface SyncJobDao {
     @Query("SELECT * FROM sync_jobs ORDER BY createdAt ASC LIMIT 1")
     suspend fun getOldestSyncJob(): SyncJob?
 
+    @Query("SELECT * FROM sync_jobs ORDER BY createdAt ASC LIMIT 1")
+    fun getOldestSyncJobFlow(): Flow<SyncJob?>
+
     @Query("DELETE FROM sync_jobs WHERE jobId = :jobId")
     suspend fun deleteJob(jobId: Long)
 

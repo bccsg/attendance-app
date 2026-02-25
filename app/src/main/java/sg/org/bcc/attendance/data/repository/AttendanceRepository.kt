@@ -324,7 +324,7 @@ class AttendanceRepository @Inject constructor(
                     if (record.attendeeId !in currentAttendeeIds) {
                         attendeeDao.upsert(Attendee(
                             id = record.attendeeId, 
-                            fullName = record.attendeeId, 
+                            fullName = record.fullName, // Use extracted fullName
                             notExistOnCloud = true
                         ))
                     }
@@ -438,6 +438,8 @@ class AttendanceRepository @Inject constructor(
 
     fun getPendingSyncCount(): Flow<Int> = syncJobDao.getPendingCountFlow()
 
+    fun getOldestPendingEventId(): Flow<String?> = syncJobDao.getOldestSyncJobFlow().map { it?.eventId }
+
     suspend fun addToQueue(attendeeId: String) {
         val queue = persistentQueueDao.getQueue().first()
         if (queue.none { it.attendeeId == attendeeId }) {
@@ -495,37 +497,57 @@ class AttendanceRepository @Inject constructor(
     suspend fun resolveEventRecreate(eventId: String) {
         val event = eventDao.getEventById(eventId) ?: return
         
-        // Re-create cloud sheet by pushing with failIfMissing = false (the default)
-        // We'll create a special job or call push directly.
-        // Easiest way is to just call cloudProvider.pushAttendance(event, emptyList(), ...)
-        // which will ensure sheet exists and update cloudEventId.
-        
+        // 1. Ensure worksheet exists and update cloudEventId
         val scope = DatabaseSyncLogScope(syncLogDao, "RESOLUTION")
         val result = cloudProvider.pushAttendance(event, emptyList(), scope, failIfMissing = false)
         
         if (result is PushResult.SuccessWithMapping) {
             eventDao.updateCloudEventId(event.id, result.cloudEventId)
-            eventDao.clearMissingOnCloud(event.id)
-            
-            // Now that sheet is back, SyncWorker will process any pending jobs for this event
-            // when it next runs. We can trigger it now.
-            retrySync()
-        } else if (result is PushResult.Success) {
-            // Already existed?
-            eventDao.clearMissingOnCloud(event.id)
-            retrySync()
         }
+        
+        // 2. Clear any pending SyncJobs for this event to avoid duplicates or conflicts
+        syncJobDao.deleteJobsForEvent(event.id)
+        
+        // 3. Clear missing flag
+        eventDao.clearMissingOnCloud(event.id)
+        
+        // 4. Queue a full sync job to push ALL local attendance records for this event
+        val localRecords = attendanceDao.getAttendanceForEvent(event.id)
+        if (localRecords.isNotEmpty()) {
+            val timestamp = timeProvider.now()
+            val payload = localRecords.map { record ->
+                val escapedName = record.fullName.replace("\"", "\\\"")
+                "{\"id\":\"${record.attendeeId}\",\"name\":\"$escapedName\",\"state\":\"${record.state}\",\"time\":${record.timestamp}}"
+            }.joinToString(prefix = "[", postfix = "]", separator = ",")
+            
+            syncJobDao.insert(SyncJob(
+                eventId = event.id,
+                payloadJson = payload,
+                createdAt = timestamp
+            ))
+        }
+        
+        retrySync()
     }
 
     suspend fun resolveEventDeleteLocally(eventId: String) {
-        // 1. Clear all pending SyncJobs for this event
+        // Clear all pending SyncJobs for this event
         syncJobDao.deleteJobsForEvent(eventId)
         
-        // 2. Clear local attendance for this event
+        // Clear local attendance for this event
         attendanceDao.deleteForEvent(eventId)
         
-        // 3. Delete the event from the database
+        // Delete the event from the database
         eventDao.deleteById(eventId)
+    }
+
+    suspend fun isAttendeeInUse(attendeeId: String): Boolean {
+        return attendanceDao.hasAttendanceForAttendee(attendeeId) || 
+               attendeeGroupMappingDao.hasMappingsForAttendee(attendeeId)
+    }
+
+    suspend fun isGroupInUse(groupId: String): Boolean {
+        return attendeeGroupMappingDao.hasMappingsForGroup(groupId)
     }
 
     suspend fun replaceQueueWithSelection(attendeeIds: List<String>) {

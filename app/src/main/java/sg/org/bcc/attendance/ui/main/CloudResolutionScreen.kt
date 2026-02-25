@@ -247,7 +247,7 @@ fun CloudResolutionScreen(
                     modifier = Modifier.padding(bottom = 8.dp)
                 )
                 Text(
-                    text = "This event exists locally but its cloud sheet is missing. How would you like to resolve this?",
+                    text = "This event exists locally but its cloud sheet is missing. You can manually restore the sheet on the cloud and sync again, or use the actions below.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(bottom = 24.dp)
@@ -305,21 +305,31 @@ fun CloudResolutionScreen(
                     if (isProcessing) {
                         CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.error)
                     } else {
-                        AppIcon(resourceId = AppIcons.PersonRemove, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                        AppIcon(resourceId = AppIcons.DeleteSweep, contentDescription = null, tint = MaterialTheme.colorScheme.error)
                     }
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Delete Locally")
+                    Text("Remove Locally")
                 }
             }
         }
     }
 
     if (selectedAttendeeForResolution != null) {
+        var isInUse by remember { mutableStateOf<Boolean?>(null) }
+        LaunchedEffect(selectedAttendeeForResolution) {
+            selectedAttendeeForResolution?.let {
+                isInUse = viewModel.isAttendeeInUse(it.id)
+            }
+        }
+
         ResolutionBottomSheet(
             title = selectedAttendeeForResolution?.shortName ?: selectedAttendeeForResolution?.fullName ?: "",
             id = selectedAttendeeForResolution?.id ?: "",
+            description = "This attendee exists locally but is missing on the cloud master list. You can manually restore the entry on the cloud and sync again.",
+            inUseWarning = if (isInUse == true) "This attendee cannot be removed because they have local attendance or group mapping entries. Removal is only possible 30 days after their last event has passed and data is flushed." else null,
             isProcessing = isProcessing,
             resolutionError = resolutionError,
+            canRemove = isInUse == false,
             onDismiss = { if (!isProcessing) selectedAttendeeForResolution = null },
             onResolve = {
                 selectedAttendeeForResolution?.let { 
@@ -332,11 +342,21 @@ fun CloudResolutionScreen(
     }
 
     if (selectedGroupForResolution != null) {
+        var isInUse by remember { mutableStateOf<Boolean?>(null) }
+        LaunchedEffect(selectedGroupForResolution) {
+            selectedGroupForResolution?.let {
+                isInUse = viewModel.isGroupInUse(it.groupId)
+            }
+        }
+
         ResolutionBottomSheet(
             title = selectedGroupForResolution?.name ?: "",
             id = selectedGroupForResolution?.groupId ?: "",
+            description = "This group exists locally but is missing on the cloud master list. You can manually restore the entry on the cloud and sync again.",
+            inUseWarning = if (isInUse == true) "This group has linked attendees. To remove it, you must first remove all mapping entries for this group." else null,
             isProcessing = isProcessing,
             resolutionError = resolutionError,
+            canRemove = isInUse == false,
             onDismiss = { if (!isProcessing) selectedGroupForResolution = null },
             onResolve = {
                 selectedGroupForResolution?.let { 
@@ -417,8 +437,11 @@ fun MissingEventItem(
 fun ResolutionBottomSheet(
     title: String,
     id: String,
+    description: String,
+    inUseWarning: String?,
     isProcessing: Boolean,
     resolutionError: String?,
+    canRemove: Boolean,
     onDismiss: () -> Unit,
     onResolve: () -> Unit
 ) {
@@ -440,11 +463,29 @@ fun ResolutionBottomSheet(
                 modifier = Modifier.padding(bottom = 12.dp)
             )
             Text(
-                text = "This item exists locally but is missing on the cloud. Removing it locally will not affect existing cloud data.",
+                text = description,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(bottom = 24.dp)
             )
+
+            if (inUseWarning != null) {
+                Surface(
+                    color = MaterialTheme.colorScheme.secondaryContainer,
+                    shape = MaterialTheme.shapes.small,
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
+                ) {
+                    Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        AppIcon(resourceId = AppIcons.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.onSecondaryContainer, modifier = Modifier.size(20.dp))
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text(
+                            text = inUseWarning,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                }
+            }
 
             if (resolutionError != null) {
                 Surface(
@@ -453,7 +494,7 @@ fun ResolutionBottomSheet(
                     modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
                 ) {
                     Text(
-                        text = resolutionError ?: "",
+                        text = resolutionError,
                         color = MaterialTheme.colorScheme.onErrorContainer,
                         style = MaterialTheme.typography.bodySmall,
                         modifier = Modifier.padding(12.dp)
@@ -465,12 +506,12 @@ fun ResolutionBottomSheet(
                 onClick = onResolve,
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
-                enabled = !isProcessing
+                enabled = !isProcessing && canRemove
             ) {
                 if (isProcessing) {
                     CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onError)
                 } else {
-                    AppIcon(resourceId = AppIcons.PersonRemove, contentDescription = null)
+                    AppIcon(resourceId = AppIcons.DeleteSweep, contentDescription = null)
                 }
                 Spacer(modifier = Modifier.width(8.dp))
                 Text("Remove Locally")

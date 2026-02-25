@@ -31,6 +31,9 @@ class CloudResolutionViewModel @Inject constructor(
     val missingEvents: StateFlow<List<Event>> = repository.getMissingOnCloudEvents()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    suspend fun isAttendeeInUse(id: String): Boolean = repository.isAttendeeInUse(id)
+    suspend fun isGroupInUse(id: String): Boolean = repository.isGroupInUse(id)
+
     fun clearError() {
         _resolutionError.value = null
     }

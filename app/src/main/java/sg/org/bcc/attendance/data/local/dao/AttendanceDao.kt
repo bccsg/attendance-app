@@ -43,6 +43,9 @@ interface AttendanceDao {
         reduced.forEach { upsertIfNewer(it) }
     }
 
+    @Query("SELECT EXISTS(SELECT 1 FROM attendance_records WHERE attendeeId = :attendeeId)")
+    suspend fun hasAttendanceForAttendee(attendeeId: String): Boolean
+
     @Query("DELETE FROM attendance_records")
     suspend fun clearAll()
 

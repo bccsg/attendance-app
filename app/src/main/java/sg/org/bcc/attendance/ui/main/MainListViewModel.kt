@@ -174,6 +174,13 @@ class MainListViewModel @Inject constructor(
     val missingCloudEventsCount = missingCloudEvents.map { it.size }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
+    val isBlockingEventMissing: StateFlow<Boolean> = combine(
+        repository.getOldestPendingEventId(),
+        missingCloudEvents
+    ) { oldestId, missingEvents ->
+        oldestId != null && missingEvents.any { it.id == oldestId }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
     fun onNavigateToResolutionScreen() {
         _navigateToResolutionScreenEvent.tryEmit(Unit)
         _showCloudStatusDialog.value = false

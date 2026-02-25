@@ -360,6 +360,7 @@ fun MainListScreen(
         val missingCloudAttendeesCount by viewModel.missingCloudAttendeesCount.collectAsState()
         val missingCloudGroupsCount by viewModel.missingCloudGroupsCount.collectAsState()
         val missingCloudEventsCount by viewModel.missingCloudEventsCount.collectAsState()
+        val isBlockingEventMissing by viewModel.isBlockingEventMissing.collectAsState()
 
         SetStatusBarIconsColor(isLight = false)
         CloudStatusDialog(
@@ -378,6 +379,7 @@ fun MainListScreen(
             missingCloudAttendeesCount = missingCloudAttendeesCount,
             missingCloudGroupsCount = missingCloudGroupsCount,
             missingCloudEventsCount = missingCloudEventsCount,
+            isBlockingEventMissing = isBlockingEventMissing,
             onLogin = viewModel::onLoginTrigger,
             onLogout = viewModel::onLogout,
             onDismiss = { viewModel.setShowCloudStatusDialog(false) },
@@ -1353,6 +1355,7 @@ fun CloudStatusDialog(
     missingCloudAttendeesCount: Int = 0,
     missingCloudGroupsCount: Int = 0,
     missingCloudEventsCount: Int = 0,
+    isBlockingEventMissing: Boolean = false,
     onLogin: () -> Unit,
     onLogout: () -> Unit,
     onDismiss: () -> Unit,
@@ -1368,10 +1371,21 @@ fun CloudStatusDialog(
         onDismissRequest = onDismiss,
         title = {
             Row(verticalAlignment = Alignment.CenterVertically) {
+                val titleIcon = when {
+                    isSyncing -> AppIcons.Sync
+                    !isOnline -> AppIcons.CloudOff
+                    isBlockingEventMissing || loginError != null || syncProgress.syncState == SyncState.ERROR -> AppIcons.CloudAlert
+                    else -> AppIcons.CloudDone
+                }
+                val iconTint = when {
+                    !isOnline || isBlockingEventMissing || loginError != null || syncProgress.syncState == SyncState.ERROR -> MaterialTheme.colorScheme.error
+                    else -> MaterialTheme.colorScheme.primary
+                }
+
                 AppIcon(
-                    resourceId = if (isSyncing) AppIcons.Sync else AppIcons.CloudDone, 
+                    resourceId = titleIcon, 
                     contentDescription = null, 
-                    tint = MaterialTheme.colorScheme.primary,
+                    tint = iconTint,
                     modifier = if (isSyncing) Modifier.graphicsLayer { rotationZ = syncRotation } else Modifier
                 )
                 Spacer(modifier = Modifier.width(8.dp))
@@ -1447,10 +1461,10 @@ fun CloudStatusDialog(
                     }
                 }
 
-                if (missingCloudAttendeesCount > 0 || missingCloudGroupsCount > 0 || missingCloudEventsCount > 0) {
+                if (isBlockingEventMissing) {
                     banners.add {
                         Surface(
-                            color = MaterialTheme.colorScheme.tertiaryContainer,
+                            color = MaterialTheme.colorScheme.errorContainer,
                             shape = RoundedCornerShape(8.dp),
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -1463,41 +1477,50 @@ fun CloudStatusDialog(
                                 AppIcon(
                                     resourceId = AppIcons.CloudAlert,
                                     contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onTertiaryContainer,
+                                    tint = MaterialTheme.colorScheme.onErrorContainer,
                                     modifier = Modifier.size(20.dp)
                                 )
                                 Spacer(modifier = Modifier.width(12.dp))
                                 Column(modifier = Modifier.weight(1f)) {
-                                    val text = buildString {
-                                        val items = mutableListOf<String>()
-                                        if (missingCloudAttendeesCount > 0) {
-                                            items.add("$missingCloudAttendeesCount attendee${if (missingCloudAttendeesCount > 1) "s" else ""}")
-                                        }
-                                        if (missingCloudGroupsCount > 0) {
-                                            items.add("$missingCloudGroupsCount group${if (missingCloudGroupsCount > 1) "s" else ""}")
-                                        }
-                                        if (missingCloudEventsCount > 0) {
-                                            items.add("$missingCloudEventsCount event${if (missingCloudEventsCount > 1) "s" else ""}")
-                                        }
-                                        
-                                        when (items.size) {
-                                            1 -> append(items[0])
-                                            2 -> append("${items[0]} and ${items[1]}")
-                                            3 -> append("${items[0]}, ${items[1]}, and ${items[2]}")
-                                        }
-                                        append(" missing on cloud.")
-                                    }
                                     Text(
-                                        text = text,
+                                        text = "Current sync event sheet missing on cloud. Attendance cannot be pushed.",
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onTertiaryContainer
+                                        color = MaterialTheme.colorScheme.onErrorContainer
                                     )
                                     Text(
                                         text = "Tap to resolve.",
                                         style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.7f)
+                                        color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.7f)
                                     )
                                 }
+                            }
+                        }
+                    }
+                }
+
+                if (syncProgress.currentOperation != null && syncProgress.syncState == SyncState.SYNCING) {
+                    banners.add {
+                        Surface(
+                            color = MaterialTheme.colorScheme.secondaryContainer,
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                AppIcon(
+                                    resourceId = AppIcons.Sync,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Text(
+                                    text = syncProgress.currentOperation ?: "",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                                )
                             }
                         }
                     }
@@ -1665,31 +1688,52 @@ fun CloudStatusDialog(
 
                 HorizontalDivider()
 
-                // Sync Info Section
+                // Sync Status Section
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Sync Status", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
                     
-                    val statusText = when (syncProgress.syncState) {
-                        SyncState.IDLE -> "Idle"
-                        SyncState.SYNCING -> "Syncing..."
-                        SyncState.RETRYING -> "Retrying..."
-                        SyncState.ERROR -> "Sync Error"
-                        SyncState.NO_INTERNET -> "No Internet Connection"
-                    }
-                    SyncInfoRow("Status", statusText)
+                    SyncInfoRow("Pending Pushes", syncProgress.pendingJobs.toString())
                     
-                    if (syncProgress.currentOperation != null && syncProgress.syncState == SyncState.SYNCING) {
-                        SyncInfoRow("Operation", syncProgress.currentOperation)
+                    if (syncProgress.lastPullTime != null) {
+                        val time = java.time.Instant.ofEpochMilli(syncProgress.lastPullTime).atZone(java.time.ZoneId.systemDefault()).toLocalTime()
+                        SyncInfoRow("Last Pull", time.format(java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss")))
                     }
-                    SyncInfoRow("Pending Sync Jobs", syncProgress.pendingJobs.toString())
-                    SyncInfoRow("Next Pull Scheduled", syncProgress.nextScheduledPull?.let { 
-                        try {
-                            java.time.Instant.ofEpochMilli(it).atZone(java.time.ZoneId.systemDefault()).toLocalTime().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss"))
+
+                    syncProgress.nextScheduledPull?.let { next ->
+                        val nextPullStr = try {
+                            java.time.Instant.ofEpochMilli(next).atZone(java.time.ZoneId.systemDefault()).toLocalTime().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss"))
                         } catch (e: Exception) {
                             "Unknown"
                         }
-                    } ?: "None")
+                        SyncInfoRow("Next Pull Scheduled", nextPullStr)
+                    }
+
                     SyncInfoRow("Last Pull Status", syncProgress.lastPullStatus ?: "Unknown", onClick = onShowLogs)
+
+                    if (missingCloudAttendeesCount > 0 || missingCloudGroupsCount > 0 || missingCloudEventsCount > 0) {
+                        SyncInfoRow(
+                            label = "Missing on cloud",
+                            value = buildString {
+                                val items = mutableListOf<String>()
+                                if (missingCloudEventsCount > 0) {
+                                    items.add("$missingCloudEventsCount event${if (missingCloudEventsCount > 1) "s" else ""}")
+                                }
+                                if (missingCloudAttendeesCount > 0) {
+                                    items.add("$missingCloudAttendeesCount attendee${if (missingCloudAttendeesCount > 1) "s" else ""}")
+                                }
+                                if (missingCloudGroupsCount > 0) {
+                                    items.add("$missingCloudGroupsCount group${if (missingCloudGroupsCount > 1) "s" else ""}")
+                                }
+                                
+                                when (items.size) {
+                                    1 -> append(items[0])
+                                    2 -> append("${items[0]} and ${items[1]}")
+                                    3 -> append("${items[0]}, ${items[1]} and ${items[2]}")
+                                }
+                            },
+                            onClick = onResolveMissing
+                        )
+                    }
                 }
             }
         },

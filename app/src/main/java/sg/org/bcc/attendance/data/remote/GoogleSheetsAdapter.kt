@@ -450,7 +450,19 @@ class GoogleSheetsAdapter @Inject constructor(
                 if (row.size < 5) return@mapNotNull null
                 
                 val attendeeId = row[0].toString()
-                // index 1 is Full Name, skip
+                
+                // Column B (index 1) is Name. In our pushes, it's a formula: 
+                // =IFERROR(VLOOKUP(...), "Local Name (Not Found)")
+                val rawName = row[1].toString()
+                val parsedFullName = if (rawName.startsWith("=")) {
+                    // It's a formula. Extract fallback name if possible.
+                    val fallbackRegex = Regex("IFERROR\\(VLOOKUP\\(.*\\), \"(.*?) \\(Not Found\\)\"\\)")
+                    val match = fallbackRegex.find(rawName)
+                    match?.groupValues?.get(1) ?: attendeeId
+                } else {
+                    rawName
+                }
+
                 val state = row[2].toString()
                 // index 3 is Final, skip
                 val rawValue = row[4] // Timestamp is now Column E
@@ -470,6 +482,7 @@ class GoogleSheetsAdapter @Inject constructor(
                 AttendanceRecord(
                     eventId = event.id,
                     attendeeId = attendeeId,
+                    fullName = parsedFullName,
                     state = state,
                     timestamp = timestamp
                 )

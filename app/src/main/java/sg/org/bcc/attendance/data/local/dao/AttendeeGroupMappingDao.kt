@@ -18,6 +18,12 @@ interface AttendeeGroupMappingDao {
     @Query("SELECT groupId FROM attendee_group_mapping WHERE attendeeId = :attendeeId")
     suspend fun getGroupsForAttendee(attendeeId: String): List<String>
 
+    @Query("SELECT EXISTS(SELECT 1 FROM attendee_group_mapping WHERE attendeeId = :attendeeId)")
+    suspend fun hasMappingsForAttendee(attendeeId: String): Boolean
+
+    @Query("SELECT EXISTS(SELECT 1 FROM attendee_group_mapping WHERE groupId = :groupId)")
+    suspend fun hasMappingsForGroup(groupId: String): Boolean
+
     @Query("DELETE FROM attendee_group_mapping")
     suspend fun clearAll()
 }
