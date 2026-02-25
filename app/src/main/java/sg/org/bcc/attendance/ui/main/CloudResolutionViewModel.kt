@@ -97,18 +97,4 @@ class CloudResolutionViewModel @Inject constructor(
             }
         }
     }
-
-    fun purgeAll() {
-        viewModelScope.launch {
-            _isProcessing.value = true
-            _resolutionError.value = null
-            try {
-                repository.purgeAllMissingFromCloud()
-            } catch (e: Exception) {
-                _resolutionError.value = e.message ?: "Failed to purge all missing items"
-            } finally {
-                _isProcessing.value = false
-            }
-        }
-    }
 }

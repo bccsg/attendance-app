@@ -205,28 +205,6 @@ class MissingOnCloudSyncTest {
     }
 
     @Test
-    fun `purgeAllMissingFromCloud should clear marked entities`() {
-        runBlocking {
-            db.attendeeDao().insertAll(listOf(
-                Attendee("A1", "Normal", notExistOnCloud = false),
-                Attendee("A2", "Missing", notExistOnCloud = true)
-            ))
-            db.groupDao().insertAll(listOf(
-                Group("G1", "Normal", notExistOnCloud = false),
-                Group("G2", "Missing", notExistOnCloud = true)
-            ))
-
-            repository.purgeAllMissingFromCloud()
-
-            db.attendeeDao().getAllAttendees().first().size shouldBe 1
-            db.attendeeDao().getAllAttendees().first()[0].id shouldBe "A1"
-
-            db.groupDao().getAllGroups().first().size shouldBe 1
-            db.groupDao().getAllGroups().first()[0].groupId shouldBe "G1"
-        }
-    }
-
-    @Test
     fun `syncMasterList should mark local events as missing if not in remote`() {
         runBlocking {
             // Setup local data (within 30 day window)

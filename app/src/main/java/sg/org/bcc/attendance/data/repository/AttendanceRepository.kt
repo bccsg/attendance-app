@@ -500,11 +500,6 @@ class AttendanceRepository @Inject constructor(
         persistentQueueDao.clearReady()
     }
 
-    suspend fun purgeAllMissingFromCloud() {
-        attendeeDao.purgeAllMissingOnCloud()
-        groupDao.purgeAllMissingOnCloud()
-    }
-
     fun getMissingOnCloudAttendees(): Flow<List<Attendee>> = attendeeDao.getMissingOnCloudAttendees()
     fun getMissingOnCloudGroups(): Flow<List<Group>> = groupDao.getMissingOnCloudGroups()
     fun getMissingOnCloudEvents(): Flow<List<Event>> = eventDao.getMissingOnCloudEvents()

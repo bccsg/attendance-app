@@ -233,41 +233,23 @@ fun CloudResolutionScreen(
     }
 
     if (selectedEventForResolution != null) {
-        ModalBottomSheet(
-            onDismissRequest = { if (!isProcessing) selectedEventForResolution = null }
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 32.dp, start = 16.dp, end = 16.dp)
-            ) {
-                Text(
-                    text = selectedEventForResolution?.title ?: "",
-                    style = MaterialTheme.typography.headlineSmall,
-                    modifier = Modifier.padding(bottom = 8.dp)
-                )
-                Text(
-                    text = "This event exists locally but its cloud sheet is missing. You can manually restore the sheet on the cloud and sync again, or use the actions below.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(bottom = 24.dp)
-                )
-
-                if (resolutionError != null) {
-                    Surface(
-                        color = MaterialTheme.colorScheme.errorContainer,
-                        shape = MaterialTheme.shapes.small,
-                        modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
-                    ) {
-                        Text(
-                            text = resolutionError ?: "",
-                            color = MaterialTheme.colorScheme.onErrorContainer,
-                            style = MaterialTheme.typography.bodySmall,
-                            modifier = Modifier.padding(12.dp)
-                        )
+        ResolutionBottomSheet(
+            title = selectedEventForResolution?.title ?: "",
+            id = selectedEventForResolution?.id ?: "",
+            description = "This event exists locally but its cloud sheet is missing. You can manually restore the sheet on the cloud and sync again, or use the actions below.",
+            inUseWarning = null,
+            isProcessing = isProcessing,
+            resolutionError = resolutionError,
+            canRemove = true,
+            onDismiss = { if (!isProcessing) selectedEventForResolution = null },
+            onResolve = {
+                selectedEventForResolution?.let { 
+                    viewModel.deleteEventLocally(it.id) {
+                        selectedEventForResolution = null
                     }
                 }
-                
+            },
+            extraAction = {
                 Button(
                     onClick = {
                         selectedEventForResolution?.let { 
@@ -287,31 +269,9 @@ fun CloudResolutionScreen(
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("Re-create on Cloud")
                 }
-                
                 Spacer(modifier = Modifier.height(12.dp))
-                
-                OutlinedButton(
-                    onClick = {
-                        selectedEventForResolution?.let { 
-                            viewModel.deleteEventLocally(it.id) {
-                                selectedEventForResolution = null
-                            }
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                    enabled = !isProcessing
-                ) {
-                    if (isProcessing) {
-                        CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.error)
-                    } else {
-                        AppIcon(resourceId = AppIcons.DeleteSweep, contentDescription = null, tint = MaterialTheme.colorScheme.error)
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Remove Locally")
-                }
             }
-        }
+        )
     }
 
     if (selectedAttendeeForResolution != null) {
@@ -326,7 +286,7 @@ fun CloudResolutionScreen(
             title = selectedAttendeeForResolution?.shortName ?: selectedAttendeeForResolution?.fullName ?: "",
             id = selectedAttendeeForResolution?.id ?: "",
             description = "This attendee exists locally but is missing on the cloud master list. You can manually restore the entry on the cloud and sync again.",
-            inUseWarning = if (isInUse == true) "This attendee cannot be removed because they have local attendance or group mapping entries. Removal is only possible 30 days after their last event has passed and data is flushed." else null,
+            inUseWarning = if (isInUse == true) "This attendee cannot be removed locally because they still have attendance records or are still referenced in the cloud group mappings. Removal is only possible after 30 days have passed since their last event, and they are removed from the cloud's 'Mappings' sheet." else null,
             isProcessing = isProcessing,
             resolutionError = resolutionError,
             canRemove = isInUse == false,
@@ -353,7 +313,7 @@ fun CloudResolutionScreen(
             title = selectedGroupForResolution?.name ?: "",
             id = selectedGroupForResolution?.groupId ?: "",
             description = "This group exists locally but is missing on the cloud master list. You can manually restore the entry on the cloud and sync again.",
-            inUseWarning = if (isInUse == true) "This group has linked attendees. To remove it, you must first remove all mapping entries for this group." else null,
+            inUseWarning = if (isInUse == true) "This group cannot be removed locally because it has linked attendees. Removal is possible after all references are removed from the cloud's 'Mappings' sheet." else null,
             isProcessing = isProcessing,
             resolutionError = resolutionError,
             canRemove = isInUse == false,
@@ -443,7 +403,8 @@ fun ResolutionBottomSheet(
     resolutionError: String?,
     canRemove: Boolean,
     onDismiss: () -> Unit,
-    onResolve: () -> Unit
+    onResolve: () -> Unit,
+    extraAction: @Composable (ColumnScope.() -> Unit)? = null
 ) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(
@@ -502,29 +463,36 @@ fun ResolutionBottomSheet(
                 }
             }
             
-            Button(
-                onClick = onResolve,
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
-                enabled = !isProcessing && canRemove
-            ) {
-                if (isProcessing) {
-                    CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onError)
-                } else {
-                    AppIcon(resourceId = AppIcons.DeleteSweep, contentDescription = null)
-                }
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Remove Locally")
+            if (extraAction != null) {
+                extraAction()
             }
             
-            Spacer(modifier = Modifier.height(12.dp))
-            
-            TextButton(
-                onClick = onDismiss,
+            Row(
                 modifier = Modifier.fillMaxWidth(),
-                enabled = !isProcessing
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Text("Cancel")
+                OutlinedButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.weight(1f),
+                    enabled = !isProcessing
+                ) {
+                    Text("Cancel")
+                }
+
+                Button(
+                    onClick = onResolve,
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                    enabled = !isProcessing && canRemove
+                ) {
+                    if (isProcessing) {
+                        CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onError)
+                    } else {
+                        AppIcon(resourceId = AppIcons.Delete, contentDescription = null)
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Remove")
+                }
             }
         }
     }
