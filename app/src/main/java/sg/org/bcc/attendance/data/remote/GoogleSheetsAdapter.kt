@@ -43,7 +43,7 @@ class GoogleSheetsAdapter @Inject constructor(
         }
     }
 
-    private fun getSheetsService(): Sheets {
+    internal fun getSheetsService(): Sheets {
         val accessToken = authManager.getAccessToken() ?: throw IllegalStateException("Not authenticated")
         val credentials = GoogleCredentials.create(AccessToken(accessToken, null))
         
@@ -437,7 +437,7 @@ class GoogleSheetsAdapter @Inject constructor(
             val response = try {
                 service.spreadsheets().values()
                     .get(eventSpreadsheetId, range) 
-                    .setValueRenderOption("UNFORMATTED_VALUE")
+                    .setValueRenderOption("FORMULA")
                     .execute()
             } catch (e: Exception) {
                 return@withContext PullResult(emptyList(), startIndex)
@@ -456,11 +456,14 @@ class GoogleSheetsAdapter @Inject constructor(
                 val rawName = row[1].toString()
                 val parsedFullName = if (rawName.startsWith("=")) {
                     // It's a formula. Extract fallback name if possible.
+                    // The formula is: =IFERROR(VLOOKUP(...), "Name (Not Found)")
+                    // We need to unescape double quotes in the extracted name
                     val fallbackRegex = Regex("IFERROR\\(VLOOKUP\\(.*\\), \"(.*?) \\(Not Found\\)\"\\)")
                     val match = fallbackRegex.find(rawName)
-                    match?.groupValues?.get(1) ?: attendeeId
+                    match?.groupValues?.get(1)?.replace("\"\"", "\"") ?: attendeeId
                 } else {
-                    rawName
+                    // Fallback for legacy plain-text names or non-formula entries
+                    rawName.removeSuffix(" (Not Found)")
                 }
 
                 val state = row[2].toString()

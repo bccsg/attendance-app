@@ -54,8 +54,7 @@ class MainListViewModel @Inject constructor(
     private fun isCurrentlyOnline(): Boolean {
         val network = connectivityManager.activeNetwork ?: return false
         val capabilities = connectivityManager.getNetworkCapabilities(network) ?: return false
-        return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
-               capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+        return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
     }
 
     private val _searchQuery = MutableStateFlow("")
@@ -183,9 +182,6 @@ class MainListViewModel @Inject constructor(
     }
 
     val syncPendingCount = repository.getPendingSyncCount()
-        .onEach { count ->
-            _syncProgress.value = _syncProgress.value.copy(pendingJobs = count)
-        }
         .stateIn(viewModelScope, SharingStarted.Eagerly, 0)
 
     val syncPending = syncPendingCount.map { it > 0 }
@@ -436,30 +432,31 @@ class MainListViewModel @Inject constructor(
         
         connectivityManager.registerNetworkCallback(networkRequest, object : ConnectivityManager.NetworkCallback() {
             override fun onAvailable(network: Network) {
-                _isOnline.value = true
+                _isOnline.value = isCurrentlyOnline()
             }
             override fun onLost(network: Network) {
                 _isOnline.value = isCurrentlyOnline()
             }
             override fun onCapabilitiesChanged(network: Network, capabilities: NetworkCapabilities) {
-                _isOnline.value = capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
-                                 capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+                _isOnline.value = isCurrentlyOnline()
             }
         })
 
         combine(
             WorkManager.getInstance(context)
                 .getWorkInfosForUniqueWorkLiveData(SyncScheduler.SYNC_WORK_NAME)
-                .asFlow(),
+                .asFlow()
+                .onStart { emit(emptyList()) },
             WorkManager.getInstance(context)
                 .getWorkInfosForUniqueWorkLiveData(SyncScheduler.PULL_WORK_NAME)
-                .asFlow(),
+                .asFlow()
+                .onStart { emit(emptyList()) },
             _isOnline,
-            repository.getPendingSyncCount(),
-            authManager.authState,
-            authManager.isAuthed,
-            authManager.isDemoMode,
-            isBlockingEventMissing
+            repository.getPendingSyncCount().onStart { emit(0) },
+            authManager.authState.onStart { emit(authManager.authState.value) },
+            authManager.isAuthed.onStart { emit(authManager.isAuthed.value) },
+            authManager.isDemoMode.onStart { emit(authManager.isDemoMode.value) },
+            isBlockingEventMissing.onStart { emit(isBlockingEventMissing.value) }
         ) { flows ->
             val syncWorkInfos = flows[0] as List<androidx.work.WorkInfo>
             val pullWorkInfos = flows[1] as List<androidx.work.WorkInfo>
