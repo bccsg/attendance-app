@@ -1474,31 +1474,21 @@ fun CloudStatusDialog(
                                 shape = RoundedCornerShape(12.dp),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                Row(
-                                    modifier = Modifier.padding(16.dp),
-                                    verticalAlignment = Alignment.CenterVertically
+                                Column(
+                                    modifier = Modifier.padding(16.dp)
                                 ) {
-                                    AppIcon(
-                                        resourceId = syncProgress.cloudStatusIcon,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(32.dp)
+                                    Text(
+                                        "Using Demo Data",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer
                                     )
-                                    Spacer(modifier = Modifier.width(16.dp))
-                                    Column {
-                                        Text(
-                                            "Using Demo Data",
-                                            style = MaterialTheme.typography.titleSmall,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                                        )
-                                        Spacer(modifier = Modifier.height(2.dp))
-                                        Text(
-                                            "Login to establish connectivity with Master and Event Google Sheets.",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
-                                        )
-                                    }
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        "Login to establish connectivity with Master and Event Google Sheets.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                                    )
                                 }
                             }
                         } else if (authState == sg.org.bcc.attendance.data.remote.AuthState.EXPIRED) {
