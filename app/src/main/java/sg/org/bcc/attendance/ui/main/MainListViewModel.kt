@@ -602,14 +602,13 @@ class MainListViewModel @Inject constructor(
     fun doManualSync() {
         viewModelScope.launch {
             val syncPrefs = context.getSharedPreferences("sync_prefs", Context.MODE_PRIVATE)
-            syncPrefs.edit().putString("last_pull_status", "Syncing...").apply()
             
             try {
                 val (syncSuccess, detailedStatus) = repository.syncMasterListWithDetailedResult(targetEventId = _currentEventId.value)
                 val now = System.currentTimeMillis()
                 if (!syncSuccess) {
                     _loginError.value = detailedStatus
-                    syncPrefs.edit().putString("last_pull_status", "Failed: $detailedStatus").apply()
+                    syncPrefs.edit().putString("last_pull_status", "Failed").apply()
                 } else {
                     _loginError.value = null
                     syncPrefs.edit().putLong("last_pull_time", now).putString("last_pull_status", "Success").apply()
@@ -617,7 +616,7 @@ class MainListViewModel @Inject constructor(
             } catch (e: Exception) {
                 val errorMsg = "Sync failed: ${e.message}"
                 _loginError.value = errorMsg
-                syncPrefs.edit().putString("last_pull_status", "Error: $errorMsg").apply()
+                syncPrefs.edit().putString("last_pull_status", "Error").apply()
             }
         }
     }

@@ -30,12 +30,9 @@ class PullWorker @AssistedInject constructor(
         // Integrity Protection: Disable remote pulls while sync_jobs are pending 
         // to prevent stale data overwrites.
         if (syncJobDao.getPendingCount() > 0) {
-            prefs.edit().putString("last_pull_status", "Skipped (pending pushes)").apply()
             return Result.success()
         }
 
-        prefs.edit().putString("last_pull_status", "Syncing...").apply()
-        
         setProgress(workDataOf(
             PROGRESS_OP to "Pulling Events",
             PROGRESS_STATE to "SYNCING"
@@ -58,7 +55,7 @@ class PullWorker @AssistedInject constructor(
                 ))
                 Result.success()
             } else {
-                prefs.edit().putString("last_pull_status", "Failed: $status").apply()
+                prefs.edit().putString("last_pull_status", "Failed").apply()
                 setProgress(workDataOf(
                     PROGRESS_STATE to "ERROR",
                     PROGRESS_ERROR to status
@@ -72,7 +69,7 @@ class PullWorker @AssistedInject constructor(
             }
         } catch (e: Exception) {
             val errorMsg = e.message ?: "Unknown error"
-            prefs.edit().putString("last_pull_status", "Error: $errorMsg").apply()
+            prefs.edit().putString("last_pull_status", "Error").apply()
             setProgress(workDataOf(
                 PROGRESS_STATE to "ERROR",
                 PROGRESS_ERROR to errorMsg

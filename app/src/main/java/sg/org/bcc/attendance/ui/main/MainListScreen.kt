@@ -1350,7 +1350,7 @@ fun CloudStatusDialog(
                     shouldRotate = syncProgress.shouldRotate
                 )
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("Cloud Status")
+                Text("Cloud Status", color = MaterialTheme.colorScheme.primary)
             }
         },
         text = {
@@ -1575,6 +1575,8 @@ fun CloudStatusDialog(
                         SyncInfoRow("Last Pull", time.format(java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss")))
                     }
 
+                    SyncInfoRow("Last Pull Status", syncProgress.lastPullStatus ?: "Never", onClick = onShowLogs)
+
                     syncProgress.nextScheduledPull?.let { next ->
                         val nextPullStr = try {
                             java.time.Instant.ofEpochMilli(next).atZone(java.time.ZoneId.systemDefault()).toLocalTime().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss"))
@@ -1583,8 +1585,6 @@ fun CloudStatusDialog(
                         }
                         SyncInfoRow("Next Pull Scheduled", nextPullStr)
                     }
-
-                    SyncInfoRow("Last Pull Status", syncProgress.lastPullStatus ?: "Unknown", onClick = onShowLogs)
 
                     if (missingCloudAttendeesCount > 0 || missingCloudGroupsCount > 0 || missingCloudEventsCount > 0) {
                         val missingSummary = buildString {
@@ -1609,23 +1609,11 @@ fun CloudStatusDialog(
         },
         dismissButton = {
             if (isAuthed && authState == sg.org.bcc.attendance.data.remote.AuthState.AUTHENTICATED) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (syncProgress.shouldRotate) {
-                        RotatingSyncIcon(
-                            resourceId = syncProgress.cloudStatusIcon,
-                            contentDescription = "Syncing",
-                            modifier = Modifier.size(18.dp),
-                            tint = MaterialTheme.colorScheme.primary,
-                            shouldRotate = true
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                    }
-                    TextButton(
-                        onClick = onManualSync,
-                        enabled = !syncProgress.shouldRotate && isOnline
-                    ) {
-                        Text("Sync Now")
-                    }
+                TextButton(
+                    onClick = onManualSync,
+                    enabled = !syncProgress.shouldRotate && isOnline
+                ) {
+                    Text("Sync Now")
                 }
             }
         }
