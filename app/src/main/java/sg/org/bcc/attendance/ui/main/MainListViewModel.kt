@@ -25,11 +25,6 @@ data class CloudProfile(
     val profileImageUrl: String? = null
 )
 
-data class QrSelection(
-    val attendee: Attendee,
-    val groups: List<sg.org.bcc.attendance.data.local.entities.Group>
-)
-
 enum class SortMode {
     NAME_ASC,
     RECENT_UPDATED
@@ -128,22 +123,10 @@ class MainListViewModel @Inject constructor(
     private val _navigateToResolutionScreenEvent = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val navigateToResolutionScreenEvent = _navigateToResolutionScreenEvent.asSharedFlow()
 
-    private val _qrSelection = MutableStateFlow<QrSelection?>(null)
-    val qrSelection: StateFlow<QrSelection?> = _qrSelection.asStateFlow()
-
     private val _activeQrInfo = MutableStateFlow<QrInfo?>(null)
     val activeQrInfo: StateFlow<QrInfo?> = _activeQrInfo.asStateFlow()
 
-    fun onQrTrigger(attendee: Attendee, groups: List<sg.org.bcc.attendance.data.local.entities.Group>) {
-        if (groups.isEmpty()) {
-            onQrSelected(attendee, null)
-        } else {
-            _qrSelection.value = QrSelection(attendee, groups)
-        }
-    }
-
     fun onQrSelected(attendee: Attendee, group: sg.org.bcc.attendance.data.local.entities.Group?) {
-        _qrSelection.value = null
         val info = if (group != null) {
             QrInfo(
                 personId = attendee.id,
@@ -155,10 +138,6 @@ class MainListViewModel @Inject constructor(
             QrInfo(personId = attendee.id, personName = attendee.shortName ?: attendee.fullName)
         }
         _activeQrInfo.value = info
-    }
-
-    fun dismissQrSelection() {
-        _qrSelection.value = null
     }
 
     private val _qrMessageEvent = MutableSharedFlow<String>(extraBufferCapacity = 1)

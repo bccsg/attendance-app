@@ -36,15 +36,17 @@ fun AttendeeListItem(
     backgroundColor: Color = MaterialTheme.colorScheme.surface,
     textScale: Float = 1.0f,
     alpha: Float = 1.0f,
-    onClick: () -> Unit,
+    enabled: Boolean = true,
+    onClick: () -> Unit = {},
     onLongClick: () -> Unit = {},
     onAvatarClick: () -> Unit = onClick,
-    trailingContent: @Composable (() -> Unit)? = null
+    trailingContent: @Composable (() -> Unit)? = null,
+    modifier: Modifier = Modifier
 ) {
     val avatarSize = 40.dp * textScale
 
     Surface(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .alpha(alpha),
         color = when {
@@ -54,10 +56,12 @@ fun AttendeeListItem(
         }
     ) {
         ListItem(
-            modifier = Modifier.combinedClickable(
-                onClick = onClick,
-                onLongClick = onLongClick
-            ),
+            modifier = if (enabled) {
+                Modifier.combinedClickable(
+                    onClick = onClick,
+                    onLongClick = onLongClick
+                )
+            } else Modifier,
             headlineContent = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
@@ -133,7 +137,7 @@ fun AttendeeListItem(
                     modifier = Modifier
                         .size(avatarSize)
                         .clip(CircleShape)
-                        .clickable { onAvatarClick() }
+                        .then(if (enabled) Modifier.clickable { onAvatarClick() } else Modifier)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         if (isSelected) {

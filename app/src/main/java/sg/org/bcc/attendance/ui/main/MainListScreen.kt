@@ -104,7 +104,6 @@ fun MainListScreen(
     val currentEventTitle by viewModel.currentEventTitle.collectAsState()
     val availableEvents by viewModel.availableEvents.collectAsState()
     val selectedAttendeeForDetail by viewModel.selectedAttendeeForDetail.collectAsState()
-    val qrSelection by viewModel.qrSelection.collectAsState()
     val activeQrInfo by viewModel.activeQrInfo.collectAsState()
     val canNavigateBackInDetail by viewModel.canNavigateBackInDetail.collectAsState()
     val previousAttendeeName by viewModel.previousAttendeeName.collectAsState()
@@ -257,9 +256,7 @@ fun MainListScreen(
                                         wasIndividualAddedJustNow = true
                                         viewModel.addAttendeeToQueue(attendeeId)
                                     },
-                                    onQrTrigger = { attendee, groups ->
-                                        viewModel.onQrTrigger(attendee, groups)
-                                    },
+                                    onQrSelected = viewModel::onQrSelected,
                                     onAddGroupToQueue = { groupId ->
                                         lastQueuedGroupId = groupId
                                         viewModel.addGroupToQueue(groupId)
@@ -823,7 +820,7 @@ fun MainBottomSheetContent(
     onPopAttendeeDetail: () -> Unit,
     onShowAttendeeDetail: (Attendee) -> Unit,
     onAddAttendeeToQueue: (String) -> Unit,
-    onQrTrigger: (Attendee, List<sg.org.bcc.attendance.data.local.entities.Group>) -> Unit,
+    onQrSelected: (Attendee, sg.org.bcc.attendance.data.local.entities.Group?) -> Unit,
     onAddGroupToQueue: (String) -> Unit,
     onSetShowQueueSheet: (Boolean) -> Unit,
     onSetShowScannerSheet: (Boolean) -> Unit,
@@ -862,7 +859,7 @@ fun MainBottomSheetContent(
                             onBack = onPopAttendeeDetail,
                             onAttendeeClick = onShowAttendeeDetail,
                             onAddAttendeeToQueue = { onAddAttendeeToQueue(selectedAttendeeForDetail.id) },
-                            onQrClick = { onQrTrigger(selectedAttendeeForDetail, detailAttendeeGroups) },
+                            onQrSelected = { group -> onQrSelected(selectedAttendeeForDetail, group) },
                             onAddGroupToQueue = onAddGroupToQueue,
                             animatingGroups = animatingGroups
                         )
@@ -1007,10 +1004,12 @@ fun AttendeeDetailContent(
     onBack: () -> Unit = {},
     onAttendeeClick: (Attendee) -> Unit,
     onAddAttendeeToQueue: () -> Unit,
-    onQrClick: () -> Unit,
+    onQrSelected: (sg.org.bcc.attendance.data.local.entities.Group?) -> Unit,
     onAddGroupToQueue: (String) -> Unit,
     animatingGroups: Set<String> = emptySet()
 ) {
+    var showQrMenu by remember { mutableStateOf(false) }
+
     Column(modifier = Modifier.fillMaxWidth()) {
         if (canNavigateBack && previousName != null) {
             sg.org.bcc.attendance.ui.components.AppBottomSheetHeader(
@@ -1032,19 +1031,12 @@ fun AttendeeDetailContent(
                 isQueued = queueIds.contains(attendee.id),
                 backgroundColor = Color.White,
                 textScale = 1.25f,
+                enabled = false,
                 onClick = { },
                 onAvatarClick = { },
                 onLongClick = { },
                 trailingContent = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = onQrClick) {
-                            AppIcon(
-                                resourceId = AppIcons.QrCode,
-                                contentDescription = "Generate QR",
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(24.dp * 1.25f)
-                            )
-                        }
                         if (queueIds.contains(attendee.id)) {
                             AppIcon(
                                 resourceId = AppIcons.BookmarkAdded,
@@ -1052,6 +1044,44 @@ fun AttendeeDetailContent(
                                 modifier = Modifier.size(28.dp * 1.25f).padding(end = 4.dp),
                                 tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
                             )
+                        }
+
+                        Box {
+                            IconButton(onClick = { showQrMenu = true }) {
+                                AppIcon(
+                                    resourceId = AppIcons.MoreVert,
+                                    contentDescription = "QR Options",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(24.dp * 1.25f)
+                                )
+                            }
+                            DropdownMenu(
+                                expanded = showQrMenu,
+                                onDismissRequest = { showQrMenu = false }
+                            ) {
+                                val isAttendeeQrActive = activeQrInfo != null && activeQrInfo.groupId == null
+                                DropdownMenuItem(
+                                    text = { Text("Attendee only") },
+                                    leadingIcon = { AppIcon(resourceId = AppIcons.QrCode, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                                    enabled = !isAttendeeQrActive,
+                                    onClick = {
+                                        onQrSelected(null)
+                                        showQrMenu = false
+                                    }
+                                )
+                                groups.forEach { group ->
+                                    val isGroupQrActive = activeQrInfo != null && activeQrInfo.groupId == group.groupId
+                                    DropdownMenuItem(
+                                        text = { Text(group.name) },
+                                        leadingIcon = { AppIcon(resourceId = AppIcons.QrCode, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                                        enabled = !isGroupQrActive,
+                                        onClick = {
+                                            onQrSelected(group)
+                                            showQrMenu = false
+                                        }
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -1196,7 +1226,7 @@ fun AttendeeDetailContent(
                                 }
                                 Spacer(modifier = Modifier.width(4.dp))
                                 AnimatedContent(
-                                    targetState = if (isAnimating || isGroupFullyQueued) "Queued" else "Queue group",
+                                    targetState = if (isAnimating || isGroupFullyQueued) "Queued" else "Queue ${allMembers.size}",
                                     transitionSpec = {
                                         fadeIn(animationSpec = tween(300)) togetherWith
                                         fadeOut(animationSpec = tween(300))
@@ -1552,68 +1582,4 @@ fun SyncInfoRow(label: String, value: String, onClick: (() -> Unit)? = null) {
             color = if (onClick != null) MaterialTheme.colorScheme.primary else Color.Unspecified
         )
     }
-}
-
-@Composable
-fun QrSelectionDialog(
-    selection: QrSelection,
-    onDismiss: () -> Unit,
-    onConfirm: (sg.org.bcc.attendance.data.local.entities.Group?) -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Generate QR Code") },
-        text = {
-            Column {
-                Text(
-                    text = "Select whether to generate a QR code for the individual or an associated group.",
-                    style = MaterialTheme.typography.bodyMedium
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                
-                // Individual Option
-                Surface(
-                    onClick = { onConfirm(null) },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(8.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        AppIcon(resourceId = AppIcons.Person, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Text(text = selection.attendee.fullName, style = MaterialTheme.typography.bodyLarge)
-                    }
-                }
-                
-                Spacer(modifier = Modifier.height(8.dp))
-                
-                // Group Options
-                selection.groups.forEach { group ->
-                    Surface(
-                        onClick = { onConfirm(group) },
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                        shape = RoundedCornerShape(8.dp),
-                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            AppIcon(resourceId = AppIcons.Groups, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Text(text = group.name, style = MaterialTheme.typography.bodyLarge)
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
-            }
-        }
-    )
 }
