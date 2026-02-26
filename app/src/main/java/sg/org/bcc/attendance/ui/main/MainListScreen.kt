@@ -54,11 +54,11 @@ import sg.org.bcc.attendance.sync.*
 import sg.org.bcc.attendance.ui.theme.Purple40
 import sg.org.bcc.attendance.ui.components.AppIcon
 import sg.org.bcc.attendance.ui.components.AppIcons
+import sg.org.bcc.attendance.ui.components.AttendeeListItem
 import sg.org.bcc.attendance.ui.components.RotatingSyncIcon
 import sg.org.bcc.attendance.ui.components.DateIcon
 import sg.org.bcc.attendance.ui.components.pinchToScale
 import sg.org.bcc.attendance.util.EventSuggester
-import sg.org.bcc.attendance.util.SetStatusBarIconsColor
 import sg.org.bcc.attendance.util.qr.QrInfo
 import java.time.LocalTime
 import java.util.Locale
@@ -243,8 +243,6 @@ fun MainListScreen(
                                 BottomSheetDefaults.DragHandle()
                             }
                             
-                            SetStatusBarIconsColor(isLight = false)
-                            
                             // Content extends to bottom
                             AttendeeDetailContent(
                                 attendee = selectedAttendeeForDetail!!,
@@ -390,7 +388,6 @@ fun MainListScreen(
         val missingCloudGroupsCount by viewModel.missingCloudGroupsCount.collectAsState()
         val missingCloudEventsCount by viewModel.missingCloudEventsCount.collectAsState()
 
-        SetStatusBarIconsColor(isLight = false)
         CloudStatusDialog(
             isAuthed = isAuthed,
             authState = authState,
@@ -456,7 +453,6 @@ fun MainListScreen(
                                 BottomSheetDefaults.DragHandle()
                             }
                             
-                            SetStatusBarIconsColor(isLight = false)
                                                     QueueScreen(
                                                         onBack = {
                                                             viewModel.setShowQueueSheet(false)
@@ -511,7 +507,6 @@ fun MainListScreen(
                                 BottomSheetDefaults.DragHandle()
                             }
                             
-                            SetStatusBarIconsColor(isLight = false)
                             sg.org.bcc.attendance.ui.qr.QrScannerContent(
                                 onScanResult = { code ->
                                     viewModel.processQrResult(code)
@@ -977,10 +972,9 @@ fun MainListScreen(
                                 textScale = textScale,
                                 isSelected = isSelected,
                                 isPresent = isPresent,
-                                isPending = isPending,
-                                isInQueue = queueIds.contains(attendee.id),
+                                isQueued = isInQueue,
                                 isSelectionMode = isSelectionMode,
-                                groups = groups,
+                                isGrouped = groups.isNotEmpty(),
                                 onClick = {
                                     if (isSelectionMode) {
                                         viewModel.toggleSelection(attendee.id)
@@ -1015,146 +1009,6 @@ fun MainListScreen(
                     .pointerInput(Unit) {} // Consume touches
             )
         }
-    }
-}
-
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-fun AttendeeListItem(
-    attendee: Attendee,
-    searchQuery: String,
-    textScale: Float,
-    isSelected: Boolean,
-    isPresent: Boolean,
-    isPending: Boolean,
-    isInQueue: Boolean,
-    isSelectionMode: Boolean,
-    groups: List<String> = emptyList(),
-    backgroundColor: Color = MaterialTheme.colorScheme.surface,
-    showGroupIcon: Boolean = true, // Added to toggle visibility
-    onClick: () -> Unit,
-    onLongClick: () -> Unit,
-    onAvatarClick: () -> Unit
-) {
-    val avatarSize = 40.dp * textScale
-
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        tonalElevation = 0.dp,
-        shadowElevation = 0.dp,
-        color = if (isSelected) {
-            MaterialTheme.colorScheme.secondaryContainer
-        } else if (isSelectionMode) {
-            Color(0xFFF2F0F7)
-        } else {
-            backgroundColor
-        }
-    ) {
-        ListItem(
-            modifier = Modifier
-                .combinedClickable(
-                    onClick = onClick,
-                    onLongClick = onLongClick
-                ),
-            headlineContent = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = getHighlightedText(attendee.shortName ?: attendee.fullName, searchQuery),
-                        style = MaterialTheme.typography.titleMedium.copy(
-                            fontSize = MaterialTheme.typography.titleMedium.fontSize * textScale
-                        )
-                    )
-                    if (showGroupIcon && groups.isNotEmpty()) {
-                        Spacer(modifier = Modifier.width(8.dp))
-                        AppIcon(
-                            resourceId = AppIcons.Groups,
-                            contentDescription = "In Groups",
-                            modifier = Modifier.size(16.dp * textScale),
-                            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
-                        )
-                    }
-                }
-            },
-            supportingContent = {
-                if (attendee.shortName != null) {
-                    Text(
-                        text = getHighlightedText(attendee.fullName, searchQuery),
-                        style = MaterialTheme.typography.bodyMedium.copy(
-                            fontSize = MaterialTheme.typography.bodyMedium.fontSize * textScale
-                        )
-                    )
-                }
-            },
-            trailingContent = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (isSelectionMode && isPresent) {
-                        AppIcon(
-                            resourceId = AppIcons.PersonCheck,
-                            contentDescription = "Already Present",
-                            modifier = Modifier.size(20.dp * textScale),
-                            tint = DeepGreen.copy(alpha = 0.6f)
-                        )
-                        if (isInQueue) Spacer(modifier = Modifier.width(8.dp))
-                    }
-                    if (isInQueue) {
-                        AppIcon(
-                            resourceId = AppIcons.BookmarkAdded,
-                            contentDescription = "In Queue",
-                            modifier = Modifier.size(20.dp * textScale),
-                            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
-                        )
-                    }
-                }
-            },
-            leadingContent = {
-                Surface(
-                    shape = CircleShape,
-                    color = when {
-                        isSelected -> MaterialTheme.colorScheme.primary
-                        isPresent && !isSelectionMode -> PastelGreen
-                        else -> MaterialTheme.colorScheme.primaryContainer
-                    },
-                    modifier = Modifier
-                        .size(avatarSize)
-                        .clip(CircleShape)
-                        .clickable { onAvatarClick() }
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        if (isSelected) {
-                            AppIcon(
-                                resourceId = AppIcons.Check,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onPrimary,
-                                modifier = Modifier.size(avatarSize * 0.6f)
-                            )
-                        } else if (isPending && !isSelectionMode) {
-                            AppIcon(
-                                resourceId = AppIcons.Schedule,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(avatarSize * 0.6f)
-                            )
-                        } else if (isPresent && !isSelectionMode) {
-                            AppIcon(
-                                resourceId = AppIcons.PersonCheck,
-                                contentDescription = null,
-                                tint = DeepGreen,
-                                modifier = Modifier.size(avatarSize * 0.6f)
-                            )
-                        } else {
-                            Text(
-                                text = (attendee.shortName ?: attendee.fullName).take(1).uppercase(),
-                                style = MaterialTheme.typography.titleMedium.copy(
-                                    fontSize = MaterialTheme.typography.titleMedium.fontSize * textScale
-                                ),
-                                color = if (isPresent && !isSelectionMode) DeepGreen else MaterialTheme.colorScheme.onPrimaryContainer
-                            )
-                        }
-                    }
-                }
-            },
-            colors = ListItemDefaults.colors(containerColor = Color.Transparent)
-        )
     }
 }
 
@@ -1208,76 +1062,35 @@ fun AttendeeDetailContent(
                 HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
             }
 
-            ListItem(
-                leadingContent = {
-                    val isPresent = presentIds.contains(attendee.id)
-                    Surface(
-                        shape = CircleShape,
-                        color = if (isPresent) PastelGreen else MaterialTheme.colorScheme.primaryContainer,
-                        modifier = Modifier.size(56.dp)
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            if (isPresent) {
-                                AppIcon(
-                                    resourceId = AppIcons.PersonCheck,
-                                    contentDescription = null,
-                                    tint = DeepGreen,
-                                    modifier = Modifier.size(32.dp)
-                                )
-                            } else {
-                                Text(
-                                    text = (attendee.shortName ?: attendee.fullName).take(1).uppercase(),
-                                    style = MaterialTheme.typography.titleLarge,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                                )
-                            }
-                        }
-                    }
-                },
-                headlineContent = {
-                    Text(
-                        text = attendee.fullName,
-                        style = MaterialTheme.typography.titleLarge
-                    )
-                },
-                supportingContent = {
-                    Column {
-                        if (attendee.shortName != null) {
-                            Text(
-                                text = attendee.shortName,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = "ID: ${attendee.id}",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                            )
-                        }
-                    }
-                },
+            AttendeeListItem(
+                attendee = attendee,
+                isPresent = presentIds.contains(attendee.id),
+                isQueued = queueIds.contains(attendee.id),
+                backgroundColor = Color.White,
+                textScale = 1.25f,
+                onClick = { },
+                onAvatarClick = { },
+                onLongClick = { },
                 trailingContent = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         IconButton(onClick = onQrClick) {
                             AppIcon(
                                 resourceId = AppIcons.QrCode,
                                 contentDescription = "Generate QR",
-                                tint = MaterialTheme.colorScheme.primary
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(24.dp * 1.25f)
                             )
                         }
                         if (queueIds.contains(attendee.id)) {
                             AppIcon(
                                 resourceId = AppIcons.BookmarkAdded,
                                 contentDescription = "In Queue",
-                                modifier = Modifier.size(28.dp).padding(end = 4.dp),
+                                modifier = Modifier.size(28.dp * 1.25f).padding(end = 4.dp),
                                 tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
                             )
                         }
                     }
-                },
-                colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+                }
             )
             HorizontalDivider()
         }
@@ -1437,22 +1250,14 @@ fun AttendeeDetailContent(
                 }
 
                 items(members, key = { "${group.groupId}_${it.id}" }) { member ->
-                    val memberGroups = attendeeGroupsMap[member.id] ?: emptyList()
                     AttendeeListItem(
                         attendee = member,
                         searchQuery = "",
                         textScale = textScale,
-                        isSelected = false,
                         isPresent = presentIds.contains(member.id),
-                        isPending = false,
-                        isInQueue = queueIds.contains(member.id),
-                        isSelectionMode = false,
-                        groups = memberGroups,
+                        isQueued = queueIds.contains(member.id),
                         backgroundColor = MaterialTheme.colorScheme.surfaceContainerLow,
-                        showGroupIcon = false, // HIDE GROUP ICON IN DETAIL
-                        onClick = { onAttendeeClick(member) },
-                        onLongClick = { },
-                        onAvatarClick = { onAttendeeClick(member) }
+                        onClick = { onAttendeeClick(member) }
                     )
                 }
             }
@@ -1782,23 +1587,6 @@ fun SyncInfoRow(label: String, value: String, onClick: (() -> Unit)? = null) {
             fontWeight = FontWeight.Bold,
             color = if (onClick != null) MaterialTheme.colorScheme.primary else Color.Unspecified
         )
-    }
-}
-
-private fun getHighlightedText(fullText: String, query: String): AnnotatedString {
-    if (query.isEmpty() || !fullText.contains(query, ignoreCase = true)) {
-        return AnnotatedString(fullText)
-    }
-
-    val startIndex = fullText.indexOf(query, ignoreCase = true)
-    val endIndex = startIndex + query.length
-
-    return buildAnnotatedString {
-        append(fullText.substring(0, startIndex))
-        pushStyle(SpanStyle(fontWeight = FontWeight.Bold, color = Purple40))
-        append(fullText.substring(startIndex, endIndex))
-        pop()
-        append(fullText.substring(endIndex))
     }
 }
 

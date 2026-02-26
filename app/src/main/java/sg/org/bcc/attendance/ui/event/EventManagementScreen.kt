@@ -27,7 +27,6 @@ import sg.org.bcc.attendance.ui.components.AppIcons
 import sg.org.bcc.attendance.ui.components.RotatingSyncIcon
 import sg.org.bcc.attendance.ui.components.DateIcon
 import sg.org.bcc.attendance.util.EventSuggester
-import sg.org.bcc.attendance.util.SetStatusBarIconsColor
 import sg.org.bcc.attendance.sync.SyncState
 import java.time.Instant
 import java.time.LocalDate
@@ -62,8 +61,6 @@ fun EventManagementScreen(
             viewModel.clearError()
         }
     }
-
-    SetStatusBarIconsColor(isLight = false)
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },

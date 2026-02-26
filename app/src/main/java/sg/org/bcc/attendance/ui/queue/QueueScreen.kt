@@ -34,6 +34,7 @@ import kotlinx.coroutines.launch
 import sg.org.bcc.attendance.data.repository.QueueItem
 import sg.org.bcc.attendance.ui.components.AppIcon
 import sg.org.bcc.attendance.ui.components.AppIcons
+import sg.org.bcc.attendance.ui.components.AttendeeListItem
 import sg.org.bcc.attendance.ui.components.HoldToActivateButton
 import sg.org.bcc.attendance.ui.theme.PastelGreen
 import sg.org.bcc.attendance.ui.theme.DeepGreen
@@ -354,11 +355,17 @@ fun QueueScreen(
                                                 )
                                             }
                                     ) {
-                                        QueueListItem(
-                                            item = item,
+                                        AttendeeListItem(
+                                            attendee = item.attendee,
                                             isPresent = isPresent,
+                                            isQueued = false, // Not showing queued icon inside the queue screen
+                                            isLater = item.isLater,
+                                            isSelectionMode = item.isLater, // Later items use the isSelectionMode background
+                                            isSelected = !item.isLater, // Ready items use the isSelected background
                                             textScale = textScale,
-                                            onToggle = { 
+                                            alpha = if (item.isLater) 0.5f else 1.0f,
+                                            backgroundColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                                            onClick = { 
                                                 if (swipeOffset.value == 0f) {
                                                     scope.launch {
                                                         viewModel.toggleLater(item.attendee.id, item.isLater) 
@@ -418,100 +425,6 @@ fun QueueScreen(
             dismissButton = {
                 TextButton(onClick = { showClearDialog = false }) { Text("Cancel") }
             }
-        )
-    }
-}
-
-@Composable
-fun QueueListItem(
-    item: QueueItem,
-    isPresent: Boolean,
-    textScale: Float,
-    onToggle: () -> Unit
-) {
-    val alpha = if (item.isLater) 0.5f else 1f
-    val avatarSize = 40.dp * textScale
-
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onToggle() },
-        tonalElevation = 0.dp,
-        shadowElevation = 0.dp,
-        color = if (item.isLater) {
-            Color(0xFFF2F0F7)
-        } else {
-            MaterialTheme.colorScheme.surfaceContainerLow
-        }
-    ) {
-        ListItem(
-            modifier = Modifier.alpha(alpha),
-            headlineContent = {
-                Text(
-                    text = item.attendee.shortName ?: item.attendee.fullName,
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontSize = MaterialTheme.typography.titleMedium.fontSize * textScale
-                    )
-                )
-            },
-            supportingContent = {
-                if (item.attendee.shortName != null) {
-                    Text(
-                        text = item.attendee.fullName,
-                        style = MaterialTheme.typography.bodyMedium.copy(
-                            fontSize = MaterialTheme.typography.bodyMedium.fontSize * textScale
-                        )
-                    )
-                }
-            },
-            trailingContent = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (isPresent) {
-                        AppIcon(
-                            resourceId = AppIcons.PersonCheck, 
-                            contentDescription = "Already Present", 
-                            tint = DeepGreen,
-                            modifier = Modifier.size(20.dp * textScale)
-                        )
-                    }
-                    if (item.isLater) {
-                        if (isPresent) Spacer(modifier = Modifier.width(8.dp))
-                        AppIcon(
-                            resourceId = AppIcons.PushPin, 
-                            contentDescription = "Later", 
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                            modifier = Modifier.size(20.dp * textScale)
-                        )
-                    }
-                }
-            },
-            leadingContent = {
-                Surface(
-                    shape = CircleShape,
-                    color = if (!item.isLater) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
-                    modifier = Modifier.size(avatarSize)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        if (!item.isLater) {
-                            AppIcon(
-                                resourceId = AppIcons.Check,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onPrimary,
-                                modifier = Modifier.size(avatarSize * 0.6f)
-                            )
-                        } else {
-                            Text(
-                                text = (item.attendee.shortName ?: item.attendee.fullName).take(1).uppercase(),
-                                style = MaterialTheme.typography.titleMedium.copy(
-                                    fontSize = MaterialTheme.typography.titleMedium.fontSize * textScale
-                                ),
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
-            },
-            colors = ListItemDefaults.colors(containerColor = Color.Transparent)
         )
     }
 }

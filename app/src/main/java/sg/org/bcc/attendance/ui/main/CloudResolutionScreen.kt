@@ -23,6 +23,7 @@ import sg.org.bcc.attendance.data.local.entities.Event
 import sg.org.bcc.attendance.data.local.entities.Group
 import sg.org.bcc.attendance.ui.components.AppIcon
 import sg.org.bcc.attendance.ui.components.AppIcons
+import sg.org.bcc.attendance.ui.components.AttendeeListItem
 import sg.org.bcc.attendance.ui.components.RotatingSyncIcon
 import sg.org.bcc.attendance.ui.components.DateIcon
 import sg.org.bcc.attendance.util.EventSuggester
@@ -116,55 +117,14 @@ fun CloudResolutionScreen(
                             SectionHeader("Missing Attendees")
                         }
                         items(missingAttendees, key = { "attendee_${it.id}" }) { attendee ->
-                            Surface(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable { 
-                                        viewModel.clearError()
-                                        selectedAttendeeForResolution = attendee 
-                                    },
-                                color = MaterialTheme.colorScheme.surfaceContainerLow
-                            ) {
-                                ListItem(
-                                    headlineContent = {
-                                        Text(
-                                            text = attendee.shortName ?: attendee.fullName,
-                                            style = MaterialTheme.typography.titleMedium
-                                        )
-                                    },
-                                    supportingContent = {
-                                        Column {
-                                            Text(
-                                                text = "ID: ${attendee.id}", 
-                                                style = MaterialTheme.typography.labelSmall, 
-                                                color = MaterialTheme.colorScheme.primary
-                                            )
-                                            if (attendee.shortName != null) {
-                                                Text(
-                                                    text = attendee.fullName,
-                                                    style = MaterialTheme.typography.bodyMedium
-                                                )
-                                            }
-                                        }
-                                    },
-                                    leadingContent = {
-                                        Surface(
-                                            shape = CircleShape,
-                                            color = MaterialTheme.colorScheme.primaryContainer,
-                                            modifier = Modifier.size(40.dp)
-                                        ) {
-                                            Box(contentAlignment = Alignment.Center) {
-                                                Text(
-                                                    text = (attendee.shortName ?: attendee.fullName).take(1).uppercase(),
-                                                    style = MaterialTheme.typography.titleMedium,
-                                                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                                                )
-                                            }
-                                        }
-                                    },
-                                    colors = ListItemDefaults.colors(containerColor = Color.Transparent)
-                                )
-                            }
+                            AttendeeListItem(
+                                attendee = attendee,
+                                backgroundColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                                onClick = { 
+                                    viewModel.clearError()
+                                    selectedAttendeeForResolution = attendee 
+                                }
+                            )
                         }
                     }
 
@@ -314,8 +274,6 @@ fun CloudResolutionScreen(
         }
 
         ResolutionBottomSheet(
-            title = selectedAttendeeForResolution?.shortName ?: selectedAttendeeForResolution?.fullName ?: "",
-            id = selectedAttendeeForResolution?.id ?: "",
             description = "This attendee exists locally but is missing on the cloud master list. You can manually restore the entry on the cloud and sync again.",
             inUseWarning = if (isInUse == true) "This attendee cannot be removed locally because they still have attendance records or are still referenced in the cloud group mappings. Removal is only possible after 30 days have passed since their last event, and they are removed from the cloud's 'Mappings' sheet." else null,
             isProcessing = isProcessing,
@@ -327,6 +285,14 @@ fun CloudResolutionScreen(
                     viewModel.removeAttendee(it.id) {
                         selectedAttendeeForResolution = null
                     }
+                }
+            },
+            header = {
+                selectedAttendeeForResolution?.let {
+                    AttendeeListItem(
+                        attendee = it,
+                        onClick = { }
+                    )
                 }
             }
         )
