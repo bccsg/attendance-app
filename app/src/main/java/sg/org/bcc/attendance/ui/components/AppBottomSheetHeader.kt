@@ -15,6 +15,7 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun AppBottomSheetHeader(
     title: String? = null,
+    subtitle: String? = null,
     navigationText: String? = null,
     onNavigationClick: (() -> Unit)? = null,
     leadingContent: (@Composable () -> Unit)? = null,
@@ -28,7 +29,7 @@ fun AppBottomSheetHeader(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Color.White)
+                    .background(MaterialTheme.colorScheme.surface)
                     .then(if (onNavigationClick != null) Modifier.clickable(onClick = onNavigationClick) else Modifier)
                     .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -57,7 +58,7 @@ fun AppBottomSheetHeader(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(Color.White)
+                        .background(MaterialTheme.colorScheme.surface)
                         .padding(
                             start = 16.dp, 
                             end = 16.dp, 
@@ -69,21 +70,31 @@ fun AppBottomSheetHeader(
                 ) {
                     if (leadingContent != null) {
                         leadingContent()
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width(12.dp))
                     }
                     
-                    Text(
-                        text = title,
-                        style = MaterialTheme.typography.titleLarge.copy(
-                            fontSize = MaterialTheme.typography.titleLarge.fontSize * textScale
-                        ),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    
-                    Spacer(modifier = Modifier.weight(1f))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = title,
+                            style = MaterialTheme.typography.titleLarge.copy(
+                                fontSize = MaterialTheme.typography.titleLarge.fontSize * textScale
+                            ),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        if (subtitle != null) {
+                            Text(
+                                text = subtitle,
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontSize = MaterialTheme.typography.labelSmall.fontSize * textScale
+                                ),
+                                color = MaterialTheme.colorScheme.secondary
+                            )
+                        }
+                    }
                     
                     if (trailingContent != null) {
+                        Spacer(modifier = Modifier.width(8.dp))
                         trailingContent()
                     }
                 }

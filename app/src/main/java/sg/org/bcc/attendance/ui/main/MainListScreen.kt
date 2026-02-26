@@ -1023,13 +1023,13 @@ fun AttendeeDetailContent(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(Color.White)
+                .background(MaterialTheme.colorScheme.surface)
         ) {
             AttendeeListItem(
                 attendee = attendee,
                 isPresent = presentIds.contains(attendee.id),
                 isQueued = queueIds.contains(attendee.id),
-                backgroundColor = Color.White,
+                backgroundColor = MaterialTheme.colorScheme.surface,
                 textScale = 1.25f,
                 enabled = false,
                 onClick = { },
@@ -1105,7 +1105,7 @@ fun AttendeeDetailContent(
                     
                     Surface(
                         modifier = Modifier.fillMaxWidth(),
-                        color = Color.White
+                        color = MaterialTheme.colorScheme.surface
                     ) {
                         Column(
                             modifier = Modifier

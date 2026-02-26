@@ -23,6 +23,7 @@ import sg.org.bcc.attendance.data.local.entities.Event
 import sg.org.bcc.attendance.data.local.entities.Group
 import sg.org.bcc.attendance.ui.components.AppIcon
 import sg.org.bcc.attendance.ui.components.AppIcons
+import sg.org.bcc.attendance.ui.components.AppBottomSheetHeader
 import sg.org.bcc.attendance.ui.components.AttendeeListItem
 import sg.org.bcc.attendance.ui.components.RotatingSyncIcon
 import sg.org.bcc.attendance.ui.components.DateIcon
@@ -223,32 +224,24 @@ fun CloudResolutionScreen(
                 }
             },
             header = {
-                ListItem(
-                    modifier = Modifier.fillMaxWidth(),
+                AppBottomSheetHeader(
+                    title = name,
                     leadingContent = {
                         DateIcon(date = date, textScale = 1.0f)
                     },
-                    headlineContent = {
-                        Text(
-                            text = name,
-                            style = MaterialTheme.typography.titleLarge
-                        )
-                    },
-                    supportingContent = {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                    trailingContent = {
+                        Column(horizontalAlignment = Alignment.End) {
                             Text(
                                 text = formattedTime,
                                 style = MaterialTheme.typography.bodyMedium
                             )
-                            Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "Cloud ID: ${event.cloudEventId ?: "N/A"}",
+                                text = "ID: ${event.cloudEventId ?: "N/A"}",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
                             )
                         }
-                    },
-                    colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+                    }
                 )
             },
             extraAction = {
@@ -296,11 +289,15 @@ fun CloudResolutionScreen(
                 }
             },
             header = {
-                selectedAttendeeForResolution?.let {
-                    AttendeeListItem(
-                        attendee = it,
-                        onClick = { }
-                    )
+                Column {
+                    AppBottomSheetHeader(title = "Missing Attendee")
+                    selectedAttendeeForResolution?.let {
+                        AttendeeListItem(
+                            attendee = it,
+                            backgroundColor = MaterialTheme.colorScheme.surface,
+                            onClick = { }
+                        )
+                    }
                 }
             }
         )
@@ -315,8 +312,6 @@ fun CloudResolutionScreen(
         }
 
         ResolutionBottomSheet(
-            title = selectedGroupForResolution?.name ?: "",
-            id = selectedGroupForResolution?.groupId ?: "",
             description = "This group exists locally but is missing on the cloud master list. You can manually restore the entry on the cloud and sync again.",
             inUseWarning = if (isInUse == true) "This group cannot be removed locally because it has linked attendees. Removal is possible after all references are removed from the cloud's 'Mappings' sheet." else null,
             isProcessing = isProcessing,
@@ -329,6 +324,29 @@ fun CloudResolutionScreen(
                         selectedGroupForResolution = null
                     }
                 }
+            },
+            header = {
+                val group = selectedGroupForResolution!!
+                AppBottomSheetHeader(
+                    title = group.name,
+                    subtitle = "ID: ${group.groupId}",
+                    leadingContent = {
+                        Surface(
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.secondaryContainer,
+                            modifier = Modifier.size(40.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                AppIcon(
+                                    resourceId = AppIcons.Groups,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                        }
+                    }
+                )
             }
         )
     }
@@ -390,8 +408,6 @@ fun MissingEventItem(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ResolutionBottomSheet(
-    title: String = "",
-    id: String = "",
     description: String,
     inUseWarning: String?,
     isProcessing: Boolean,
@@ -400,31 +416,20 @@ fun ResolutionBottomSheet(
     resolveButtonLabel: String = "Remove",
     onDismiss: () -> Unit,
     onResolve: () -> Unit,
-    header: @Composable (() -> Unit)? = null,
+    header: @Composable () -> Unit,
     extraAction: @Composable (ColumnScope.() -> Unit)? = null
 ) {
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        dragHandle = null,
+        containerColor = MaterialTheme.colorScheme.surface
+    ) {
+        header()
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(bottom = 32.dp, start = 16.dp, end = 16.dp)
         ) {
-            if (header != null) {
-                header()
-                Spacer(modifier = Modifier.height(16.dp))
-            } else {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.headlineSmall,
-                    modifier = Modifier.padding(bottom = 4.dp)
-                )
-                Text(
-                    text = "ID: $id",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(bottom = 12.dp)
-                )
-            }
             Text(
                 text = description,
                 style = MaterialTheme.typography.bodyMedium,
