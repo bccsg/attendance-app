@@ -98,7 +98,6 @@ dependencies {
     implementation(libs.androidxUiGraphics)
     implementation(libs.androidxUiToolingPreview)
     implementation(libs.androidxMaterial3)
-    implementation(libs.androidxMaterialIconsExtended)
     implementation(libs.androidxHiltNavigationCompose)
     implementation(libs.material)
     implementation(libs.androidxWorkRuntimeKtx)

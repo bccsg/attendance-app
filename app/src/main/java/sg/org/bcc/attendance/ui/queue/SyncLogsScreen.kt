@@ -6,9 +6,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.*
-import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -21,6 +18,8 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import sg.org.bcc.attendance.data.local.dao.TriggerSummary
 import sg.org.bcc.attendance.data.local.entities.SyncLog
+import sg.org.bcc.attendance.ui.components.AppIcon
+import sg.org.bcc.attendance.ui.components.AppIcons
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -53,7 +52,7 @@ fun SyncLogsScreen(
                     },
                     navigationIcon = {
                         IconButton(onClick = if (selectedTriggerId == null) onBack else { { viewModel.selectTrigger(null) } }) {
-                            Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onPrimary)
+                            AppIcon(AppIcons.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onPrimary)
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
@@ -148,7 +147,7 @@ fun TriggerList(
                             )
                         }
                     },
-                    trailingContent = { Icon(Icons.Rounded.ChevronRight, null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant) },
+                    trailingContent = { AppIcon(AppIcons.ChevronRight, null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant) },
                     modifier = Modifier.clickable { onTriggerSelected(trigger.triggerId) },
                     colors = ListItemDefaults.colors(containerColor = Color.Transparent)
                 )
@@ -200,9 +199,9 @@ fun LogList(
                 },
                 trailingContent = {
                     if (isError) {
-                        Icon(Icons.Rounded.Error, null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(20.dp))
+                        AppIcon(AppIcons.Error, null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(20.dp))
                     } else {
-                        Icon(Icons.Rounded.CheckCircle, null, tint = Color(0xFF4CAF50), modifier = Modifier.size(20.dp))
+                        AppIcon(AppIcons.CheckCircle, null, tint = Color(0xFF4CAF50), modifier = Modifier.size(20.dp))
                     }
                 },
                 modifier = if (isError) Modifier.clickable { onShowError(log) } else Modifier,
