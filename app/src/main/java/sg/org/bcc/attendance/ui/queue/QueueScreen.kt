@@ -103,21 +103,31 @@ fun QueueScreen(
                             title = "Queue",
                             textScale = 1.0f,
                             trailingContent = {
-                                Box(modifier = Modifier.size(48.dp)) {
-                                    if (queueItems.isNotEmpty()) {
-                                        IconButton(
-                                            onClick = { 
-                                                if (laterCount > 0) {
-                                                    showClearDialog = true 
-                                                } else {
-                                                    scope.launch { viewModel.clearReadyQueue() }
-                                                }
+                                if (queueItems.isNotEmpty()) {
+                                    TextButton(
+                                        onClick = { 
+                                            if (laterCount > 0) {
+                                                showClearDialog = true 
+                                            } else {
+                                                scope.launch { viewModel.clearReadyQueue() }
                                             }
-                                        ) {
+                                        },
+                                        colors = ButtonDefaults.textButtonColors(
+                                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                        ),
+                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
                                             AppIcon(
                                                 resourceId = AppIcons.PlaylistRemove, 
-                                                contentDescription = "Clear Queue",
-                                                modifier = Modifier.size(24.dp * 1.25f)
+                                                contentDescription = null,
+                                                modifier = Modifier.size(24.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text(
+                                                text = "Clear",
+                                                style = MaterialTheme.typography.labelLarge,
+                                                fontWeight = FontWeight.Medium
                                             )
                                         }
                                     }
@@ -458,19 +468,34 @@ fun QueueScreen(
     if (showClearDialog) {
         AlertDialog(
             onDismissRequest = { showClearDialog = false },
-            title = { Text("Clear Queue") },
-            text = { Text("Clear all items or keep those set aside for later?") },
+            title = { Text("Confirm") },
+            text = { 
+                Column {
+                    Text("Remove all items, or keep those set aside for later?")
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "Note: Attendees are only removed from the queue, not deleted.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                    )
+                }
+            },
             confirmButton = {
-                Row {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     TextButton(onClick = {
                         scope.launch { viewModel.clearReadyQueue() }
                         showClearDialog = false
-                    }) { Text("Keep") }
+                    }) { Text("Keep Later") }
                     
-                    TextButton(onClick = {
-                        scope.launch { viewModel.clearQueue() }
-                        showClearDialog = false
-                    }) { Text("Clear All") }
+                    TextButton(
+                        onClick = {
+                            scope.launch { viewModel.clearQueue() }
+                            showClearDialog = false
+                        },
+                        colors = ButtonDefaults.textButtonColors(
+                            contentColor = MaterialTheme.colorScheme.error
+                        )
+                    ) { Text("Clear All") }
                 }
             },
             dismissButton = {

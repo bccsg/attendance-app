@@ -69,32 +69,34 @@ fun EventManagementScreen(
                 color = MaterialTheme.colorScheme.primary,
                 tonalElevation = 4.dp
             ) {
-                TopAppBar(
-                    modifier = Modifier.statusBarsPadding(),
-                    title = { Text("Events", color = MaterialTheme.colorScheme.onPrimary) },
-                    navigationIcon = {
-                        IconButton(onClick = onBack) {
-                            AppIcon(resourceId = AppIcons.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onPrimary)
-                        }
-                    },
-                    actions = {
-                        if (syncProgress.syncState != SyncState.IDLE || syncProgress.isBlockingEventMissing) {
-                            RotatingSyncIcon(
-                                resourceId = syncProgress.cloudStatusIcon,
-                                contentDescription = "Sync Status",
-                                tint = MaterialTheme.colorScheme.onPrimary,
-                                shouldRotate = syncProgress.shouldRotate
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                        }
-                        IconButton(onClick = { showCreateDialog = true }) {
-                            AppIcon(resourceId = AppIcons.PlaylistAdd, contentDescription = "Create Event", tint = MaterialTheme.colorScheme.onPrimary)
-                        }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = Color.Transparent
+                Column(modifier = Modifier.statusBarsPadding()) {
+                    TopAppBar(
+                        title = { Text("Events", color = MaterialTheme.colorScheme.onPrimary) },
+                        navigationIcon = {
+                            IconButton(onClick = onBack) {
+                                AppIcon(resourceId = AppIcons.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onPrimary)
+                            }
+                        },
+                        actions = {
+                            Box(modifier = Modifier.size(48.dp), contentAlignment = Alignment.Center) {
+                                if (syncProgress.syncState != SyncState.IDLE || syncProgress.isBlockingEventMissing) {
+                                    RotatingSyncIcon(
+                                        resourceId = syncProgress.cloudStatusIcon,
+                                        contentDescription = "Sync Status",
+                                        tint = MaterialTheme.colorScheme.onPrimary,
+                                        shouldRotate = syncProgress.shouldRotate
+                                    )
+                                }
+                            }
+                            IconButton(onClick = { showCreateDialog = true }) {
+                                AppIcon(resourceId = AppIcons.PlaylistAdd, contentDescription = "Create Event", tint = MaterialTheme.colorScheme.onPrimary)
+                            }
+                        },
+                        colors = TopAppBarDefaults.topAppBarColors(
+                            containerColor = Color.Transparent
+                        )
                     )
-                )
+                }
             }
         }
     ) { padding ->
