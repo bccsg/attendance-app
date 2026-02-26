@@ -35,6 +35,13 @@ enum class SortMode {
     RECENT_UPDATED
 }
 
+enum class SheetType {
+    NONE,
+    ATTENDEE_DETAIL,
+    QUEUE,
+    QR_SCANNER
+}
+
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class MainListViewModel @Inject constructor(
@@ -103,11 +110,16 @@ class MainListViewModel @Inject constructor(
 
     val requiredDomain = AuthManager.REQUIRED_DOMAIN
 
-    private val _showQueueSheet = MutableStateFlow(false)
-    val showQueueSheet: StateFlow<Boolean> = _showQueueSheet.asStateFlow()
+    private val _activeSheet = MutableStateFlow(SheetType.NONE)
+    val activeSheet: StateFlow<SheetType> = _activeSheet.asStateFlow()
 
-    private val _showScannerSheet = MutableStateFlow(false)
-    val showScannerSheet: StateFlow<Boolean> = _showScannerSheet.asStateFlow()
+    private val _showQueueSheet = _activeSheet.map { it == SheetType.QUEUE }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+    val showQueueSheet: StateFlow<Boolean> = _showQueueSheet
+
+    private val _showScannerSheet = _activeSheet.map { it == SheetType.QR_SCANNER }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+    val showScannerSheet: StateFlow<Boolean> = _showScannerSheet
 
     // Events for MainActivity to observe
     private val _loginRequestEvent = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
@@ -158,8 +170,7 @@ class MainListViewModel @Inject constructor(
             viewModelScope.launch {
                 val message = repository.processQrInfo(info)
                 _qrMessageEvent.emit(message)
-                _showScannerSheet.value = false
-                _showQueueSheet.value = true
+                _activeSheet.value = SheetType.QUEUE
             }
             return true
         }
@@ -167,11 +178,11 @@ class MainListViewModel @Inject constructor(
     }
 
     fun setShowQueueSheet(show: Boolean) {
-        _showQueueSheet.value = show
+        _activeSheet.value = if (show) SheetType.QUEUE else SheetType.NONE
     }
 
     fun setShowScannerSheet(show: Boolean) {
-        _showScannerSheet.value = show
+        _activeSheet.value = if (show) SheetType.QR_SCANNER else SheetType.NONE
     }
 
     val missingCloudAttendees = repository.getMissingOnCloudAttendees()
@@ -611,6 +622,7 @@ class MainListViewModel @Inject constructor(
             }
         }
         _selectedAttendeeForDetail.value = attendee
+        _activeSheet.value = SheetType.ATTENDEE_DETAIL
     }
 
     fun popAttendeeDetail() {
@@ -629,6 +641,18 @@ class MainListViewModel @Inject constructor(
         detailNavigationStack.clear()
         _canNavigateBackInDetail.value = false
         _previousAttendeeName.value = null
+        if (_activeSheet.value == SheetType.ATTENDEE_DETAIL) {
+            _activeSheet.value = SheetType.NONE
+        }
+    }
+
+    fun dismissAllSheets() {
+        _selectedAttendeeForDetail.value = null
+        _activeQrInfo.value = null
+        detailNavigationStack.clear()
+        _canNavigateBackInDetail.value = false
+        _previousAttendeeName.value = null
+        _activeSheet.value = SheetType.NONE
     }
 
     fun addAttendeeToQueue(attendeeId: String) {

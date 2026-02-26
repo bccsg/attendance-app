@@ -1,12 +1,14 @@
 package sg.org.bcc.attendance.ui.main
 
 import android.app.Activity
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -119,410 +121,797 @@ fun MainListScreen(
     val totalGroupsCount by viewModel.totalGroupsCount.collectAsState()
     val attendeesWithGroupCount by viewModel.attendeesWithGroupCount.collectAsState()
 
-    val isSelectionMode = selectedIds.isNotEmpty()
-    var isSearchActive by remember { mutableStateOf(false) }
-    
-    val focusRequester = remember { FocusRequester() }
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val detailSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-
-    val snackbarHostState = remember { SnackbarHostState() }
-    val scope = rememberCoroutineScope()
-
-    val isAdded = remember(selectedAttendeeForDetail, queueIds) {
-        selectedAttendeeForDetail?.id?.let { queueIds.contains(it) } ?: false
-    }
-    
-    val fullyQueuedGroups = remember(groupMembersMap, queueIds) {
-        groupMembersMap.filter { (_, members) -> 
-            members.isNotEmpty() && members.all { queueIds.contains(it.id) } 
-        }.keys
-    }
-
-    var lastQueuedGroupId by remember { mutableStateOf<String?>(null) }
-    var wasIndividualAddedJustNow by remember { mutableStateOf(false) }
-    
-    var showAddedAnimation by remember { mutableStateOf(false) }
-    var animatingGroups by remember { mutableStateOf(setOf<String>()) }
-
-    // Reset interaction state when attendee changes
-    LaunchedEffect(selectedAttendeeForDetail) {
-        lastQueuedGroupId = null
-        wasIndividualAddedJustNow = false
-        showAddedAnimation = false
-        animatingGroups = emptySet()
-    }
-
-    LaunchedEffect(isAdded, fullyQueuedGroups, lastQueuedGroupId, wasIndividualAddedJustNow) {
-        // Animation for Groups - only if user just clicked this group
-        if (lastQueuedGroupId != null && fullyQueuedGroups.contains(lastQueuedGroupId)) {
-            val groupId = lastQueuedGroupId!!
-            animatingGroups = setOf(groupId)
-            delay(1000)
-            animatingGroups = emptySet()
-            lastQueuedGroupId = null
-            viewModel.dismissAttendeeDetail()
-            viewModel.setShowQueueSheet(true)
-        } 
-        // Animation for Individual (FAB) - only if user just clicked the FAB
-        else if (wasIndividualAddedJustNow && isAdded && selectedAttendeeForDetail != null) {
-            showAddedAnimation = true
-            delay(1000)
-            showAddedAnimation = false
-            wasIndividualAddedJustNow = false
+        val isSelectionMode = selectedIds.isNotEmpty()
+        var isSearchActive by remember { mutableStateOf(false) }
+        
+                val focusRequester = remember { FocusRequester() }
+                val activeSheet by viewModel.activeSheet.collectAsState()
+                val isAnySheetActive = activeSheet != SheetType.NONE
             
-            if (detailAttendeeGroups.isEmpty()) {
+                val scaffoldState = rememberBottomSheetScaffoldState(
+                    bottomSheetState = rememberStandardBottomSheetState(
+                        initialValue = SheetValue.Hidden,
+                        skipHiddenState = false,
+                        confirmValueChange = { newValue ->
+                            if (isAnySheetActive && (newValue == SheetValue.Hidden || newValue == SheetValue.PartiallyExpanded)) {
+                                viewModel.dismissAllSheets()
+                            }
+                            true
+                        }
+                    )
+                )
+                        val snackbarHostState = remember { SnackbarHostState() }
+        
+        val scope = rememberCoroutineScope()
+    
+        val isAdded = remember(selectedAttendeeForDetail, queueIds) {
+            selectedAttendeeForDetail?.id?.let { queueIds.contains(it) } ?: false
+        }
+        
+        val fullyQueuedGroups = remember(groupMembersMap, queueIds) {
+            groupMembersMap.filter { (_, members) -> 
+                members.isNotEmpty() && members.all { queueIds.contains(it.id) } 
+            }.keys
+        }
+    
+        var lastQueuedGroupId by remember { mutableStateOf<String?>(null) }
+        var wasIndividualAddedJustNow by remember { mutableStateOf(false) }
+        
+        var showAddedAnimation by remember { mutableStateOf(false) }
+        var animatingGroups by remember { mutableStateOf(setOf<String>()) }
+    
+        // Reset interaction state when attendee changes
+        LaunchedEffect(selectedAttendeeForDetail) {
+            lastQueuedGroupId = null
+            wasIndividualAddedJustNow = false
+            showAddedAnimation = false
+            animatingGroups = emptySet()
+        }
+    
+                    BackHandler(enabled = isAnySheetActive) {
+                        viewModel.dismissAllSheets()
+                    }
+                
+                        LaunchedEffect(activeSheet) {
+                            if (isAnySheetActive) {
+                                scaffoldState.bottomSheetState.expand()
+                            } else {
+                                scaffoldState.bottomSheetState.hide()
+                            }
+                        }
+                                                    
+                                            LaunchedEffect(isAdded, fullyQueuedGroups, lastQueuedGroupId, wasIndividualAddedJustNow) {
+            // Animation for Groups - only if user just clicked this group
+            if (lastQueuedGroupId != null && fullyQueuedGroups.contains(lastQueuedGroupId)) {
+                val groupId = lastQueuedGroupId!!
+                animatingGroups = setOf(groupId)
+                delay(1000)
+                animatingGroups = emptySet()
+                lastQueuedGroupId = null
                 viewModel.dismissAttendeeDetail()
+                viewModel.setShowQueueSheet(true)
+            } 
+            // Animation for Individual (FAB) - only if user just clicked the FAB
+            else if (wasIndividualAddedJustNow && isAdded && selectedAttendeeForDetail != null) {
+                showAddedAnimation = true
+                delay(1000)
+                showAddedAnimation = false
+                wasIndividualAddedJustNow = false
+                
+                if (detailAttendeeGroups.isEmpty()) {
+                    viewModel.dismissAttendeeDetail()
+                }
             }
         }
-    }
-
-    // Ensure status bar content remains white
-    val view = LocalView.current
-    SideEffect {
-        val window = (view.context as Activity).window
-        WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = false
-    }
-
-    LaunchedEffect(isSearchActive) {
-        if (isSearchActive) {
-            focusRequester.requestFocus()
+    
+        // Ensure status bar content remains white
+        val view = LocalView.current
+        SideEffect {
+            val window = (view.context as Activity).window
+            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = false
         }
-    }
-
-    LaunchedEffect(Unit) {
-        viewModel.qrMessageEvent.collect { message ->
-            snackbarHostState.showSnackbar(message)
+    
+        LaunchedEffect(isSearchActive) {
+            if (isSearchActive) {
+                focusRequester.requestFocus()
+            }
         }
-    }
-
-    if (selectedAttendeeForDetail != null) {
-        ModalBottomSheet(
-            onDismissRequest = {
-                viewModel.dismissAttendeeDetail()
-            },
-            sheetState = detailSheetState,
-            dragHandle = null,
-            containerColor = Color.Transparent,
-            scrimColor = Color.Black.copy(alpha = 0.32f),
-            tonalElevation = 0.dp
-        ) {
-            val isGroupsEmpty = detailAttendeeGroups.isEmpty()
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .then(if (isGroupsEmpty) Modifier.wrapContentHeight() else Modifier.fillMaxHeight(0.9f))
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .then(if (isGroupsEmpty) Modifier.wrapContentHeight() else Modifier.fillMaxHeight())
-                        .navigationBarsPadding()
-                ) {
-                    Surface(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .then(if (isGroupsEmpty) Modifier.wrapContentHeight() else Modifier.weight(1f)),
-                        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
-                        color = MaterialTheme.colorScheme.surfaceContainerLow,
-                        tonalElevation = 0.dp
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .then(if (isGroupsEmpty) Modifier.wrapContentHeight() else Modifier.fillMaxHeight())
-                        ) {
-                            // Header area
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(48.dp)
-                                    .background(Color.White),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                BottomSheetDefaults.DragHandle()
-                            }
-                            
-                            // Content extends to bottom
-                            AttendeeDetailContent(
-                                attendee = selectedAttendeeForDetail!!,
-                                groups = detailAttendeeGroups,
-                                activeQrInfo = activeQrInfo,
-                                attendeeName = selectedAttendeeForDetail!!.shortName ?: selectedAttendeeForDetail!!.fullName,
-                                groupMembersMap = groupMembersMap,
-                                attendeeGroupsMap = attendeeGroupsMap,
-                                textScale = textScale,
-                                onTextScaleChange = viewModel::setTextScale,
-                                presentIds = presentIds,
-                                queueIds = queueIds,
-                                canNavigateBack = canNavigateBackInDetail,
-                                previousName = previousAttendeeName,
-                                onBack = viewModel::popAttendeeDetail,
-                                onAttendeeClick = viewModel::showAttendeeDetail,
-                                onAddAttendeeToQueue = {
-                                    wasIndividualAddedJustNow = true
-                                    viewModel.addAttendeeToQueue(selectedAttendeeForDetail!!.id)
-                                },
-                                onQrClick = {
-                                    viewModel.onQrTrigger(selectedAttendeeForDetail!!, detailAttendeeGroups)
-                                },
-                                onAddGroupToQueue = { groupId ->
-                                    lastQueuedGroupId = groupId
-                                    viewModel.addGroupToQueue(groupId)
-                                },
-                                animatingGroups = animatingGroups
-                            )
-                        }
-                    }
-                }
-
-                // FAB
-                val state = fabState
-                val isInQueue = selectedAttendeeForDetail?.id?.let { queueIds.contains(it) } ?: false
-                
-                // Capture name while it's available
-                val attendeeName = remember(state) {
-                    if (state is MainListViewModel.FabState.AddAttendee) state.name else ""
-                }
-                
-                val isVisible = state is MainListViewModel.FabState.AddAttendee || (showAddedAnimation && isInQueue)
-                
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .then(if (isGroupsEmpty) Modifier.matchParentSize() else Modifier.fillMaxHeight())
-                        .padding(bottom = 16.dp, end = 16.dp),
-                    contentAlignment = Alignment.BottomEnd
-                ) {
-                    Column(horizontalAlignment = Alignment.End) {
-                        if (activeQrInfo != null) {
-                            val context = LocalContext.current
-                            val bitmap = remember(activeQrInfo) {
-                                val name = selectedAttendeeForDetail?.shortName ?: selectedAttendeeForDetail?.fullName ?: ""
-                                sg.org.bcc.attendance.util.qr.QrImageGenerator.createQrWithText(activeQrInfo!!, name)
-                            }
-                            
-                            ExtendedFloatingActionButton(
-                                onClick = {
-                                    val fileName = "qr_${activeQrInfo!!.personId ?: activeQrInfo!!.groupId}.png"
-                                    val uri = sg.org.bcc.attendance.util.qr.QrImageGenerator.saveAndGetUri(context, bitmap, fileName)
-                                    if (uri != null) {
-                                        val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
-                                            type = "image/png"
-                                            putExtra(android.content.Intent.EXTRA_STREAM, uri)
-                                            addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                        }
-                                        context.startActivity(android.content.Intent.createChooser(intent, "Share QR Code"))
-                                    }
+    
+        LaunchedEffect(Unit) {
+            viewModel.qrMessageEvent.collect { message ->
+                snackbarHostState.showSnackbar(message)
+            }
+        }
+    
+            BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                val screenHeight = maxHeight
+                val density = LocalDensity.current
+                val statusBarHeight = with(density) { WindowInsets.statusBars.getTop(this).toDp() }
+                val availableSheetHeight = screenHeight - 56.dp - statusBarHeight
+                    BottomSheetScaffold(
+                scaffoldState = scaffoldState,
+                sheetPeekHeight = 0.dp,
+                sheetDragHandle = null,
+                sheetShape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+                sheetTonalElevation = 0.dp,
+                sheetShadowElevation = 8.dp,
+                sheetContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                            sheetContent = {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .heightIn(max = availableSheetHeight)
+                                        .navigationBarsPadding()
+                                ) {
+                                    when (activeSheet) {
+                                        SheetType.ATTENDEE_DETAIL -> {
+                                            if (selectedAttendeeForDetail != null) {
+                                                val isGroupsEmpty = detailAttendeeGroups.isEmpty()
+                                                Box(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .then(if (isGroupsEmpty) Modifier.wrapContentHeight() else Modifier.height(availableSheetHeight))
+                                                ) {
+                                                    AttendeeDetailContent(
+                                                        attendee = selectedAttendeeForDetail!!,
+                                                        groups = detailAttendeeGroups,
+                                                        activeQrInfo = activeQrInfo,
+                                                        attendeeName = selectedAttendeeForDetail!!.shortName ?: selectedAttendeeForDetail!!.fullName,
+                                                        groupMembersMap = groupMembersMap,
+                                                        attendeeGroupsMap = attendeeGroupsMap,
+                                                        textScale = textScale,
+                                                        onTextScaleChange = viewModel::setTextScale,
+                                                        presentIds = presentIds,
+                                                        queueIds = queueIds,
+                                                        canNavigateBack = canNavigateBackInDetail,
+                                                        previousName = previousAttendeeName,
+                                                        onBack = viewModel::popAttendeeDetail,
+                                                        onAttendeeClick = viewModel::showAttendeeDetail,
+                                                        onAddAttendeeToQueue = {
+                                                            wasIndividualAddedJustNow = true
+                                                            viewModel.addAttendeeToQueue(selectedAttendeeForDetail!!.id)
+                                                        },
+                                                        onQrClick = {
+                                                            viewModel.onQrTrigger(selectedAttendeeForDetail!!, detailAttendeeGroups)
+                                                        },
+                                                        onAddGroupToQueue = { groupId ->
+                                                            lastQueuedGroupId = groupId
+                                                            viewModel.addGroupToQueue(groupId)
+                                                        },
+                                                        animatingGroups = animatingGroups
+                                                    )
+                        
+                                                    // FAB logic within sheet
+                                                    val state = fabState
+                                                    val isInQueue = selectedAttendeeForDetail?.id?.let { queueIds.contains(it) } ?: false
+                                                    val attendeeName = remember(state) {
+                                                        if (state is MainListViewModel.FabState.AddAttendee) state.name else ""
+                                                    }
+                                                    val isVisible = state is MainListViewModel.FabState.AddAttendee || (showAddedAnimation && isInQueue)
+                        
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .fillMaxWidth()
+                                                            .then(if (isGroupsEmpty) Modifier.matchParentSize() else Modifier.height(availableSheetHeight))
+                                                            .padding(bottom = 16.dp, end = 16.dp),
+                                                        contentAlignment = Alignment.BottomEnd
+                                                    ) {
+                                                        Column(horizontalAlignment = Alignment.End) {
+                                                            if (activeQrInfo != null) {
+                                                                val context = LocalContext.current
+                                                                val bitmap = remember(activeQrInfo) {
+                                                                    val name = selectedAttendeeForDetail?.shortName ?: selectedAttendeeForDetail?.fullName ?: ""
+                                                                    sg.org.bcc.attendance.util.qr.QrImageGenerator.createQrWithText(activeQrInfo!!, name)
+                                                                }
+                                                                
+                                                                ExtendedFloatingActionButton(
+                                                                    onClick = {
+                                                                        val fileName = "qr_${activeQrInfo!!.personId ?: activeQrInfo!!.groupId}.png"
+                                                                        val uri = sg.org.bcc.attendance.util.qr.QrImageGenerator.saveAndGetUri(context, bitmap, fileName)
+                                                                        if (uri != null) {
+                                                                            val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                                                                                type = "image/png"
+                                                                                putExtra(android.content.Intent.EXTRA_STREAM, uri)
+                                                                                addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                                                            }
+                                                                            context.startActivity(android.content.Intent.createChooser(intent, "Share QR Code"))
+                                                                        }
                                                                     },
                                                                     text = { Text("Share QR") },
                                                                     icon = { AppIcon(resourceId = AppIcons.Share, contentDescription = null) },
                                                                     containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                                
-                                contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                                shape = CircleShape
-                            )
-                            Spacer(modifier = Modifier.height(16.dp))
-                        }
-
-                        AnimatedVisibility(
-                            visible = isVisible,
-                            enter = fadeIn() + scaleIn(),
-                            exit = fadeOut() + scaleOut()
-                        ) {
-                            val isAnimating = showAddedAnimation && isInQueue
-                            
-                            val containerColor by animateColorAsState(
-                                targetValue = if (isAnimating) DeepGreen else MaterialTheme.colorScheme.primary,
-                                label = "FabColor",
-                                animationSpec = tween(durationMillis = 500)
-                            )
-                            
-                            ExtendedFloatingActionButton(
-                                onClick = {
-                                    if (!isAnimating) {
-                                        wasIndividualAddedJustNow = true
-                                        viewModel.addAttendeeToQueue(selectedAttendeeForDetail!!.id)
-                                    }
-                                },
-                                icon = { 
-                                    AnimatedContent(
-                                        targetState = if (isAnimating) AppIcons.BookmarkAdded else AppIcons.PlaylistAdd,
-                                        transitionSpec = {
-                                            fadeIn(animationSpec = tween(300)) togetherWith
-                                            fadeOut(animationSpec = tween(300))
-                                        },
-                                        label = "IconAnimation"
-                                    ) { iconId ->
-                                        AppIcon(
-                                            resourceId = iconId, 
-                                            contentDescription = null
-                                        ) 
-                                    }
-                                },
-                                text = { 
-                                    AnimatedContent(
-                                        targetState = if (isAnimating) "Queued" else "Queue $attendeeName",
-                                        transitionSpec = {
-                                            fadeIn(animationSpec = tween(300)) togetherWith
-                                            fadeOut(animationSpec = tween(300))
-                                        },
-                                        label = "TextAnimation"
-                                    ) { text ->
-                                        Text(text) 
-                                    }
-                                },
-                                containerColor = containerColor,
-                                contentColor = MaterialTheme.colorScheme.onPrimary,
-                                shape = CircleShape
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    if (showCloudStatusDialog) {
-        val missingCloudAttendeesCount by viewModel.missingCloudAttendeesCount.collectAsState()
-        val missingCloudGroupsCount by viewModel.missingCloudGroupsCount.collectAsState()
-        val missingCloudEventsCount by viewModel.missingCloudEventsCount.collectAsState()
-
-        CloudStatusDialog(
-            isAuthed = isAuthed,
-            authState = authState,
-            cloudProfile = cloudProfile,
-            syncProgress = syncProgress,
-            isDemoMode = isDemoMode,
-            isOnline = isOnline,
-            loginError = loginError,
-            totalAttendeesCount = totalAttendeesCount,
-            totalGroupsCount = totalGroupsCount,
-            attendeesWithGroupCount = attendeesWithGroupCount,
-            missingCloudAttendeesCount = missingCloudAttendeesCount,
-            missingCloudGroupsCount = missingCloudGroupsCount,
-            missingCloudEventsCount = missingCloudEventsCount,
-            onLogin = viewModel::onLoginTrigger,
-            onLogout = viewModel::onLogout,
-            onDismiss = { viewModel.setShowCloudStatusDialog(false) },
-            onManualSync = viewModel::doManualSync,
-            onShowLogs = {
-                viewModel.setShowCloudStatusDialog(false)
-                onNavigateToSyncLogs()
-            },
-            onResolveMissing = viewModel::onNavigateToResolutionScreen
-        )
-    }
-
-    if (qrSelection != null) {
-        QrSelectionDialog(
-            selection = qrSelection!!,
-            onDismiss = viewModel::dismissQrSelection,
-            onConfirm = { group -> 
-                viewModel.onQrSelected(qrSelection!!.attendee, group)
-            }
-        )
-    }
-
-        if (showQueueSheet) {
-            ModalBottomSheet(
-                onDismissRequest = {
-                    viewModel.setShowQueueSheet(false)
-                },
-                sheetState = sheetState,
-                dragHandle = null,
-                containerColor = Color.Transparent,
-                scrimColor = Color.Black.copy(alpha = 0.32f),
-                tonalElevation = 0.dp
-            ) {
-                Column(modifier = Modifier.fillMaxWidth().navigationBarsPadding()) {
-                    Spacer(modifier = Modifier.height(56.dp))
-                    Surface(
-                        modifier = Modifier.fillMaxWidth().weight(1f),
-                        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
-                        color = MaterialTheme.colorScheme.surfaceContainerLow,
-                        tonalElevation = 0.dp
-                    ) {
-                        Column {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .background(Color.White),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                BottomSheetDefaults.DragHandle()
-                            }
-                            
-                                                    QueueScreen(
-                                                        onBack = {
-                                                            viewModel.setShowQueueSheet(false)
-                                                        },
-                                                        onActionComplete = { message: String, shouldClose: Boolean ->
-                                                            if (shouldClose) {
-                                                                viewModel.setShowQueueSheet(false)
+                                                                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                                                                    shape = CircleShape
+                                                                )
+                                                                Spacer(modifier = Modifier.height(16.dp))
                                                             }
-                                                            scope.launch {
-                                                                snackbarHostState.showSnackbar(message)
+                        
+                                                            AnimatedVisibility(
+                                                                visible = isVisible,
+                                                                enter = fadeIn() + scaleIn(),
+                                                                exit = fadeOut() + scaleOut()
+                                                            ) {
+                                                                val isAnimating = showAddedAnimation && isInQueue
+                                                                val containerColor by animateColorAsState(
+                                                                    targetValue = if (isAnimating) DeepGreen else MaterialTheme.colorScheme.primary,
+                                                                    label = "FabColor",
+                                                                    animationSpec = tween(durationMillis = 500)
+                                                                )
+                                                                
+                                                                ExtendedFloatingActionButton(
+                                                                    onClick = {
+                                                                        if (!isAnimating) {
+                                                                            wasIndividualAddedJustNow = true
+                                                                            viewModel.addAttendeeToQueue(selectedAttendeeForDetail!!.id)
+                                                                        }
+                                                                    },
+                                                                    icon = { 
+                                                                        AnimatedContent(
+                                                                            targetState = if (isAnimating) AppIcons.BookmarkAdded else AppIcons.PlaylistAdd,
+                                                                            transitionSpec = {
+                                                                                fadeIn(animationSpec = tween(300)) togetherWith
+                                                                                fadeOut(animationSpec = tween(300))
+                                                                            },
+                                                                            label = "IconAnimation"
+                                                                        ) { iconId ->
+                                                                            AppIcon(resourceId = iconId, contentDescription = null) 
+                                                                        }
+                                                                    },
+                                                                    text = { 
+                                                                        AnimatedContent(
+                                                                            targetState = if (isAnimating) "Queued" else "Queue $attendeeName",
+                                                                            transitionSpec = {
+                                                                                fadeIn(animationSpec = tween(300)) togetherWith
+                                                                                fadeOut(animationSpec = tween(300))
+                                                                            },
+                                                                            label = "TextAnimation"
+                                                                        ) { text -> Text(text) }
+                                                                    },
+                                                                    containerColor = containerColor,
+                                                                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                                                                    shape = CircleShape
+                                                                )
                                                             }
-                                                        },
-                                                        currentEventId = currentEventId,
-                                                        textScale = textScale,
-                                                        onTextScaleChange = viewModel::setTextScale,
-                                                        onNavigateToQrScanner = {
-                                                            viewModel.setShowQueueSheet(false)
-                                                            viewModel.setShowScannerSheet(true)
                                                         }
-                                                    )                    }
-                    }
-                }
-            }
-        }
-    
-        if (showScannerSheet) {
-            ModalBottomSheet(
-                onDismissRequest = {
-                    viewModel.setShowScannerSheet(false)
-                },
-                sheetState = sheetState,
-                dragHandle = null,
-                containerColor = Color.Transparent,
-                scrimColor = Color.Black.copy(alpha = 0.32f),
-                tonalElevation = 0.dp
-            ) {
-                Column(modifier = Modifier.fillMaxWidth().navigationBarsPadding()) {
-                    Spacer(modifier = Modifier.height(56.dp))
-                    Surface(
-                        modifier = Modifier.fillMaxWidth().weight(1f),
-                        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
-                        color = MaterialTheme.colorScheme.surfaceContainerLow,
-                        tonalElevation = 0.dp
-                    ) {
-                        Column {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .background(Color.White),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                BottomSheetDefaults.DragHandle()
-                            }
-                            
-                            sg.org.bcc.attendance.ui.qr.QrScannerContent(
-                                onScanResult = { code ->
-                                    viewModel.processQrResult(code)
-                                },
-                                onBack = {
-                                    viewModel.setShowScannerSheet(false)
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        SheetType.QUEUE -> {
+                                            QueueScreen(
+                                                onBack = { viewModel.setShowQueueSheet(false) },
+                                                onActionComplete = { message, shouldClose ->
+                                                    if (shouldClose) viewModel.setShowQueueSheet(false)
+                                                    scope.launch { snackbarHostState.showSnackbar(message) }
+                                                },
+                                                currentEventId = currentEventId,
+                                                textScale = textScale,
+                                                onTextScaleChange = viewModel::setTextScale,
+                                                onNavigateToQrScanner = {
+                                                    viewModel.setShowQueueSheet(false)
+                                                    viewModel.setShowScannerSheet(true)
+                                                }
+                                            )
+                                        }
+                                        SheetType.QR_SCANNER -> {
+                                            sg.org.bcc.attendance.ui.qr.QrScannerContent(
+                                                onScanResult = { code -> viewModel.processQrResult(code) },
+                                                onBack = { viewModel.setShowScannerSheet(false) }
+                                            )
+                                        }
+                                        SheetType.NONE -> {
+                                            Box(modifier = Modifier.fillMaxWidth().height(1.dp))
+                                        }
+                                    }
                                 }
-                            )
+                            }
+                
+            ) {
+                Box(modifier = Modifier.fillMaxSize()) {
+                    // Background Content (The Scaffold we had before)
+                    Scaffold(
+                        snackbarHost = { SnackbarHost(snackbarHostState) },
+                        floatingActionButton = {
+                            if (!isSearchActive) {
+                                if (isSelectionMode) {
+                                    FloatingActionButton(
+                                        modifier = Modifier.padding(bottom = 16.dp),
+                                        onClick = {
+                                            if (selectedIds.isNotEmpty()) {
+                                                viewModel.confirmSelection()
+                                                viewModel.setShowQueueSheet(true)
+                                            }
+                                        },
+                                        containerColor = MaterialTheme.colorScheme.primary,
+                                        contentColor = MaterialTheme.colorScheme.onPrimary,
+                                        shape = CircleShape
+                                    ) {
+                                        AppIcon(resourceId = AppIcons.PlaylistAdd, contentDescription = "Queue selected")
+                                    }
+                                } else {
+                                    ExtendedFloatingActionButton(
+                                        modifier = Modifier.padding(bottom = 16.dp),
+                                        text = { Text("Scan QR") },
+                                        icon = { AppIcon(resourceId = AppIcons.QrCodeScanner, contentDescription = null) },
+                                        onClick = { viewModel.setShowScannerSheet(true) },
+                                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        shape = CircleShape
+                                    )
+                                }
+                            }
+                        },
+                        topBar = {
+                            Surface(
+                                color = MaterialTheme.colorScheme.primary,
+                                tonalElevation = 4.dp
+                            ) {
+                                Column(modifier = Modifier.statusBarsPadding()) {
+                                    TopAppBar(
+                                        navigationIcon = {
+                                            if (isSelectionMode) {
+                                                IconButton(onClick = viewModel::clearSelection) {
+                                                    AppIcon(resourceId = AppIcons.Close, contentDescription = "Clear Selection", tint = MaterialTheme.colorScheme.onPrimary)
+                                                }
+                                            }
+                                        },
+                                        title = {
+                                            if (isSelectionMode) {
+                                                Text("${selectedIds.size} Selected", color = MaterialTheme.colorScheme.onPrimary)
+                                            } else {
+                                                currentEvent?.let { event ->
+                                                    val parts = event.title.split(" ", limit = 3)
+                                                    val date = if (parts.isNotEmpty()) EventSuggester.parseDate(parts[0]) else null
+                                                    val timeStr = if (parts.size > 1) parts[1] else "0000"
+                                                    val name = if (parts.size > 2) parts[2] else "Unnamed Event"
+                                                    val time = try {
+                                                        LocalTime.of(timeStr.take(2).toInt(), timeStr.takeLast(2).toInt())
+                                                    } catch (e: Exception) {
+                                                        LocalTime.MIDNIGHT
+                                                    }
+                                                    val formattedTime = time.format(java.time.format.DateTimeFormatter.ofPattern("h:mm a", Locale.ENGLISH))
+                
+                                                    Row(
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        modifier = Modifier.clickable { onNavigateToEventManagement() }
+                                                    ) {
+                                                        DateIcon(date = date, textScale = 0.8f)
+                                                        Spacer(modifier = Modifier.width(12.dp))
+                                                        Column {
+                                                            Text(
+                                                                text = name,
+                                                                style = MaterialTheme.typography.titleMedium,
+                                                                color = MaterialTheme.colorScheme.onPrimary
+                                                            )
+                                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                                Text(
+                                                                    text = formattedTime,
+                                                                    style = MaterialTheme.typography.labelMedium,
+                                                                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
+                                                                )
+                                                                Spacer(modifier = Modifier.width(8.dp))
+                                                                Text(
+                                                                    text = event.cloudEventId ?: event.id.take(8),
+                                                                    style = MaterialTheme.typography.labelSmall,
+                                                                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.5f)
+                                                                )
+                                                            }
+                                                        }
+                                                    }
+                                                } ?: Text("Attendance", color = MaterialTheme.colorScheme.onPrimary)
+                                            }
+                                        },
+                                        actions = {
+                                            var showMenu by remember { mutableStateOf(false) }
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                if (isSelectionMode) {
+                                                    // Checklist Toggle
+                                                    IconButton(
+                                                        onClick = { 
+                                                            viewModel.toggleShowSelectedOnlyMode()
+                                                            if (viewModel.isShowSelectedOnlyMode.value) {
+                                                                isSearchActive = false
+                                                                viewModel.onSearchQueryChange("")
+                                                            }
+                                                        },
+                                                        modifier = if (isShowSelectedOnlyMode) {
+                                                            Modifier.background(
+                                                                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.2f),
+                                                                shape = CircleShape
+                                                            )
+                                                        } else Modifier
+                                                    ) {
+                                                        AppIcon(
+                                                            resourceId = AppIcons.Checklist, 
+                                                            contentDescription = "Show Selected Only",
+                                                            tint = MaterialTheme.colorScheme.onPrimary
+                                                        )
+                                                    }
+                                                } else {
+                                                    IconButton(onClick = viewModel::onSyncMasterList) {
+                                                        RotatingSyncIcon(
+                                                            resourceId = syncProgress.cloudStatusIcon,
+                                                            contentDescription = "Sync Status",
+                                                            tint = MaterialTheme.colorScheme.onPrimary,
+                                                            shouldRotate = syncProgress.shouldRotate
+                                                        )
+                                                    }
+                                                    IconButton(onClick = { showMenu = true }) {
+                                                        AppIcon(resourceId = AppIcons.MoreVert, contentDescription = "More Options", tint = MaterialTheme.colorScheme.onPrimary)
+                                                    }
+                                                    DropdownMenu(
+                                                        expanded = showMenu,
+                                                        onDismissRequest = { showMenu = false }
+                                                    ) {
+                                                        DropdownMenuItem(
+                                                            text = { Text("Sort By", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold) },
+                                                            onClick = { },
+                                                            enabled = false
+                                                        )
+                                                        DropdownMenuItem(
+                                                            text = {
+                                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                                    RadioButton(
+                                                                        selected = sortMode == SortMode.NAME_ASC,
+                                                                        onClick = null // Handled by item click
+                                                                    )
+                                                                    Spacer(modifier = Modifier.width(8.dp))
+                                                                    Text("Name (A-Z)")
+                                                                }
+                                                            },
+                                                            onClick = {
+                                                                viewModel.setSortMode(SortMode.NAME_ASC)
+                                                                showMenu = false
+                                                            }
+                                                        )
+                                                        DropdownMenuItem(
+                                                            text = {
+                                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                                    RadioButton(
+                                                                        selected = sortMode == SortMode.RECENT_UPDATED,
+                                                                        onClick = null // Handled by item click
+                                                                    )
+                                                                    Spacer(modifier = Modifier.width(8.dp))
+                                                                    Text("Recently Updated")
+                                                                }
+                                                            },
+                                                            onClick = {
+                                                                viewModel.setSortMode(SortMode.RECENT_UPDATED)
+                                                                showMenu = false
+                                                            }
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        colors = TopAppBarDefaults.topAppBarColors(
+                                            containerColor = Color.Transparent
+                                        )
+                                    )
+                                }
+                            }
+                        },
+                        bottomBar = {
+                            BottomAppBar(
+                                containerColor = MaterialTheme.colorScheme.surface,
+                                tonalElevation = 8.dp,
+                                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp),
+                                modifier = Modifier
+                                    .windowInsetsPadding(WindowInsets.navigationBars)
+                                    .windowInsetsPadding(WindowInsets.ime)
+                                    .height(80.dp)
+                                    .pointerInput(isSelectionMode) {
+                                        if (isSelectionMode) return@pointerInput
+                                        detectVerticalDragGestures { _, dragAmount ->
+                                            if (dragAmount < -20) { // Significant swipe up
+                                                viewModel.setShowQueueSheet(true)
+                                            }
+                                        }
+                                    }
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(80.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    if (isSearchActive) {
+                                        OutlinedTextField(
+                                            value = searchQuery,
+                                            onValueChange = viewModel::onSearchQueryChange,
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .focusRequester(focusRequester)
+                                                .padding(horizontal = 8.dp),
+                                            placeholder = { Text("Search attendees...") },
+                                            leadingIcon = { AppIcon(resourceId = AppIcons.PersonSearch, contentDescription = null) },
+                                            trailingIcon = {
+                                                IconButton(onClick = { 
+                                                    isSearchActive = false 
+                                                    viewModel.onSearchQueryChange("")
+                                                }) {
+                                                    AppIcon(resourceId = AppIcons.Close, contentDescription = "Close Search")
+                                                }
+                                            },
+                                            singleLine = true,
+                                            colors = OutlinedTextFieldDefaults.colors(
+                                                focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                                focusedBorderColor = Color.Transparent,
+                                                unfocusedBorderColor = Color.Transparent
+                                            )
+                                        )
+                                    } else {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            // Left: Search
+                                            IconButton(onClick = { 
+                                                isSearchActive = true 
+                                                viewModel.deactivateShowSelectedOnlyMode()
+                                            }) {
+                                                AppIcon(resourceId = AppIcons.PersonSearch, contentDescription = "Search")
+                                            }
+                
+                                            // Center: Filter Chips
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.Center,
+                                                modifier = Modifier.weight(1f)
+                                            ) {
+                                                val isSelectionMode = selectedIds.isNotEmpty()
+                                                val isPresentVisible = showPresent && presentPoolCount > 0
+                                                val isPendingVisible = showAbsent && pendingPoolCount > 0
+                                                
+                                                // No special treatment for only one is set to visible in selection mode
+                                                val isBranded = !isSelectionMode && (isPresentVisible != isPendingVisible)
+                                                
+                                                val brandedChipColors = FilterChipDefaults.filterChipColors(
+                                                    selectedContainerColor = MaterialTheme.colorScheme.primary,
+                                                    selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
+                                                    selectedLeadingIconColor = MaterialTheme.colorScheme.onPrimary,
+                                                    disabledContainerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
+                                                    disabledLabelColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+                                                    disabledLeadingIconColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                                                )
+                
+                                                val defaultChipColors = FilterChipDefaults.filterChipColors(
+                                                    disabledContainerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
+                                                    disabledLabelColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+                                                    disabledLeadingIconColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                                                )
+                
+                                                val presentChipColors = if (isBranded && isPresentVisible) {
+                                                    brandedChipColors
+                                                } else defaultChipColors
+                
+                                                val pendingChipColors = if (isBranded && isPendingVisible) {
+                                                    brandedChipColors
+                                                } else defaultChipColors
+                
+                                                val presentBadgeColor = if (isSelectionMode) {
+                                                    MaterialTheme.colorScheme.secondary
+                                                } else {
+                                                    MaterialTheme.colorScheme.error
+                                                }
+                
+                                                val presentBadgeContentColor = if (isSelectionMode) {
+                                                    MaterialTheme.colorScheme.onSecondary
+                                                } else {
+                                                    MaterialTheme.colorScheme.onError
+                                                }
+                
+                                                val pendingBadgeColor = MaterialTheme.colorScheme.secondary
+                                                val pendingBadgeContentColor = MaterialTheme.colorScheme.onSecondary
+                
+                                                BadgedBox(
+                                                    badge = {
+                                                        if (presentBadgeCount > 0) {
+                                                            Badge(
+                                                                containerColor = presentBadgeColor,
+                                                                contentColor = presentBadgeContentColor
+                                                            ) { 
+                                                                Text(presentBadgeCount.toString()) 
+                                                            }
+                                                        }
+                                                    }
+                                                ) {
+                                                    FilterChip(
+                                                        selected = showPresent,
+                                                        onClick = { viewModel.onShowPresentToggle() },
+                                                        label = { Text("Present") },
+                                                        enabled = presentPoolCount > 0,
+                                                        colors = presentChipColors,
+                                                        leadingIcon = {
+                                                            AppIcon(
+                                                                resourceId = if (showPresent) AppIcons.Visibility else AppIcons.VisibilityOff,
+                                                                contentDescription = null,
+                                                                modifier = Modifier.size(18.dp)
+                                                            )
+                                                        }
+                                                    )
+                                                }
+                                                
+                                                Spacer(modifier = Modifier.width(8.dp))
+                
+                                                BadgedBox(
+                                                    badge = {
+                                                        if (pendingBadgeCount > 0) {
+                                                            Badge(
+                                                                containerColor = pendingBadgeColor,
+                                                                contentColor = pendingBadgeContentColor
+                                                            ) { 
+                                                                Text(pendingBadgeCount.toString()) 
+                                                            }
+                                                        }
+                                                    }
+                                                ) {
+                                                    FilterChip(
+                                                        selected = showAbsent,
+                                                        onClick = { viewModel.onShowAbsentToggle() },
+                                                        label = { Text("Pending") },
+                                                        enabled = pendingPoolCount > 0,
+                                                        colors = pendingChipColors,
+                                                        leadingIcon = {
+                                                            AppIcon(
+                                                                resourceId = if (showAbsent) AppIcons.Visibility else AppIcons.VisibilityOff,
+                                                                contentDescription = null,
+                                                                modifier = Modifier.size(18.dp)
+                                                            )
+                                                        }
+                                                    )
+                                                }
+                                            }
+                
+                                            // Right: Queue Launcher with dynamic count icons
+                                            val queueIcon = when (queueCount) {
+                                                0 -> AppIcons.Filter.None
+                                                1 -> AppIcons.Filter.One
+                                                2 -> AppIcons.Filter.Two
+                                                3 -> AppIcons.Filter.Three
+                                                4 -> AppIcons.Filter.Four
+                                                5 -> AppIcons.Filter.Five
+                                                6 -> AppIcons.Filter.Six
+                                                7 -> AppIcons.Filter.Seven
+                                                8 -> AppIcons.Filter.Eight
+                                                9 -> AppIcons.Filter.Nine
+                                                else -> AppIcons.Filter.NinePlus
+                                            }
+                                            IconButton(onClick = { viewModel.setShowQueueSheet(true) }) {
+                                                AppIcon(resourceId = queueIcon, contentDescription = "View Queue")
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    ) { padding ->
+                        LaunchedEffect(attendees, availableEvents, isSyncing) {
+                            if (!isSyncing && attendees.isNotEmpty() && availableEvents.isEmpty()) {
+                                onNavigateToEventManagement()
+                            }
+                        }
+                
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(padding)
+                        ) {
+                            if (attendees.isEmpty() && searchQuery.isEmpty()) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(MaterialTheme.colorScheme.surface),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Column(
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                                        modifier = Modifier.padding(32.dp)
+                                    ) {
+                                        AppIcon(
+                                            resourceId = AppIcons.PersonSearch,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(64.dp),
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
+                                        )
+                                        Text(
+                                            text = "No attendees found",
+                                            style = MaterialTheme.typography.titleMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        Text(
+                                            text = "Try syncing with the master list to download data.",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                            textAlign = TextAlign.Center
+                                        )
+                                        Button(
+                                            onClick = viewModel::onSyncMasterList,
+                                            modifier = Modifier.padding(top = 8.dp)
+                                        ) {
+                                            AppIcon(resourceId = AppIcons.Cloud, contentDescription = null, modifier = Modifier.size(18.dp))
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text("Sync Master List")
+                                        }
+                                    }
+                                }
+                            } else {
+                                LazyColumn(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .pinchToScale(textScale, viewModel::setTextScale)
+                                        .background(MaterialTheme.colorScheme.surface)
+                                ) {
+                                    items(attendees, key = { it.id }) { attendee ->
+                                        val isSelected = selectedIds.contains(attendee.id)
+                                        val isPresent = presentIds.contains(attendee.id)
+                                        val isPending = pendingIds.contains(attendee.id)
+                                        val isInQueue = queueIds.contains(attendee.id)
+                                        val groups = attendeeGroupsMap[attendee.id] ?: emptyList()
+                    
+                                        AttendeeListItem(
+                                            attendee = attendee,
+                                            searchQuery = searchQuery,
+                                            textScale = textScale,
+                                            isSelected = isSelected,
+                                            isPresent = isPresent,
+                                            isQueued = isInQueue,
+                                            isSelectionMode = isSelectionMode,
+                                            isGrouped = groups.isNotEmpty(),
+                                            onClick = {
+                                                if (isSelectionMode) {
+                                                    viewModel.toggleSelection(attendee.id)
+                                                } else {
+                                                    viewModel.showAttendeeDetail(attendee)
+                                                }
+                                            },
+                                            onLongClick = {
+                                                if (!isSelectionMode) {
+                                                    viewModel.enterSelectionMode(attendee.id)
+                                                }
+                                            },
+                                            onAvatarClick = {
+                                                if (isSelectionMode) {
+                                                    viewModel.toggleSelection(attendee.id)
+                                                } else {
+                                                    viewModel.enterSelectionMode(attendee.id)
+                                                }
+                                            }
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
-                }
+    
+                                                                                                                                                                    // Custom Scrim for BottomSheetScaffold
+                                                                                                                                                                    AnimatedVisibility(
+                                                                                                                                                                        visible = isAnySheetActive,
+                                                                                                                                                                        enter = fadeIn(),
+                                                                                                                                                                        exit = fadeOut()
+                                                                                                                                                                    ) {
+                                                                                                                                                                        Box(
+                                                                                                                                                                            modifier = Modifier
+                                                                                                                                                                                .fillMaxSize()
+                                                                                                                                                                                .background(Color.Black.copy(alpha = 0.32f))
+                                                                                                                                                                                                            .pointerInput(Unit) {
+                                                                                                                                                                                                                detectTapGestures {
+                                                                                                                                                                                                                    viewModel.dismissAllSheets()
+                                                                                                                                                                                                                }
+                                                                                                                                                                                                            }
+                                                                                                                                                                                
+                                                                                                                                                                        )
+                                                                                                                                                                    }
+                                                                                                                                                    
+                                                                                                                        }
             }
         }
     
-
-    Box(modifier = Modifier.fillMaxSize()) {
+        if (showCloudStatusDialog) {
+    
         Scaffold(
             snackbarHost = { SnackbarHost(snackbarHostState) },
             floatingActionButton = {
