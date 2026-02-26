@@ -13,6 +13,7 @@ import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -26,6 +27,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.text.font.FontWeight
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -67,19 +69,9 @@ fun QrScannerContent(
 
     Column(modifier = Modifier.fillMaxSize()) {
         // Header
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(Color.White)
-                .padding(bottom = 8.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = "Scan attendee QR",
-                style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-        }
+        sg.org.bcc.attendance.ui.components.AppBottomSheetHeader(
+            title = "Scan attendee QR"
+        )
 
         if (hasCameraPermission) {
             Box(

@@ -44,12 +44,11 @@ This document is the absolute source of truth for build configuration, architect
 ## 4. Development Environment
 *   **Emulator**: Use the **Pixel 6** profile (`pixel_6_demo`).
     ```bash
-    $ANDROID_HOME/emulator/emulator -avd pixel_6_demo -no-audio -no-snapshot
+    emulator -avd Pixel6A_AOSP_30 -no-audio -no-snapshot
     ```
 *   **Build \u0026 Run**:
     ```bash
-    ./gradlew installDebug
-    adb shell am start -n sg.org.bcc.attendance/.MainActivity
+    ./gradlew installDebug && adb shell am start -n sg.org.bcc.attendance/.MainActivity
     ```
 
 ## 5. Task Tracking & Repository Files

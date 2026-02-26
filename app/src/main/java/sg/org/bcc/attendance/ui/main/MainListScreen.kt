@@ -204,13 +204,6 @@ fun MainListScreen(
             }
         }
     
-        // Ensure status bar content remains white
-        val view = LocalView.current
-        SideEffect {
-            val window = (view.context as Activity).window
-            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = false
-        }
-    
         LaunchedEffect(isSearchActive) {
             if (isSearchActive) {
                 focusRequester.requestFocus()
@@ -237,173 +230,43 @@ fun MainListScreen(
                 sheetShadowElevation = 8.dp,
                 sheetContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
                             sheetContent = {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .heightIn(max = availableSheetHeight)
-                                        .navigationBarsPadding()
-                                ) {
-                                    when (activeSheet) {
-                                        SheetType.ATTENDEE_DETAIL -> {
-                                            if (selectedAttendeeForDetail != null) {
-                                                val isGroupsEmpty = detailAttendeeGroups.isEmpty()
-                                                Box(
-                                                    modifier = Modifier
-                                                        .fillMaxWidth()
-                                                        .then(if (isGroupsEmpty) Modifier.wrapContentHeight() else Modifier.height(availableSheetHeight))
-                                                ) {
-                                                    AttendeeDetailContent(
-                                                        attendee = selectedAttendeeForDetail!!,
-                                                        groups = detailAttendeeGroups,
-                                                        activeQrInfo = activeQrInfo,
-                                                        attendeeName = selectedAttendeeForDetail!!.shortName ?: selectedAttendeeForDetail!!.fullName,
-                                                        groupMembersMap = groupMembersMap,
-                                                        attendeeGroupsMap = attendeeGroupsMap,
-                                                        textScale = textScale,
-                                                        onTextScaleChange = viewModel::setTextScale,
-                                                        presentIds = presentIds,
-                                                        queueIds = queueIds,
-                                                        canNavigateBack = canNavigateBackInDetail,
-                                                        previousName = previousAttendeeName,
-                                                        onBack = viewModel::popAttendeeDetail,
-                                                        onAttendeeClick = viewModel::showAttendeeDetail,
-                                                        onAddAttendeeToQueue = {
-                                                            wasIndividualAddedJustNow = true
-                                                            viewModel.addAttendeeToQueue(selectedAttendeeForDetail!!.id)
-                                                        },
-                                                        onQrClick = {
-                                                            viewModel.onQrTrigger(selectedAttendeeForDetail!!, detailAttendeeGroups)
-                                                        },
-                                                        onAddGroupToQueue = { groupId ->
-                                                            lastQueuedGroupId = groupId
-                                                            viewModel.addGroupToQueue(groupId)
-                                                        },
-                                                        animatingGroups = animatingGroups
-                                                    )
-                        
-                                                    // FAB logic within sheet
-                                                    val state = fabState
-                                                    val isInQueue = selectedAttendeeForDetail?.id?.let { queueIds.contains(it) } ?: false
-                                                    val attendeeName = remember(state) {
-                                                        if (state is MainListViewModel.FabState.AddAttendee) state.name else ""
-                                                    }
-                                                    val isVisible = state is MainListViewModel.FabState.AddAttendee || (showAddedAnimation && isInQueue)
-                        
-                                                    Box(
-                                                        modifier = Modifier
-                                                            .fillMaxWidth()
-                                                            .then(if (isGroupsEmpty) Modifier.matchParentSize() else Modifier.height(availableSheetHeight))
-                                                            .padding(bottom = 16.dp, end = 16.dp),
-                                                        contentAlignment = Alignment.BottomEnd
-                                                    ) {
-                                                        Column(horizontalAlignment = Alignment.End) {
-                                                            if (activeQrInfo != null) {
-                                                                val context = LocalContext.current
-                                                                val bitmap = remember(activeQrInfo) {
-                                                                    val name = selectedAttendeeForDetail?.shortName ?: selectedAttendeeForDetail?.fullName ?: ""
-                                                                    sg.org.bcc.attendance.util.qr.QrImageGenerator.createQrWithText(activeQrInfo!!, name)
-                                                                }
-                                                                
-                                                                ExtendedFloatingActionButton(
-                                                                    onClick = {
-                                                                        val fileName = "qr_${activeQrInfo!!.personId ?: activeQrInfo!!.groupId}.png"
-                                                                        val uri = sg.org.bcc.attendance.util.qr.QrImageGenerator.saveAndGetUri(context, bitmap, fileName)
-                                                                        if (uri != null) {
-                                                                            val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
-                                                                                type = "image/png"
-                                                                                putExtra(android.content.Intent.EXTRA_STREAM, uri)
-                                                                                addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                                                            }
-                                                                            context.startActivity(android.content.Intent.createChooser(intent, "Share QR Code"))
-                                                                        }
-                                                                    },
-                                                                    text = { Text("Share QR") },
-                                                                    icon = { AppIcon(resourceId = AppIcons.Share, contentDescription = null) },
-                                                                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                                                                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                                                                    shape = CircleShape
-                                                                )
-                                                                Spacer(modifier = Modifier.height(16.dp))
-                                                            }
-                        
-                                                            AnimatedVisibility(
-                                                                visible = isVisible,
-                                                                enter = fadeIn() + scaleIn(),
-                                                                exit = fadeOut() + scaleOut()
-                                                            ) {
-                                                                val isAnimating = showAddedAnimation && isInQueue
-                                                                val containerColor by animateColorAsState(
-                                                                    targetValue = if (isAnimating) DeepGreen else MaterialTheme.colorScheme.primary,
-                                                                    label = "FabColor",
-                                                                    animationSpec = tween(durationMillis = 500)
-                                                                )
-                                                                
-                                                                ExtendedFloatingActionButton(
-                                                                    onClick = {
-                                                                        if (!isAnimating) {
-                                                                            wasIndividualAddedJustNow = true
-                                                                            viewModel.addAttendeeToQueue(selectedAttendeeForDetail!!.id)
-                                                                        }
-                                                                    },
-                                                                    icon = { 
-                                                                        AnimatedContent(
-                                                                            targetState = if (isAnimating) AppIcons.BookmarkAdded else AppIcons.PlaylistAdd,
-                                                                            transitionSpec = {
-                                                                                fadeIn(animationSpec = tween(300)) togetherWith
-                                                                                fadeOut(animationSpec = tween(300))
-                                                                            },
-                                                                            label = "IconAnimation"
-                                                                        ) { iconId ->
-                                                                            AppIcon(resourceId = iconId, contentDescription = null) 
-                                                                        }
-                                                                    },
-                                                                    text = { 
-                                                                        AnimatedContent(
-                                                                            targetState = if (isAnimating) "Queued" else "Queue $attendeeName",
-                                                                            transitionSpec = {
-                                                                                fadeIn(animationSpec = tween(300)) togetherWith
-                                                                                fadeOut(animationSpec = tween(300))
-                                                                            },
-                                                                            label = "TextAnimation"
-                                                                        ) { text -> Text(text) }
-                                                                    },
-                                                                    containerColor = containerColor,
-                                                                    contentColor = MaterialTheme.colorScheme.onPrimary,
-                                                                    shape = CircleShape
-                                                                )
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                        SheetType.QUEUE -> {
-                                            QueueScreen(
-                                                onBack = { viewModel.setShowQueueSheet(false) },
-                                                onActionComplete = { message, shouldClose ->
-                                                    if (shouldClose) viewModel.setShowQueueSheet(false)
-                                                    scope.launch { snackbarHostState.showSnackbar(message) }
-                                                },
-                                                currentEventId = currentEventId,
-                                                textScale = textScale,
-                                                onTextScaleChange = viewModel::setTextScale,
-                                                onNavigateToQrScanner = {
-                                                    viewModel.setShowQueueSheet(false)
-                                                    viewModel.setShowScannerSheet(true)
-                                                }
-                                            )
-                                        }
-                                        SheetType.QR_SCANNER -> {
-                                            sg.org.bcc.attendance.ui.qr.QrScannerContent(
-                                                onScanResult = { code -> viewModel.processQrResult(code) },
-                                                onBack = { viewModel.setShowScannerSheet(false) }
-                                            )
-                                        }
-                                        SheetType.NONE -> {
-                                            Box(modifier = Modifier.fillMaxWidth().height(1.dp))
-                                        }
-                                    }
-                                }
+                                MainBottomSheetContent(
+                                    activeSheet = activeSheet,
+                                    availableHeight = availableSheetHeight,
+                                    selectedAttendeeForDetail = selectedAttendeeForDetail,
+                                    detailAttendeeGroups = detailAttendeeGroups,
+                                    activeQrInfo = activeQrInfo,
+                                    groupMembersMap = groupMembersMap,
+                                    attendeeGroupsMap = attendeeGroupsMap,
+                                    textScale = textScale,
+                                    presentIds = presentIds,
+                                    queueIds = queueIds,
+                                    canNavigateBackInDetail = canNavigateBackInDetail,
+                                    previousAttendeeName = previousAttendeeName,
+                                    showAddedAnimation = showAddedAnimation,
+                                    animatingGroups = animatingGroups,
+                                    fabState = fabState,
+                                    currentEventId = currentEventId,
+                                    onDismiss = viewModel::dismissAllSheets,
+                                    onPopAttendeeDetail = viewModel::popAttendeeDetail,
+                                    onShowAttendeeDetail = viewModel::showAttendeeDetail,
+                                    onAddAttendeeToQueue = { attendeeId ->
+                                        wasIndividualAddedJustNow = true
+                                        viewModel.addAttendeeToQueue(attendeeId)
+                                    },
+                                    onQrTrigger = { attendee, groups ->
+                                        viewModel.onQrTrigger(attendee, groups)
+                                    },
+                                    onAddGroupToQueue = { groupId ->
+                                        lastQueuedGroupId = groupId
+                                        viewModel.addGroupToQueue(groupId)
+                                    },
+                                    onSetShowQueueSheet = viewModel::setShowQueueSheet,
+                                    onSetShowScannerSheet = viewModel::setShowScannerSheet,
+                                    onProcessQrResult = viewModel::processQrResult,
+                                    onTextScaleChange = viewModel::setTextScale,
+                                    onShowSnackbar = { scope.launch { snackbarHostState.showSnackbar(it) } }
+                                )
                             }
                 
             ) {
@@ -1401,6 +1264,193 @@ fun MainListScreen(
     }
 }
 
+@Composable
+fun MainBottomSheetContent(
+    activeSheet: SheetType,
+    availableHeight: androidx.compose.ui.unit.Dp,
+    selectedAttendeeForDetail: Attendee?,
+    detailAttendeeGroups: List<sg.org.bcc.attendance.data.local.entities.Group>,
+    activeQrInfo: QrInfo?,
+    groupMembersMap: Map<String, List<Attendee>>,
+    attendeeGroupsMap: Map<String, List<String>>,
+    textScale: Float,
+    presentIds: Set<String>,
+    queueIds: Set<String>,
+    canNavigateBackInDetail: Boolean,
+    previousAttendeeName: String?,
+    showAddedAnimation: Boolean,
+    animatingGroups: Set<String>,
+    fabState: MainListViewModel.FabState,
+    currentEventId: String?,
+    onDismiss: () -> Unit,
+    onPopAttendeeDetail: () -> Unit,
+    onShowAttendeeDetail: (Attendee) -> Unit,
+    onAddAttendeeToQueue: (String) -> Unit,
+    onQrTrigger: (Attendee, List<sg.org.bcc.attendance.data.local.entities.Group>) -> Unit,
+    onAddGroupToQueue: (String) -> Unit,
+    onSetShowQueueSheet: (Boolean) -> Unit,
+    onSetShowScannerSheet: (Boolean) -> Unit,
+    onProcessQrResult: (String) -> Boolean,
+    onTextScaleChange: (Float) -> Unit,
+    onShowSnackbar: (String) -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(max = availableHeight)
+            .navigationBarsPadding()
+    ) {
+        when (activeSheet) {
+            SheetType.ATTENDEE_DETAIL -> {
+                if (selectedAttendeeForDetail != null) {
+                    val isGroupsEmpty = detailAttendeeGroups.isEmpty()
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .then(if (isGroupsEmpty) Modifier.wrapContentHeight() else Modifier.height(availableHeight))
+                    ) {
+                        AttendeeDetailContent(
+                            attendee = selectedAttendeeForDetail,
+                            groups = detailAttendeeGroups,
+                            activeQrInfo = activeQrInfo,
+                            attendeeName = selectedAttendeeForDetail.shortName ?: selectedAttendeeForDetail.fullName,
+                            groupMembersMap = groupMembersMap,
+                            attendeeGroupsMap = attendeeGroupsMap,
+                            textScale = textScale,
+                            onTextScaleChange = onTextScaleChange,
+                            presentIds = presentIds,
+                            queueIds = queueIds,
+                            canNavigateBack = canNavigateBackInDetail,
+                            previousName = previousAttendeeName,
+                            onBack = onPopAttendeeDetail,
+                            onAttendeeClick = onShowAttendeeDetail,
+                            onAddAttendeeToQueue = { onAddAttendeeToQueue(selectedAttendeeForDetail.id) },
+                            onQrClick = { onQrTrigger(selectedAttendeeForDetail, detailAttendeeGroups) },
+                            onAddGroupToQueue = onAddGroupToQueue,
+                            animatingGroups = animatingGroups
+                        )
+
+                        // FAB logic within sheet
+                        val isInQueue = queueIds.contains(selectedAttendeeForDetail.id)
+                        val attendeeName = if (fabState is MainListViewModel.FabState.AddAttendee) fabState.name else ""
+                        val isVisible = fabState is MainListViewModel.FabState.AddAttendee || (showAddedAnimation && isInQueue)
+
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .then(if (isGroupsEmpty) Modifier.matchParentSize() else Modifier.height(availableHeight))
+                                .padding(bottom = 16.dp, end = 16.dp),
+                            contentAlignment = Alignment.BottomEnd
+                        ) {
+                            Column(horizontalAlignment = Alignment.End) {
+                                if (activeQrInfo != null) {
+                                    val context = LocalContext.current
+                                    val bitmap = remember(activeQrInfo) {
+                                        val name = selectedAttendeeForDetail.shortName ?: selectedAttendeeForDetail.fullName ?: ""
+                                        sg.org.bcc.attendance.util.qr.QrImageGenerator.createQrWithText(activeQrInfo, name)
+                                    }
+                                    
+                                    ExtendedFloatingActionButton(
+                                        onClick = {
+                                            val fileName = "qr_${activeQrInfo.personId ?: activeQrInfo.groupId}.png"
+                                            val uri = sg.org.bcc.attendance.util.qr.QrImageGenerator.saveAndGetUri(context, bitmap, fileName)
+                                            if (uri != null) {
+                                                val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                                                    type = "image/png"
+                                                    putExtra(android.content.Intent.EXTRA_STREAM, uri)
+                                                    addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                                }
+                                                context.startActivity(android.content.Intent.createChooser(intent, "Share QR Code"))
+                                            }
+                                        },
+                                        text = { Text("Share QR") },
+                                        icon = { AppIcon(resourceId = AppIcons.Share, contentDescription = null) },
+                                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                                        shape = CircleShape
+                                    )
+                                    Spacer(modifier = Modifier.height(16.dp))
+                                }
+
+                                AnimatedVisibility(
+                                    visible = isVisible,
+                                    enter = fadeIn() + scaleIn(),
+                                    exit = fadeOut() + scaleOut()
+                                ) {
+                                    val isAnimating = showAddedAnimation && isInQueue
+                                    val containerColor by animateColorAsState(
+                                        targetValue = if (isAnimating) DeepGreen else MaterialTheme.colorScheme.primary,
+                                        label = "FabColor",
+                                        animationSpec = tween(durationMillis = 500)
+                                    )
+                                    
+                                    ExtendedFloatingActionButton(
+                                        onClick = {
+                                            if (!isAnimating) {
+                                                onAddAttendeeToQueue(selectedAttendeeForDetail.id)
+                                            }
+                                        },
+                                        icon = { 
+                                            AnimatedContent(
+                                                targetState = if (isAnimating) AppIcons.BookmarkAdded else AppIcons.PlaylistAdd,
+                                                transitionSpec = {
+                                                    fadeIn(animationSpec = tween(300)) togetherWith
+                                                    fadeOut(animationSpec = tween(300))
+                                                },
+                                                label = "IconAnimation"
+                                            ) { iconId ->
+                                                AppIcon(resourceId = iconId, contentDescription = null) 
+                                            }
+                                        },
+                                        text = { 
+                                            AnimatedContent(
+                                                targetState = if (isAnimating) "Queued" else "Queue $attendeeName",
+                                                transitionSpec = {
+                                                    fadeIn(animationSpec = tween(300)) togetherWith
+                                                    fadeOut(animationSpec = tween(300))
+                                                },
+                                                label = "TextAnimation"
+                                            ) { text -> Text(text) }
+                                        },
+                                        containerColor = containerColor,
+                                        contentColor = MaterialTheme.colorScheme.onPrimary,
+                                        shape = CircleShape
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            SheetType.QUEUE -> {
+                QueueScreen(
+                    onBack = { onSetShowQueueSheet(false) },
+                    onActionComplete = { message, shouldClose ->
+                        if (shouldClose) onSetShowQueueSheet(false)
+                        onShowSnackbar(message)
+                    },
+                    currentEventId = currentEventId,
+                    textScale = textScale,
+                    onTextScaleChange = onTextScaleChange,
+                    onNavigateToQrScanner = {
+                        onSetShowQueueSheet(false)
+                        onSetShowScannerSheet(true)
+                    }
+                )
+            }
+            SheetType.QR_SCANNER -> {
+                sg.org.bcc.attendance.ui.qr.QrScannerContent(
+                    onScanResult = { code -> onProcessQrResult(code) },
+                    onBack = { onSetShowScannerSheet(false) }
+                )
+            }
+            SheetType.NONE -> {
+                Box(modifier = Modifier.fillMaxWidth().height(1.dp))
+            }
+        }
+    }
+}
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun AttendeeDetailContent(
@@ -1418,39 +1468,25 @@ fun AttendeeDetailContent(
     previousName: String? = null,
     onBack: () -> Unit = {},
     onAttendeeClick: (Attendee) -> Unit,
-    onQrClick: () -> Unit,
     onAddAttendeeToQueue: () -> Unit,
+    onQrClick: () -> Unit,
     onAddGroupToQueue: (String) -> Unit,
     animatingGroups: Set<String> = emptySet()
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
-        // Profile Header area: WHITE
-        Column(modifier = Modifier.fillMaxWidth().background(Color.White)) {
-            if (canNavigateBack && previousName != null) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onBack() }
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    AppIcon(
-                        resourceId = AppIcons.ArrowBack, 
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp),
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "Return to $previousName",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Medium
-                    )
-                }
-                HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-            }
+        if (canNavigateBack && previousName != null) {
+            sg.org.bcc.attendance.ui.components.AppBottomSheetHeader(
+                navigationText = "Return to $previousName",
+                onNavigationClick = onBack
+            )
+        }
 
+        // Profile Body: WHITE
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color.White)
+        ) {
             AttendeeListItem(
                 attendee = attendee,
                 isPresent = presentIds.contains(attendee.id),

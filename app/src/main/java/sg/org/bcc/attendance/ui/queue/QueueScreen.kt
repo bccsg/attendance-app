@@ -92,32 +92,30 @@ fun QueueScreen(
         }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Queue", style = MaterialTheme.typography.titleLarge) },
-                actions = {
-                    if (queueItems.isNotEmpty()) {
-                        IconButton(onClick = { 
-                            if (laterCount > 0) {
-                                showClearDialog = true 
-                            } else {
-                                scope.launch { viewModel.clearReadyQueue() }
+            Scaffold(
+                topBar = {
+                    sg.org.bcc.attendance.ui.components.AppBottomSheetHeader(
+                        title = "Queue",
+                        trailingContent = {
+                            if (queueItems.isNotEmpty()) {
+                                IconButton(
+                                    onClick = { 
+                                        if (laterCount > 0) {
+                                            showClearDialog = true 
+                                        } else {
+                                            scope.launch { viewModel.clearReadyQueue() }
+                                        }
+                                    }
+                                ) {
+                                    AppIcon(
+                                        resourceId = AppIcons.PlaylistRemove, 
+                                        contentDescription = "Clear Queue"
+                                    )
+                                }
                             }
-                        }) {
-                            AppIcon(
-                                resourceId = AppIcons.PlaylistRemove, 
-                                contentDescription = "Clear Queue",
-                                tint = MaterialTheme.colorScheme.onSurface
-                            )
                         }
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
-            )
-        },
-        bottomBar = {
-            Column(modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainerLow)) {
+                    )
+                },            bottomBar = {            Column(modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainerLow)) {
                 // Inline Row: Chips (Centered) + Scan QR (Right)
                 Box(
                     modifier = Modifier
