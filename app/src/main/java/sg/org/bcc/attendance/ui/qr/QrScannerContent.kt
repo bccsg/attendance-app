@@ -43,7 +43,8 @@ import java.util.concurrent.Executors
 @Composable
 fun QrScannerContent(
     onScanResult: (String) -> Boolean,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    textScale: Float = 1.0f
 ) {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
@@ -70,7 +71,8 @@ fun QrScannerContent(
     Column(modifier = Modifier.fillMaxSize()) {
         // Header
         sg.org.bcc.attendance.ui.components.AppBottomSheetHeader(
-            title = "Scan attendee QR"
+            title = "Scan attendee QR",
+            textScale = textScale
         )
 
         if (hasCameraPermission) {

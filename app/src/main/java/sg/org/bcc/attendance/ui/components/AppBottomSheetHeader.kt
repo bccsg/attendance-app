@@ -17,6 +17,7 @@ fun AppBottomSheetHeader(
     onNavigationClick: (() -> Unit)? = null,
     leadingContent: (@Composable () -> Unit)? = null,
     trailingContent: (@Composable () -> Unit)? = null,
+    textScale: Float = 1.0f,
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier.fillMaxWidth()) {
@@ -32,13 +33,15 @@ fun AppBottomSheetHeader(
                 AppIcon(
                     resourceId = AppIcons.ArrowBack,
                     contentDescription = null,
-                    modifier = Modifier.size(18.dp),
+                    modifier = Modifier.size(18.dp * textScale),
                     tint = MaterialTheme.colorScheme.secondary
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = navigationText,
-                    style = MaterialTheme.typography.labelLarge,
+                    style = MaterialTheme.typography.labelLarge.copy(
+                        fontSize = MaterialTheme.typography.labelLarge.fontSize * textScale
+                    ),
                     color = MaterialTheme.colorScheme.secondary,
                     fontWeight = FontWeight.Medium
                 )
@@ -56,7 +59,8 @@ fun AppBottomSheetHeader(
                             end = 16.dp, 
                             top = if (navigationText == null) 16.dp else 0.dp, 
                             bottom = 16.dp
-                        ),
+                        )
+                        .heightIn(min = 48.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     if (leadingContent != null) {
@@ -66,7 +70,9 @@ fun AppBottomSheetHeader(
                     
                     Text(
                         text = title,
-                        style = MaterialTheme.typography.titleLarge,
+                        style = MaterialTheme.typography.titleLarge.copy(
+                            fontSize = MaterialTheme.typography.titleLarge.fontSize * textScale
+                        ),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontWeight = FontWeight.SemiBold
                     )

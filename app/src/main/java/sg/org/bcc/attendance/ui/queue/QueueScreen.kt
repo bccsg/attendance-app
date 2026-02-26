@@ -92,306 +92,171 @@ fun QueueScreen(
         }
     }
 
-            Scaffold(
-                topBar = {
-                    sg.org.bcc.attendance.ui.components.AppBottomSheetHeader(
-                        title = "Queue",
-                        trailingContent = {
-                            if (queueItems.isNotEmpty()) {
-                                IconButton(
-                                    onClick = { 
-                                        if (laterCount > 0) {
-                                            showClearDialog = true 
-                                        } else {
-                                            scope.launch { viewModel.clearReadyQueue() }
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.surfaceContainerLow)
+    ) {
+        // HEADER
+                        sg.org.bcc.attendance.ui.components.AppBottomSheetHeader(
+                            title = "Queue",
+                            textScale = textScale,
+                            trailingContent = {
+                                Box(modifier = Modifier.size(48.dp)) {
+                                    if (queueItems.isNotEmpty()) {
+                                        IconButton(
+                                            onClick = { 
+                                                if (laterCount > 0) {
+                                                    showClearDialog = true 
+                                                } else {
+                                                    scope.launch { viewModel.clearReadyQueue() }
+                                                }
+                                            }
+                                        ) {
+                                            AppIcon(
+                                                resourceId = AppIcons.PlaylistRemove, 
+                                                contentDescription = "Clear Queue",
+                                                modifier = Modifier.size(24.dp * 1.25f)
+                                            )
                                         }
                                     }
+                                }
+                            }
+                        )
+        // LIST AREA (Weight 1)
+        Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+            if (queueItems.isEmpty()) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        AppIcon(resourceId = AppIcons.BookmarkAdded, contentDescription = null, modifier = Modifier.size(64.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f))
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text("Queue is empty", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
+                    }
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .pinchToScale(textScale, onTextScaleChange)
+                ) {
+                    items(queueItems, key = { it.attendee.id }) { item ->
+                        val isAlreadyPresent = presentIds.contains(item.attendee.id)
+                        val isMarkingPresent = processingIds.contains(item.attendee.id) && processingState == "PRESENT"
+                        val isPresent = isAlreadyPresent || isMarkingPresent
+                        val isProcessing = processingIds.contains(item.attendee.id)
+                        
+                        val swipeOffset = remember { Animatable(0f) }
+                        var itemWidth by remember { mutableFloatStateOf(0f) }
+                        var isArmed by remember { mutableStateOf(false) }
+
+                        LaunchedEffect(itemWidth) {
+                            if (itemWidth > 0) {
+                                val threshold = itemWidth * 0.25f
+                                snapshotFlow { swipeOffset.value }.collect { currentOffset ->
+                                    val currentlyBeyond = abs(currentOffset) >= threshold
+                                    if (currentlyBeyond != isArmed) {
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        isArmed = currentlyBeyond
+                                    }
+                                }
+                            }
+                        }
+
+                        androidx.compose.animation.AnimatedVisibility(
+                            visible = !isProcessing,
+                            enter = fadeIn(),
+                            exit = fadeOut(animationSpec = tween(400, delayMillis = 100))
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .onSizeChanged { itemWidth = it.width.toFloat() }
+                                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                            ) {
+                                Box(
+                                    modifier = Modifier.matchParentSize().padding(horizontal = 24.dp),
+                                    contentAlignment = if (swipeOffset.value > 0) Alignment.CenterStart else Alignment.CenterEnd
                                 ) {
                                     AppIcon(
                                         resourceId = AppIcons.PlaylistRemove, 
-                                        contentDescription = "Clear Queue"
+                                        contentDescription = "Remove", 
+                                        tint = if (isArmed) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
                                     )
                                 }
-                            }
-                        }
-                    )
-                },            bottomBar = {            Column(modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainerLow)) {
-                // Inline Row: Chips (Centered) + Scan QR (Right)
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp)
-                ) {
-                    // CENTERED CHIPS
-                    Row(
-                        modifier = Modifier.align(Alignment.Center),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        // Ready Chip
-                        BadgedBox(
-                            badge = {
-                                if (readyCount > 0) {
-                                    Badge(
-                                        containerColor = MaterialTheme.colorScheme.primary,
-                                        contentColor = MaterialTheme.colorScheme.onPrimary
-                                    ) { Text(readyCount.toString()) }
-                                }
-                            }
-                        ) {
-                            Surface(
-                                color = if (readyCount > 0) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.4f),
-                                shape = RoundedCornerShape(12.dp),
-                                tonalElevation = 0.dp
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    AppIcon(
-                                        resourceId = AppIcons.Checklist,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(18.dp),
-                                        tint = if (readyCount > 0) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.4f)
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = "Ready",
-                                        style = MaterialTheme.typography.labelLarge,
-                                        color = if (readyCount > 0) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.4f)
-                                    )
-                                }
-                            }
-                        }
 
-                        // Later Chip
-                        BadgedBox(
-                            badge = {
-                                if (laterCount > 0) {
-                                    Badge(
-                                        containerColor = MaterialTheme.colorScheme.secondary,
-                                        contentColor = MaterialTheme.colorScheme.onSecondary
-                                    ) { Text(laterCount.toString()) }
-                                }
-                            }
-                        ) {
-                            Surface(
-                                color = if (laterCount > 0) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.4f),
-                                shape = RoundedCornerShape(12.dp),
-                                tonalElevation = 0.dp
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    AppIcon(
-                                        resourceId = AppIcons.PushPin,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(16.dp),
-                                        tint = if (laterCount > 0) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.4f)
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = "Later",
-                                        style = MaterialTheme.typography.labelLarge,
-                                        color = if (laterCount > 0) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.4f)
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    // RIGHT-ALIGNED SCAN QR FAB
-                    FloatingActionButton(
-                        onClick = onNavigateToQrScanner,
-                        modifier = Modifier.align(Alignment.CenterEnd),
-                        containerColor = MaterialTheme.colorScheme.primaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                        shape = CircleShape,
-                        elevation = FloatingActionButtonDefaults.elevation(2.dp)
-                    ) {
-                        AppIcon(resourceId = AppIcons.QrCodeScanner, contentDescription = "Scan QR")
-                    }
-                }
-
-                Surface(
-                    tonalElevation = 8.dp,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier.padding(16.dp).fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        HoldToActivateButton(
-                            iconResId = AppIcons.PersonCancel,
-                            onActivate = { handleSync("ABSENT") },
-                            width = Dp.Unspecified,
-                            height = 64.dp,
-                            holdDurationMs = 1000L,
-                            color = MaterialTheme.colorScheme.secondary,
-                            modifier = Modifier.weight(0.34f),
-                            enabled = readyCount > 0 && processingIds.isEmpty(),
-                            content = { tint, alpha ->
-                                AppIcon(
-                                    resourceId = AppIcons.PersonCancel,
-                                    contentDescription = null,
-                                    tint = tint,
-                                    modifier = Modifier.size(32.dp).alpha(alpha)
-                                )
-                            }
-                        )
-                        
-                        HoldToActivateButton(
-                            iconResId = AppIcons.PersonCheck,
-                            onActivate = { handleSync("PRESENT") },
-                            modifier = Modifier.weight(0.66f),
-                            height = 64.dp,
-                            holdDurationMs = 1000L,
-                            color = MaterialTheme.colorScheme.primary,
-                            enabled = readyCount > 0 && processingIds.isEmpty()
-                        )
-                    }
-                }
-            }
-        },
-        containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-    ) { padding ->
-        Box(modifier = Modifier.padding(padding).fillMaxSize().background(MaterialTheme.colorScheme.surfaceContainerLow)) {
-            Column {
-                if (queueItems.isEmpty()) {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            AppIcon(resourceId = AppIcons.BookmarkAdded, contentDescription = null, modifier = Modifier.size(64.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f))
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Text("Queue is empty", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
-                        }
-                    }
-                } else {
-                    LazyColumn(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .pinchToScale(textScale, onTextScaleChange)
-                    ) {
-                        items(queueItems, key = { it.attendee.id }) { item ->
-                            val isAlreadyPresent = presentIds.contains(item.attendee.id)
-                            val isMarkingPresent = processingIds.contains(item.attendee.id) && processingState == "PRESENT"
-                            val isPresent = isAlreadyPresent || isMarkingPresent
-                            val isProcessing = processingIds.contains(item.attendee.id)
-                            
-                            val swipeOffset = remember { Animatable(0f) }
-                            var itemWidth by remember { mutableFloatStateOf(0f) }
-                            var isArmed by remember { mutableStateOf(false) }
-
-                            LaunchedEffect(itemWidth) {
-                                if (itemWidth > 0) {
-                                    val threshold = itemWidth * 0.25f
-                                    snapshotFlow { swipeOffset.value }.collect { currentOffset ->
-                                        val currentlyBeyond = abs(currentOffset) >= threshold
-                                        if (currentlyBeyond != isArmed) {
-                                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                            isArmed = currentlyBeyond
-                                        }
-                                    }
-                                }
-                            }
-
-                            AnimatedVisibility(
-                                visible = !isProcessing,
-                                exit = shrinkVertically(animationSpec = tween(400, delayMillis = 100)) + 
-                                       fadeOut(animationSpec = tween(400, delayMillis = 100))
-                            ) {
                                 Box(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .onSizeChanged { itemWidth = it.width.toFloat() }
-                                        .background(MaterialTheme.colorScheme.surfaceVariant)
-                                ) {
-                                    Box(
-                                        modifier = Modifier.matchParentSize().padding(horizontal = 24.dp),
-                                        contentAlignment = if (swipeOffset.value > 0) Alignment.CenterStart else Alignment.CenterEnd
-                                    ) {
-                                        AppIcon(
-                                            resourceId = AppIcons.PlaylistRemove, 
-                                            contentDescription = "Remove", 
-                                            tint = if (isArmed) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
-                                        )
-                                    }
-
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .offset { IntOffset(swipeOffset.value.roundToInt(), 0) }
-                                            .pointerInput(itemWidth) {
-                                                if (itemWidth <= 0) return@pointerInput
-                                                val threshold = itemWidth * 0.25f
-                                                val maxSwipe = itemWidth * 0.30f
-                                                
-                                                detectHorizontalDragGestures(
-                                                    onDragEnd = {
-                                                        if (isArmed) {
-                                                            processingIds = processingIds + item.attendee.id
-                                                            processingState = "REMOVE"
-                                                            scope.launch {
-                                                                delay(100)
-                                                                viewModel.removeFromQueue(item.attendee.id)
-                                                            }
-                                                        } else {
-                                                            scope.launch {
-                                                                swipeOffset.animateTo(0f, spring(stiffness = Spring.StiffnessMediumLow))
-                                                            }
-                                                        }
-                                                    },
-                                                    onHorizontalDrag = { change, dragAmount ->
-                                                        change.consume()
-                                                        val newOffset = (swipeOffset.value + dragAmount)
-                                                            .coerceIn(-maxSwipe, maxSwipe)
+                                        .offset { IntOffset(swipeOffset.value.roundToInt(), 0) }
+                                        .pointerInput(itemWidth) {
+                                            if (itemWidth <= 0) return@pointerInput
+                                            val threshold = itemWidth * 0.25f
+                                            val maxSwipe = itemWidth * 0.30f
+                                            
+                                            detectHorizontalDragGestures(
+                                                onDragEnd = {
+                                                    if (isArmed) {
+                                                        processingIds = processingIds + item.attendee.id
+                                                        processingState = "REMOVE"
                                                         scope.launch {
-                                                            swipeOffset.snapTo(newOffset)
+                                                            delay(100)
+                                                            viewModel.removeFromQueue(item.attendee.id)
+                                                        }
+                                                    } else {
+                                                        scope.launch {
+                                                            swipeOffset.animateTo(0f, spring(stiffness = Spring.StiffnessMediumLow))
                                                         }
                                                     }
-                                                )
-                                            }
-                                    ) {
-                                        AttendeeListItem(
-                                            attendee = item.attendee,
-                                            isPresent = isPresent,
-                                            isQueued = false, // Not showing queued icon inside the queue screen
-                                            isLater = item.isLater,
-                                            isSelectionMode = item.isLater, // Later items use the isSelectionMode background
-                                            isSelected = !item.isLater, // Ready items use the isSelected background
-                                            textScale = textScale,
-                                            alpha = if (item.isLater) 0.5f else 1.0f,
-                                            backgroundColor = MaterialTheme.colorScheme.surfaceContainerLow,
-                                            onClick = { 
-                                                if (swipeOffset.value == 0f) {
+                                                },
+                                                onHorizontalDrag = { change, dragAmount ->
+                                                    change.consume()
+                                                    val newOffset = (swipeOffset.value + dragAmount)
+                                                        .coerceIn(-maxSwipe, maxSwipe)
                                                     scope.launch {
-                                                        viewModel.toggleLater(item.attendee.id, item.isLater) 
+                                                        swipeOffset.snapTo(newOffset)
                                                     }
                                                 }
+                                            )
+                                        }
+                                ) {
+                                    AttendeeListItem(
+                                        attendee = item.attendee,
+                                        isPresent = isPresent,
+                                        isQueued = false, // Not showing queued icon inside the queue screen
+                                        isLater = item.isLater,
+                                        isSelectionMode = item.isLater, // Later items use the isSelectionMode background
+                                        isSelected = !item.isLater, // Ready items use the isSelected background
+                                        textScale = textScale,
+                                        alpha = if (item.isLater) 0.5f else 1.0f,
+                                        backgroundColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                                        onClick = { 
+                                            if (swipeOffset.value == 0f) {
+                                                scope.launch {
+                                                    viewModel.toggleLater(item.attendee.id, item.isLater) 
+                                                }
                                             }
-                                        )
-                                    }
-                                    
-                                    if (isProcessing) {
-                                        val flashAlpha by animateFloatAsState(
-                                            targetValue = 1f,
-                                            animationSpec = tween(durationMillis = 100),
-                                            label = "flashAlpha"
-                                        )
-                                        Box(
-                                            modifier = Modifier
-                                                .matchParentSize()
-                                                .alpha(flashAlpha)
-                                                .background(
-                                                    when(processingState) {
-                                                        "PRESENT" -> PastelGreen
-                                                        "REMOVE" -> MaterialTheme.colorScheme.errorContainer
-                                                        else -> MaterialTheme.colorScheme.secondaryContainer
-                                                    }
-                                                )
-                                        )
-                                    }
+                                        }
+                                    )
+                                }
+                                
+                                if (isProcessing) {
+                                    val flashAlpha by animateFloatAsState(
+                                        targetValue = 1f,
+                                        animationSpec = tween(durationMillis = 100),
+                                        label = "flashAlpha"
+                                    )
+                                    Box(
+                                        modifier = Modifier
+                                            .matchParentSize()
+                                            .alpha(flashAlpha)
+                                            .background(
+                                                when(processingState) {
+                                                    "PRESENT" -> PastelGreen
+                                                    "REMOVE" -> MaterialTheme.colorScheme.errorContainer
+                                                    else -> MaterialTheme.colorScheme.secondaryContainer
+                                                }
+                                            )
+                                    )
                                 }
                             }
                         }
@@ -399,6 +264,147 @@ fun QueueScreen(
                 }
             }
             SnackbarHost(hostState = snackbarHostState, modifier = Modifier.align(Alignment.BottomCenter))
+        }
+
+        // BOTTOM BAR AREA
+        Column(modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainerLow)) {
+            // Inline Row: Chips (Centered) + Scan QR (Right)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+            ) {
+                // CENTERED CHIPS
+                Row(
+                    modifier = Modifier.align(Alignment.Center),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Ready Chip
+                    BadgedBox(
+                        badge = {
+                            if (readyCount > 0) {
+                                Badge(
+                                    containerColor = MaterialTheme.colorScheme.primary,
+                                    contentColor = MaterialTheme.colorScheme.onPrimary
+                                ) { Text(readyCount.toString()) }
+                            }
+                        }
+                    ) {
+                        Surface(
+                            color = if (readyCount > 0) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.4f),
+                            shape = RoundedCornerShape(12.dp),
+                            tonalElevation = 0.dp
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                AppIcon(
+                                    resourceId = AppIcons.Checklist,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp),
+                                    tint = if (readyCount > 0) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.4f)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "Ready",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = if (readyCount > 0) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.4f)
+                                )
+                            }
+                        }
+                    }
+
+                    // Later Chip
+                    BadgedBox(
+                        badge = {
+                            if (laterCount > 0) {
+                                Badge(
+                                    containerColor = MaterialTheme.colorScheme.secondary,
+                                    contentColor = MaterialTheme.colorScheme.onSecondary
+                                ) { Text(laterCount.toString()) }
+                            }
+                        }
+                    ) {
+                        Surface(
+                            color = if (laterCount > 0) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.4f),
+                            shape = RoundedCornerShape(12.dp),
+                            tonalElevation = 0.dp
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                AppIcon(
+                                    resourceId = AppIcons.PushPin,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp),
+                                    tint = if (laterCount > 0) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.4f)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "Later",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = if (laterCount > 0) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.4f)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // RIGHT-ALIGNED SCAN QR FAB
+                FloatingActionButton(
+                    onClick = onNavigateToQrScanner,
+                    modifier = Modifier.align(Alignment.CenterEnd),
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    shape = CircleShape,
+                    elevation = FloatingActionButtonDefaults.elevation(2.dp)
+                ) {
+                    AppIcon(resourceId = AppIcons.QrCodeScanner, contentDescription = "Scan QR")
+                }
+            }
+
+            Surface(
+                tonalElevation = 8.dp,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp).fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    HoldToActivateButton(
+                        iconResId = AppIcons.PersonCancel,
+                        onActivate = { handleSync("ABSENT") },
+                        width = Dp.Unspecified,
+                        height = 64.dp,
+                        holdDurationMs = 1000L,
+                        color = MaterialTheme.colorScheme.secondary,
+                        modifier = Modifier.weight(0.34f),
+                        enabled = readyCount > 0 && processingIds.isEmpty(),
+                        content = { tint, alpha ->
+                            AppIcon(
+                                resourceId = AppIcons.PersonCancel,
+                                contentDescription = null,
+                                tint = tint,
+                                modifier = Modifier.size(32.dp).alpha(alpha)
+                            )
+                        }
+                    )
+                    
+                    HoldToActivateButton(
+                        iconResId = AppIcons.PersonCheck,
+                        onActivate = { handleSync("PRESENT") },
+                        modifier = Modifier.weight(0.66f),
+                        height = 64.dp,
+                        holdDurationMs = 1000L,
+                        color = MaterialTheme.colorScheme.primary,
+                        enabled = readyCount > 0 && processingIds.isEmpty()
+                    )
+                }
+            }
         }
     }
 
