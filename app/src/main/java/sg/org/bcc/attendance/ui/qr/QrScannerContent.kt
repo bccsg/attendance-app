@@ -72,7 +72,7 @@ fun QrScannerContent(
         // Header
         sg.org.bcc.attendance.ui.components.AppBottomSheetHeader(
             title = "Scan attendee QR",
-            textScale = textScale
+            textScale = 1.0f
         )
 
         if (hasCameraPermission) {

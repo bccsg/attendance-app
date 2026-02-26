@@ -1015,7 +1015,7 @@ fun AttendeeDetailContent(
             sg.org.bcc.attendance.ui.components.AppBottomSheetHeader(
                 navigationText = "Return to $previousName",
                 onNavigationClick = onBack,
-                textScale = textScale
+                textScale = 1.0f
             )
         }
 

@@ -28,13 +28,19 @@ import sg.org.bcc.attendance.ui.theme.AttendanceTheme
 import androidx.navigation.navArgument
 import androidx.navigation.NavType
 
+import androidx.activity.SystemBarStyle
+import androidx.compose.ui.graphics.toArgb
+import sg.org.bcc.attendance.ui.theme.LightColorScheme
+
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     
     private var viewModelReference: MainListViewModel? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        enableEdgeToEdge()
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.dark(LightColorScheme.primary.toArgb())
+        )
         super.onCreate(savedInstanceState)
         Log.d("AttendanceAuth", "MainActivity onCreate - Version 2 (Web Auth)")
         

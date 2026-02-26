@@ -51,29 +51,35 @@ fun CloudResolutionScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Cloud Sync Resolution", style = MaterialTheme.typography.titleLarge) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        AppIcon(resourceId = AppIcons.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                actions = {
-                    if (syncProgress.syncState != SyncState.IDLE || isProcessing) {
-                        val icon = if (syncProgress.syncState != SyncState.IDLE) syncProgress.cloudStatusIcon else AppIcons.Sync
-                        val shouldRotate = if (syncProgress.syncState != SyncState.IDLE) syncProgress.shouldRotate else true
-                        
-                        RotatingSyncIcon(
-                            resourceId = icon,
-                            contentDescription = "Syncing",
-                            tint = MaterialTheme.colorScheme.primary,
-                            shouldRotate = shouldRotate
-                        )
-                        Spacer(modifier = Modifier.width(16.dp))
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
-            )
+            Surface(
+                color = MaterialTheme.colorScheme.primary,
+                tonalElevation = 4.dp
+            ) {
+                TopAppBar(
+                    modifier = Modifier.statusBarsPadding(),
+                    title = { Text("Cloud Sync Resolution", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onPrimary) },
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            AppIcon(resourceId = AppIcons.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onPrimary)
+                        }
+                    },
+                    actions = {
+                        if (syncProgress.syncState != SyncState.IDLE || isProcessing) {
+                            val icon = if (syncProgress.syncState != SyncState.IDLE) syncProgress.cloudStatusIcon else AppIcons.Sync
+                            val shouldRotate = if (syncProgress.syncState != SyncState.IDLE) syncProgress.shouldRotate else true
+                            
+                            RotatingSyncIcon(
+                                resourceId = icon,
+                                contentDescription = "Syncing",
+                                tint = MaterialTheme.colorScheme.onPrimary,
+                                shouldRotate = shouldRotate
+                            )
+                            Spacer(modifier = Modifier.width(16.dp))
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
+                )
+            }
         },
         containerColor = MaterialTheme.colorScheme.surfaceContainerLow
     ) { padding ->

@@ -38,19 +38,27 @@ fun SyncLogsScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { 
-                    Text(
-                        if (selectedTriggerId == null) "Sync Sessions" else "Session Details",
-                        style = MaterialTheme.typography.titleLarge
-                    ) 
-                },
-                navigationIcon = {
-                    IconButton(onClick = if (selectedTriggerId == null) onBack else { { viewModel.selectTrigger(null) } }) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
-                    }
-                }
-            )
+            Surface(
+                color = MaterialTheme.colorScheme.primary,
+                tonalElevation = 4.dp
+            ) {
+                TopAppBar(
+                    modifier = Modifier.statusBarsPadding(),
+                    title = { 
+                        Text(
+                            if (selectedTriggerId == null) "Sync Sessions" else "Session Details",
+                            style = MaterialTheme.typography.titleLarge,
+                            color = MaterialTheme.colorScheme.onPrimary
+                        ) 
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = if (selectedTriggerId == null) onBack else { { viewModel.selectTrigger(null) } }) {
+                            Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onPrimary)
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
+                )
+            }
         },
         containerColor = MaterialTheme.colorScheme.surface
     ) { padding ->

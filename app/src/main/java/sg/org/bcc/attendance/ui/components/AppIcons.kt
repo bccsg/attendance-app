@@ -22,6 +22,7 @@ object AppIcons {
     val Close = R.drawable.ic_close
     val Check = R.drawable.ic_check
     val BookmarkAdded = R.drawable.ic_bookmark_added
+    val BookmarkRemove = R.drawable.ic_bookmark_remove
     val Share = R.drawable.ic_share
     val Visibility = R.drawable.ic_visibility
     val VisibilityOff = R.drawable.ic_visibility_off

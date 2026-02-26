@@ -20,7 +20,6 @@ import androidx.compose.ui.unit.dp
 import sg.org.bcc.attendance.data.local.entities.Attendee
 import sg.org.bcc.attendance.ui.theme.DeepGreen
 import sg.org.bcc.attendance.ui.theme.PastelGreen
-import sg.org.bcc.attendance.ui.theme.Purple40
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -47,143 +46,178 @@ fun AttendeeListItem(
 
     Surface(
         modifier = modifier
-            .fillMaxWidth()
-            .alpha(alpha),
+            .fillMaxWidth(),
         color = when {
             isSelected -> MaterialTheme.colorScheme.secondaryContainer
             isSelectionMode -> Color(0xFFF2F0F7)
             else -> backgroundColor
         }
     ) {
-        ListItem(
-            modifier = if (enabled) {
-                Modifier.combinedClickable(
-                    onClick = onClick,
-                    onLongClick = onLongClick
-                )
-            } else Modifier,
-            headlineContent = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(modifier = Modifier.alpha(alpha)) {
+            ListItem(
+                modifier = if (enabled) {
+                    Modifier.combinedClickable(
+                        onClick = onClick,
+                        onLongClick = onLongClick
+                    )
+                } else Modifier,
+                headlineContent = {
+                    val matchColor = MaterialTheme.colorScheme.primary
+                    val unmatchedColor = if (searchQuery.isNotEmpty()) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f) else Color.Unspecified
+                    
                     Text(
-                        text = getHighlightedText(attendee.shortName ?: attendee.fullName, searchQuery),
+                        text = getHighlightedText(attendee.shortName ?: attendee.fullName, searchQuery, matchColor, unmatchedColor),
                         style = MaterialTheme.typography.titleMedium.copy(
                             fontSize = MaterialTheme.typography.titleMedium.fontSize * textScale
                         )
                     )
-                    if (isGrouped) {
-                        Spacer(modifier = Modifier.width(8.dp))
-                        AppIcon(
-                            resourceId = AppIcons.Groups,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp * textScale),
-                            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
-                        )
-                    }
-                }
-            },
-            supportingContent = {
-                Column {
-                    val supportingText = if (attendee.shortName != null) {
-                        getHighlightedText("${attendee.fullName} • ${attendee.id}", searchQuery)
-                    } else {
-                        getHighlightedText(attendee.id, searchQuery)
-                    }
-                    Text(
-                        text = supportingText,
-                        style = MaterialTheme.typography.bodyMedium.copy(
-                            fontSize = MaterialTheme.typography.bodyMedium.fontSize * textScale
-                        )
-                    )
-                }
-            },
-            trailingContent = trailingContent ?: {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (isPresent && isSelectionMode) {
-                        AppIcon(
-                            resourceId = AppIcons.PersonCheck,
-                            contentDescription = null,
-                            modifier = Modifier.size(20.dp * textScale),
-                            tint = DeepGreen.copy(alpha = 0.6f)
-                        )
-                    }
-                    if (isQueued) {
-                        if (isPresent && isSelectionMode) Spacer(modifier = Modifier.width(8.dp))
-                        AppIcon(
-                            resourceId = AppIcons.BookmarkAdded,
-                            contentDescription = null,
-                            modifier = Modifier.size(20.dp * textScale),
-                            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
-                        )
-                    }
-                    if (isLater) {
-                        if ((isPresent && isSelectionMode) || isQueued) Spacer(modifier = Modifier.width(8.dp))
-                        AppIcon(
-                            resourceId = AppIcons.PushPin,
-                            contentDescription = null,
-                            modifier = Modifier.size(20.dp * textScale),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                        )
-                    }
-                }
-            },
-            leadingContent = {
-                Surface(
-                    shape = CircleShape,
-                    color = when {
-                        isSelected -> MaterialTheme.colorScheme.primary
-                        isPresent && !isSelectionMode -> PastelGreen
-                        else -> MaterialTheme.colorScheme.primaryContainer
-                    },
-                    modifier = Modifier
-                        .size(avatarSize)
-                        .clip(CircleShape)
-                        .then(if (enabled) Modifier.clickable { onAvatarClick() } else Modifier)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        if (isSelected) {
-                            AppIcon(
-                                resourceId = AppIcons.Check,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onPrimary,
-                                modifier = Modifier.size(avatarSize * 0.6f)
-                            )
-                        } else if (isPresent && !isSelectionMode) {
-                            AppIcon(
-                                resourceId = AppIcons.PersonCheck,
-                                contentDescription = null,
-                                tint = DeepGreen,
-                                modifier = Modifier.size(avatarSize * 0.6f)
-                            )
+                },
+                supportingContent = {
+                    val matchColor = MaterialTheme.colorScheme.primary
+                    val unmatchedColor = if (searchQuery.isNotEmpty()) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f) else Color.Unspecified
+                    
+                    Column {
+                        val supportingText = if (attendee.shortName != null) {
+                            getHighlightedText("${attendee.fullName} • ${attendee.id}", searchQuery, matchColor, unmatchedColor)
                         } else {
-                            Text(
-                                text = (attendee.shortName ?: attendee.fullName).take(1).uppercase(),
-                                style = MaterialTheme.typography.titleMedium.copy(
-                                    fontSize = MaterialTheme.typography.titleMedium.fontSize * textScale
-                                ),
-                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            getHighlightedText(attendee.id, searchQuery, matchColor, unmatchedColor)
+                        }
+                        Text(
+                            text = supportingText,
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                fontSize = MaterialTheme.typography.bodyMedium.fontSize * textScale
                             )
+                        )
+                    }
+                },
+                            trailingContent = trailingContent ?: {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    if (isPresent && (isSelectionMode || isSelected)) {
+                                        AppIcon(
+                                            resourceId = AppIcons.PersonCheck,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(20.dp * 1.25f),
+                                            tint = DeepGreen.copy(alpha = 0.6f)
+                                        )
+                                    }
+                                    if (isQueued) {
+                                        if (isPresent && (isSelectionMode || isSelected)) Spacer(modifier = Modifier.width(8.dp))
+                                        AppIcon(
+                                            resourceId = AppIcons.BookmarkAdded,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(20.dp * 1.25f),
+                                            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
+                                        )
+                                    }
+                                    if (isGrouped) {
+                                        if ((isPresent && (isSelectionMode || isSelected)) || isQueued) Spacer(modifier = Modifier.width(8.dp))
+                                        AppIcon(
+                                            resourceId = AppIcons.Groups,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(20.dp * 1.25f),
+                                            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
+                                        )
+                                    }
+                                    if (isLater) {
+                                        if ((isPresent && (isSelectionMode || isSelected)) || isQueued || isGrouped) Spacer(modifier = Modifier.width(8.dp))
+                                        AppIcon(
+                                            resourceId = AppIcons.PushPin,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(20.dp * 1.25f),
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                                        )
+                                    }
+                                }
+                            },                leadingContent = {
+                    Surface(
+                        shape = CircleShape,
+                        color = when {
+                            isSelected -> MaterialTheme.colorScheme.primary
+                            isPresent && !isSelectionMode -> PastelGreen
+                            else -> MaterialTheme.colorScheme.primaryContainer
+                        },
+                        modifier = Modifier
+                            .size(avatarSize)
+                            .clip(CircleShape)
+                            .then(if (enabled) Modifier.clickable { onAvatarClick() } else Modifier)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            if (isSelected) {
+                                AppIcon(
+                                    resourceId = AppIcons.Check,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onPrimary,
+                                    modifier = Modifier.size(avatarSize * 0.6f)
+                                )
+                            } else if (isPresent && !isSelectionMode) {
+                                AppIcon(
+                                    resourceId = AppIcons.PersonCheck,
+                                    contentDescription = null,
+                                    tint = DeepGreen,
+                                    modifier = Modifier.size(avatarSize * 0.6f)
+                                )
+                            } else {
+                                Text(
+                                    text = (attendee.shortName ?: attendee.fullName).take(1).uppercase(),
+                                    style = MaterialTheme.typography.titleMedium.copy(
+                                        fontSize = MaterialTheme.typography.titleMedium.fontSize * textScale
+                                    ),
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            }
                         }
                     }
-                }
-            },
-            colors = ListItemDefaults.colors(containerColor = Color.Transparent)
-        )
+                },
+                colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+            )
+        }
     }
 }
 
-private fun getHighlightedText(fullText: String, query: String): AnnotatedString {
-    if (query.isEmpty() || !fullText.contains(query, ignoreCase = true)) {
-        return AnnotatedString(fullText)
+private fun getHighlightedText(
+    fullText: String, 
+    query: String, 
+    matchColor: Color, 
+    unmatchedColor: Color
+): AnnotatedString {
+    if (query.isEmpty()) return AnnotatedString(fullText)
+    
+    val matches = Regex.escape(query).toRegex(RegexOption.IGNORE_CASE).findAll(fullText).toList()
+    if (matches.isEmpty()) return buildAnnotatedString {
+        if (unmatchedColor != Color.Unspecified) {
+            pushStyle(SpanStyle(color = unmatchedColor))
+        }
+        append(fullText)
+        if (unmatchedColor != Color.Unspecified) {
+            pop()
+        }
     }
 
-    val startIndex = fullText.indexOf(query, ignoreCase = true)
-    val endIndex = startIndex + query.length
-
     return buildAnnotatedString {
-        append(fullText.substring(0, startIndex))
-        pushStyle(SpanStyle(fontWeight = FontWeight.Bold, color = Purple40))
-        append(fullText.substring(startIndex, endIndex))
-        pop()
-        append(fullText.substring(endIndex))
+        var lastIndex = 0
+        matches.forEach { match ->
+            if (match.range.first > lastIndex) {
+                if (unmatchedColor != Color.Unspecified) {
+                    pushStyle(SpanStyle(color = unmatchedColor))
+                }
+                append(fullText.substring(lastIndex, match.range.first))
+                if (unmatchedColor != Color.Unspecified) {
+                    pop()
+                }
+            }
+            pushStyle(SpanStyle(fontWeight = FontWeight.Bold, color = matchColor))
+            append(match.value)
+            pop()
+            lastIndex = match.range.last + 1
+        }
+        if (lastIndex < fullText.length) {
+            if (unmatchedColor != Color.Unspecified) {
+                pushStyle(SpanStyle(color = unmatchedColor))
+            }
+            append(fullText.substring(lastIndex))
+            if (unmatchedColor != Color.Unspecified) {
+                pop()
+            }
+        }
     }
 }

@@ -17,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
@@ -100,7 +101,7 @@ fun QueueScreen(
         // HEADER
                         sg.org.bcc.attendance.ui.components.AppBottomSheetHeader(
                             title = "Queue",
-                            textScale = textScale,
+                            textScale = 1.0f,
                             trailingContent = {
                                 Box(modifier = Modifier.size(48.dp)) {
                                     if (queueItems.isNotEmpty()) {
@@ -146,19 +147,21 @@ fun QueueScreen(
                         val isProcessing = processingIds.contains(item.attendee.id)
                         
                         val swipeOffset = remember { Animatable(0f) }
-                        var itemWidth by remember { mutableFloatStateOf(0f) }
                         var isArmed by remember { mutableStateOf(false) }
+                        val density = LocalDensity.current
+                        val thresholdPx = with(density) { 60.dp.toPx() }
+                        val maxSwipePx = with(density) { 120.dp.toPx() }
 
-                        LaunchedEffect(itemWidth) {
-                            if (itemWidth > 0) {
-                                val threshold = itemWidth * 0.25f
-                                snapshotFlow { swipeOffset.value }.collect { currentOffset ->
-                                    val currentlyBeyond = abs(currentOffset) >= threshold
-                                    if (currentlyBeyond != isArmed) {
-                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                        isArmed = currentlyBeyond
-                                    }
-                                }
+                        val elevation by animateDpAsState(
+                            targetValue = if (swipeOffset.value != 0f) 1.dp else 0.dp,
+                            label = "elevation"
+                        )
+
+                        LaunchedEffect(swipeOffset.value) {
+                            val currentlyBeyond = abs(swipeOffset.value) >= thresholdPx
+                            if (currentlyBeyond != isArmed) {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                isArmed = currentlyBeyond
                             }
                         }
 
@@ -170,29 +173,73 @@ fun QueueScreen(
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .onSizeChanged { itemWidth = it.width.toFloat() }
-                                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                                    .background(MaterialTheme.colorScheme.surfaceContainer)
                             ) {
+                                val backgroundColor by animateColorAsState(
+                                    targetValue = if (isArmed) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.surfaceContainer,
+                                    label = "swipeBackground"
+                                )
+                                val iconColor by animateColorAsState(
+                                    targetValue = if (isArmed) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f),
+                                    label = "swipeIcon"
+                                )
+
+                                // Background layer with full-width recessed shadows
                                 Box(
-                                    modifier = Modifier.matchParentSize().padding(horizontal = 24.dp),
+                                    modifier = Modifier
+                                        .matchParentSize()
+                                        .background(backgroundColor)
+                                ) {
+                                    // Recessed effect inner shadows (All sides) - Subtle alpha 0.04
+                                    Box(
+                                        modifier = Modifier
+                                            .matchParentSize()
+                                            .background(
+                                                androidx.compose.ui.graphics.Brush.verticalGradient(
+                                                    0f to Color.Black.copy(alpha = 0.04f),
+                                                    0.05f to Color.Transparent,
+                                                    0.95f to Color.Transparent,
+                                                    1f to Color.Black.copy(alpha = 0.04f)
+                                                )
+                                            )
+                                    )
+                                    Box(
+                                        modifier = Modifier
+                                            .matchParentSize()
+                                            .background(
+                                                androidx.compose.ui.graphics.Brush.horizontalGradient(
+                                                    0f to Color.Black.copy(alpha = 0.04f),
+                                                    0.02f to Color.Transparent,
+                                                    0.98f to Color.Transparent,
+                                                    1f to Color.Black.copy(alpha = 0.04f)
+                                                )
+                                            )
+                                    )
+                                }
+
+                                // Icon layer with padding
+                                Box(
+                                    modifier = Modifier
+                                        .matchParentSize()
+                                        .padding(horizontal = 24.dp),
                                     contentAlignment = if (swipeOffset.value > 0) Alignment.CenterStart else Alignment.CenterEnd
                                 ) {
                                     AppIcon(
-                                        resourceId = AppIcons.PlaylistRemove, 
+                                        resourceId = AppIcons.BookmarkRemove, 
                                         contentDescription = "Remove", 
-                                        tint = if (isArmed) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+                                        tint = iconColor
                                     )
                                 }
 
                                 Box(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .offset { IntOffset(swipeOffset.value.roundToInt(), 0) }
-                                        .pointerInput(itemWidth) {
-                                            if (itemWidth <= 0) return@pointerInput
-                                            val threshold = itemWidth * 0.25f
-                                            val maxSwipe = itemWidth * 0.30f
-                                            
+                                        .graphicsLayer { 
+                                            translationX = swipeOffset.value
+                                            shadowElevation = with(density) { elevation.toPx() }
+                                            clip = elevation > 0.dp
+                                        }
+                                        .pointerInput(Unit) {
                                             detectHorizontalDragGestures(
                                                 onDragEnd = {
                                                     if (isArmed) {
@@ -211,7 +258,7 @@ fun QueueScreen(
                                                 onHorizontalDrag = { change, dragAmount ->
                                                     change.consume()
                                                     val newOffset = (swipeOffset.value + dragAmount)
-                                                        .coerceIn(-maxSwipe, maxSwipe)
+                                                        .coerceIn(-maxSwipePx, maxSwipePx)
                                                     scope.launch {
                                                         swipeOffset.snapTo(newOffset)
                                                     }
