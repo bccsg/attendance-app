@@ -68,7 +68,7 @@ class MainListViewModel @Inject constructor(
     private val _isShowSelectedOnlyMode = MutableStateFlow(false)
     val isShowSelectedOnlyMode: StateFlow<Boolean> = _isShowSelectedOnlyMode.asStateFlow()
 
-    private val _sortMode = MutableStateFlow(SortMode.entries.find { it.name == prefs.getString("sort_mode", SortMode.NAME_ASC.name) } ?: SortMode.NAME_ASC)
+    private val _sortMode = MutableStateFlow(SortMode.entries.find { it.name == prefs.getString("sort_mode", SortMode.RECENT_UPDATED.name) } ?: SortMode.RECENT_UPDATED)
     val sortMode: StateFlow<SortMode> = _sortMode.asStateFlow()
 
     fun setSortMode(mode: SortMode) {

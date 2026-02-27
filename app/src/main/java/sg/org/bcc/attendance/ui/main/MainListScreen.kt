@@ -480,25 +480,6 @@ fun MainListScreen(
                                                         DropdownMenuItem(
                                                             text = {
                                                                 Text(
-                                                                    text = "Name (A-Z)",
-                                                                    color = if (sortMode == SortMode.NAME_ASC) MaterialTheme.colorScheme.primary else Color.Unspecified
-                                                                )
-                                                            },
-                                                            leadingIcon = {
-                                                                if (sortMode == SortMode.NAME_ASC) {
-                                                                    AppIcon(resourceId = AppIcons.SortByAlpha, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
-                                                                } else {
-                                                                    Spacer(modifier = Modifier.size(18.dp))
-                                                                }
-                                                            },
-                                                            onClick = {
-                                                                viewModel.setSortMode(SortMode.NAME_ASC)
-                                                                showMenu = false
-                                                            }
-                                                        )
-                                                        DropdownMenuItem(
-                                                            text = {
-                                                                Text(
                                                                     text = "Recently Updated",
                                                                     color = if (sortMode == SortMode.RECENT_UPDATED) MaterialTheme.colorScheme.primary else Color.Unspecified
                                                                 )
@@ -512,6 +493,25 @@ fun MainListScreen(
                                                             },
                                                             onClick = {
                                                                 viewModel.setSortMode(SortMode.RECENT_UPDATED)
+                                                                showMenu = false
+                                                            }
+                                                        )
+                                                        DropdownMenuItem(
+                                                            text = {
+                                                                Text(
+                                                                    text = "Name (A-Z)",
+                                                                    color = if (sortMode == SortMode.NAME_ASC) MaterialTheme.colorScheme.primary else Color.Unspecified
+                                                                )
+                                                            },
+                                                            leadingIcon = {
+                                                                if (sortMode == SortMode.NAME_ASC) {
+                                                                    AppIcon(resourceId = AppIcons.SortByAlpha, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
+                                                                } else {
+                                                                    Spacer(modifier = Modifier.size(18.dp))
+                                                                }
+                                                            },
+                                                            onClick = {
+                                                                viewModel.setSortMode(SortMode.NAME_ASC)
                                                                 showMenu = false
                                                             }
                                                         )
