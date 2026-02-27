@@ -156,7 +156,7 @@ class PullSyncTest {
     }
 
     @Test
-    fun `schedulePeriodicPull should enqueue periodic work`() {
+    fun `schedulePeriodicPull should enqueue work`() {
         syncScheduler.schedulePeriodicPull()
         
         val workInfos = WorkManager.getInstance(context)

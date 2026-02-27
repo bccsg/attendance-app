@@ -36,10 +36,9 @@ class SyncScheduler @Inject constructor(
             .setRequiredNetworkType(NetworkType.CONNECTED)
             .build()
 
-        val pullRequest = PeriodicWorkRequestBuilder<PullWorker>(
-            PeriodicWorkRequest.MIN_PERIODIC_INTERVAL_MILLIS,
-            java.util.concurrent.TimeUnit.MILLISECONDS
-        )
+        val randomDelaySeconds = (45..60).random()
+        val pullRequest = OneTimeWorkRequestBuilder<PullWorker>()
+            .setInitialDelay(randomDelaySeconds.toLong(), java.util.concurrent.TimeUnit.SECONDS)
             .setConstraints(constraints)
             .setBackoffCriteria(
                 BackoffPolicy.EXPONENTIAL,
@@ -48,9 +47,9 @@ class SyncScheduler @Inject constructor(
             )
             .build()
 
-        WorkManager.getInstance(context).enqueueUniquePeriodicWork(
+        WorkManager.getInstance(context).enqueueUniqueWork(
             PULL_WORK_NAME,
-            ExistingPeriodicWorkPolicy.KEEP,
+            ExistingWorkPolicy.REPLACE,
             pullRequest
         )
     }

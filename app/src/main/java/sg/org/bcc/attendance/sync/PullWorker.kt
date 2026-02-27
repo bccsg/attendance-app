@@ -16,7 +16,8 @@ class PullWorker @AssistedInject constructor(
     @Assisted appContext: Context,
     @Assisted workerParams: WorkerParameters,
     private val repository: AttendanceRepository,
-    private val syncJobDao: SyncJobDao
+    private val syncJobDao: SyncJobDao,
+    private val syncScheduler: SyncScheduler
 ) : CoroutineWorker(appContext, workerParams) {
 
     companion object {
@@ -31,6 +32,7 @@ class PullWorker @AssistedInject constructor(
         // Integrity Protection: Disable remote pulls while sync_jobs are pending 
         // to prevent stale data overwrites.
         if (syncJobDao.getPendingCount() > 0) {
+            syncScheduler.schedulePeriodicPull()
             return Result.success()
         }
 
@@ -57,6 +59,7 @@ class PullWorker @AssistedInject constructor(
                 setProgress(workDataOf(
                     PROGRESS_STATE to "IDLE"
                 ))
+                syncScheduler.schedulePeriodicPull()
                 Result.success()
             } else {
                 prefs.edit { putString("last_pull_status", "Failed") }
@@ -68,6 +71,7 @@ class PullWorker @AssistedInject constructor(
                 if (status.contains("Authentication failed", ignoreCase = true)) {
                     Result.failure(workDataOf(PROGRESS_ERROR to status))
                 } else {
+                    syncScheduler.schedulePeriodicPull()
                     Result.retry()
                 }
             }
@@ -78,6 +82,7 @@ class PullWorker @AssistedInject constructor(
                 PROGRESS_STATE to "ERROR",
                 PROGRESS_ERROR to errorMsg
             ))
+            syncScheduler.schedulePeriodicPull()
             Result.retry()
         }
     }
