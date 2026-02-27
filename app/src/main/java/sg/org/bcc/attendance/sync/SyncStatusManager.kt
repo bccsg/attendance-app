@@ -29,7 +29,8 @@ class SyncStatusManager @Inject constructor(
     
     private val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
     
-    private val _isOnline = MutableStateFlow(isCurrentlyOnline())
+    private val activeNetworks = mutableSetOf<Network>()
+    private val _isOnline = MutableStateFlow(false)
     val isOnline: StateFlow<Boolean> = _isOnline.asStateFlow()
 
     private val _syncProgress = MutableStateFlow(SyncProgress(
@@ -46,29 +47,62 @@ class SyncStatusManager @Inject constructor(
     private val _isBlockingEventMissing = MutableStateFlow(false)
 
     init {
+        synchronized(activeNetworks) {
+            activeNetworks.addAll(
+                connectivityManager.allNetworks.filter { network ->
+                    connectivityManager.getNetworkCapabilities(network)
+                        ?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
+                }
+            )
+        }
+        _isOnline.value = activeNetworks.isNotEmpty()
+
         val networkRequest = NetworkRequest.Builder()
             .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
             .build()
         
         connectivityManager.registerNetworkCallback(networkRequest, object : ConnectivityManager.NetworkCallback() {
             override fun onAvailable(network: Network) {
-                _isOnline.value = isCurrentlyOnline()
+                synchronized(activeNetworks) {
+                    activeNetworks.add(network)
+                }
+                updateOnlineStatus()
             }
             override fun onLost(network: Network) {
-                _isOnline.value = isCurrentlyOnline()
+                synchronized(activeNetworks) {
+                    activeNetworks.remove(network)
+                }
+                updateOnlineStatus()
             }
             override fun onCapabilitiesChanged(network: Network, capabilities: NetworkCapabilities) {
-                _isOnline.value = isCurrentlyOnline()
+                val hasInternet = capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                synchronized(activeNetworks) {
+                    if (hasInternet) {
+                        activeNetworks.add(network)
+                    } else {
+                        activeNetworks.remove(network)
+                    }
+                }
+                updateOnlineStatus()
             }
         })
 
         observeSyncStatus()
     }
 
+    private fun updateOnlineStatus() {
+        val isOnline = synchronized(activeNetworks) {
+            activeNetworks.isNotEmpty()
+        }
+        _isOnline.value = isOnline
+    }
+
     private fun isCurrentlyOnline(): Boolean {
-        val network = connectivityManager.activeNetwork ?: return false
-        val capabilities = connectivityManager.getNetworkCapabilities(network) ?: return false
-        return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+        // Robust check: Is there ANY network that has internet capability?
+        return connectivityManager.allNetworks.any { network ->
+            connectivityManager.getNetworkCapabilities(network)
+                ?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
+        }
     }
 
     fun setBlockingEventMissing(missing: Boolean) {

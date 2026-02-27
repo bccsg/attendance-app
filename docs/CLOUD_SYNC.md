@@ -35,7 +35,7 @@ The application is designed for immediate feedback in high-traffic environments.
 ### Attendance Pulls (Cloud -> Local)
 *   **Integrity Protection**: Pulls are **automatically skipped** if any local \`SyncJobs\` (pushes) are pending to prevent stale cloud state from overwriting recent local changes.
 *   **Trigger-Specific Behavior**:
-    1.  **Periodic Sync (\`PullWorker\`)**: ONLY reconciles attendance for the **currently selected event** (if any). Skips master lists and metadata. **Scheduled only while the application is in the foreground.**
+    1.  **Periodic Sync (\`PullWorker\`)**: ONLY reconciles attendance for the **currently selected event** (if any). Skips master lists and metadata. **Scheduled at a random 45-60 second interval while the application is in the foreground.**
     2.  **Event Screen Opening**: ONLY fetches recent events (metadata). Skips all attendance pulls.
     3.  **Full Sync (Login/App Start/Manual)**: Performs the complete suite of pulls (Attendees, Groups, Mappings, Recent Events, and Active Event Attendance).
 *   **Differential Pulls**: Uses the local \`lastProcessedRowIndex\` to fetch only new or missed rows (\`M+1\` to \`N\`), significantly reducing bandwidth.

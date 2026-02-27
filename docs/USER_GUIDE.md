@@ -140,6 +140,7 @@ The app is **Offline-First**. You can mark attendance even without an internet c
 ### Synchronization
 *   **Local Commit**: Actions are saved to your device instantly.
 *   **Sequential Sync**: A background worker uploads actions to the cloud one by one in the order they were performed.
+*   **Periodic Refresh**: The app automatically pulls updates from the cloud every **45-60 seconds** while it is in use (foreground) to keep your list up to date.
 *   **Last Commit Wins**: If two ushers mark the same person differently, the action with the **most recent timestamp** (synchronized via NTP) will be considered the final state.
 
 ### Sync Indicators
