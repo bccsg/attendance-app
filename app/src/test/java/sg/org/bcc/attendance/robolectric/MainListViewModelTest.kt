@@ -204,6 +204,30 @@ class MainListViewModelTest {
     }
 
     @Test
+    fun `enterSelectionMode should import queue and show snackbar`() = runTest {
+        val attendees = listOf(Attendee("1", "John"), Attendee("2", "Jane"))
+        val queueItems = listOf(sg.org.bcc.attendance.data.repository.QueueItem(attendees[0], false))
+        
+        every { repository.getAllAttendees() } returns flowOf(attendees)
+        every { repository.getQueueItems() } returns flowOf(queueItems)
+        
+        val viewModel = MainListViewModel(repository, authManager, syncStatusManager, context)
+        
+        val messages = mutableListOf<String>()
+        val job = launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.snackbarMessageEvent.collect { messages.add(it) }
+        }
+        
+        viewModel.enterSelectionMode("2")
+        
+        viewModel.selectedIds.value shouldBe setOf("1", "2")
+        messages.size shouldBe 1
+        messages[0] shouldBe "Imported 1 item from queue"
+        
+        job.cancel()
+    }
+
+    @Test
     fun `visibility chips should exhibit isolation behavior when both are on`() = runTest {
         val attendees = listOf(
             Attendee("1", "John"),

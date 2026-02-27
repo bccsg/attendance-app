@@ -193,10 +193,14 @@ fun MainListScreen(
                         } else {
                             lastBackPressTime = currentTime
                             scope.launch {
-                                snackbarHostState.showSnackbar(
-                                    message = "Press back again to exit",
-                                    duration = SnackbarDuration.Short
-                                )
+                                val job = launch {
+                                    snackbarHostState.showSnackbar(
+                                        message = "Back again to exit",
+                                        duration = SnackbarDuration.Indefinite
+                                    )
+                                }
+                                delay(2000)
+                                job.cancel()
                             }
                         }
                     }
@@ -240,8 +244,16 @@ fun MainListScreen(
         }
     
         LaunchedEffect(Unit) {
-            viewModel.qrMessageEvent.collect { message ->
-                snackbarHostState.showSnackbar(message)
+            viewModel.snackbarMessageEvent.collect { message ->
+                val duration = if (message.startsWith("Imported")) 1500L else 4000L
+                val job = scope.launch {
+                    snackbarHostState.showSnackbar(
+                        message = message,
+                        duration = SnackbarDuration.Indefinite
+                    )
+                }
+                delay(duration)
+                job.cancel()
             }
         }
     

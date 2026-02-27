@@ -140,15 +140,15 @@ class MainListViewModel @Inject constructor(
         _activeQrInfo.value = info
     }
 
-    private val _qrMessageEvent = MutableSharedFlow<String>(extraBufferCapacity = 1)
-    val qrMessageEvent = _qrMessageEvent.asSharedFlow()
+    private val _snackbarMessageEvent = MutableSharedFlow<String>(extraBufferCapacity = 1)
+    val snackbarMessageEvent = _snackbarMessageEvent.asSharedFlow()
 
     fun processQrResult(code: String): Boolean {
         val info = sg.org.bcc.attendance.util.qr.QrUrlParser.parse(code)
         if (info != null && info.isValid()) {
             viewModelScope.launch {
                 val message = repository.processQrInfo(info)
-                _qrMessageEvent.emit(message)
+                _snackbarMessageEvent.emit(message)
                 _activeSheet.value = SheetType.QUEUE
             }
             return true
@@ -578,6 +578,12 @@ class MainListViewModel @Inject constructor(
         viewModelScope.launch {
             val currentQueueIds = repository.getQueueItems().first().map { it.attendee.id }.toSet()
             _selectedIds.value = currentQueueIds + attendeeId
+            
+            if (currentQueueIds.isNotEmpty()) {
+                val count = currentQueueIds.size
+                val message = if (count == 1) "Imported 1 item from queue" else "Imported $count items from queue"
+                _snackbarMessageEvent.emit(message)
+            }
         }
     }
 
