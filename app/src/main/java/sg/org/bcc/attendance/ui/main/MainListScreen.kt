@@ -318,7 +318,7 @@ fun MainListScreen(
                     Scaffold(
                         snackbarHost = { },
                         floatingActionButton = {
-                            if (!isSearchActive) {
+                            if (!isSearchActive && (isSelectionMode || queueCount > 0)) {
                                 val fabContainerColor by animateColorAsState(
                                     targetValue = if (isSelectionMode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primaryContainer,
                                     label = "FABContainerColor"
@@ -337,7 +337,7 @@ fun MainListScreen(
                                                 viewModel.setShowQueueSheet(true)
                                             }
                                         } else {
-                                            viewModel.setShowScannerSheet(true)
+                                            viewModel.setShowQueueSheet(true)
                                         }
                                     },
                                     containerColor = fabContainerColor,
@@ -345,7 +345,7 @@ fun MainListScreen(
                                     shape = CircleShape,
                                     icon = {
                                         AnimatedContent(
-                                            targetState = if (isSelectionMode) AppIcons.PlaylistAdd else AppIcons.QrCodeScanner,
+                                            targetState = if (isSelectionMode) AppIcons.PlaylistAdd else AppIcons.Filter.getIcon(queueCount),
                                             transitionSpec = {
                                                 (fadeIn(animationSpec = tween(220, delayMillis = 90)) + scaleIn(initialScale = 0.92f, animationSpec = tween(220, delayMillis = 90)))
                                                     .togetherWith(fadeOut(animationSpec = tween(90)))
@@ -357,7 +357,7 @@ fun MainListScreen(
                                     },
                                     text = {
                                         AnimatedContent(
-                                            targetState = if (isSelectionMode) "Queue ${selectedIds.size} selected" else "Scan QR",
+                                            targetState = if (isSelectionMode) "Queue ${selectedIds.size} selected" else "Open Queue",
                                             transitionSpec = {
                                                 (fadeIn(animationSpec = tween(220, delayMillis = 90)) + slideInVertically(initialOffsetY = { it / 2 }, animationSpec = tween(220, delayMillis = 90)))
                                                     .togetherWith(fadeOut(animationSpec = tween(90)))
@@ -738,40 +738,9 @@ fun MainListScreen(
                                                 }
                                             }
                 
-                                            // Right: Queue Launcher with dynamic count icons
-                                            val queueIcon = AppIcons.Filter.getIcon(queueCount)
-                                            AnimatedContent(
-                                                targetState = queueCount > 0,
-                                                label = "QueueButtonTransition",
-                                                transitionSpec = {
-                                                    (fadeIn(animationSpec = tween(220, delayMillis = 90)) + scaleIn(initialScale = 0.92f, animationSpec = tween(220, delayMillis = 90)))
-                                                        .togetherWith(fadeOut(animationSpec = tween(90)))
-                                                }
-                                            ) { hasItems ->
-                                                if (hasItems) {
-                                                    Button(
-                                                        onClick = { viewModel.setShowQueueSheet(true) },
-                                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-                                                        shape = CircleShape,
-                                                        elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp),
-                                                        modifier = Modifier.padding(end = 8.dp)
-                                                    ) {
-                                                        AppIcon(
-                                                            resourceId = queueIcon,
-                                                            contentDescription = null,
-                                                            modifier = Modifier.size(18.dp)
-                                                        )
-                                                        Spacer(modifier = Modifier.width(8.dp))
-                                                        Text(
-                                                            text = "Open Queue",
-                                                            style = MaterialTheme.typography.labelLarge
-                                                        )
-                                                    }
-                                                } else {
-                                                    IconButton(onClick = { viewModel.setShowQueueSheet(true) }) {
-                                                        AppIcon(resourceId = queueIcon, contentDescription = "View Queue")
-                                                    }
-                                                }
+                                            // Right: Scan QR
+                                            IconButton(onClick = { viewModel.setShowScannerSheet(true) }) {
+                                                AppIcon(resourceId = AppIcons.QrCodeScanner, contentDescription = "Scan QR")
                                             }
                                         }
                                     }

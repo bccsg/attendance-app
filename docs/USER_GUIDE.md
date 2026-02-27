@@ -37,8 +37,7 @@ There are several ways to add attendees to your queue:
     *   Scan an individual or Group QR code (see [QR Codes](#2-qr-codes-sharing--scanning) section below).
 
 ### Managing the Queue
-Access the queue by tapping the **Queue Launcher** on the right of the bottom bar. The icon changes dynamically to reflect the current count:
-*   **Empty Queue**: ![Filter None](assets/ic_filter_none.svg) `ic_filter_none`
+Access the queue by tapping the **Floating Action Button (FAB)** on the main list. The button only appears when items are in the queue or in selection mode. The icon changes dynamically to reflect the current count:
 *   **1-9 Items**: `ic_filter_1` to `ic_filter_9`
 *   **10+ Items**: ![Filter 9+ ](assets/ic_filter_9_plus.svg) `ic_filter_9_plus`
 
@@ -73,7 +72,7 @@ You can generate QR codes for individual attendees or for entire groups to facil
 4.  A preview will appear below the header. Tap **Share QR** (![Share](assets/ic_share.svg) `ic_share`) to send the QR as an image.
 
 ### Scanning QR Codes
-*   Tap the **QR Scanner FAB** (![QR Scanner](assets/ic_qr_code_scanner.svg) `ic_qr_code_scanner`) on the main list (when not in selection mode).
+*   Tap the **QR Scanner icon** (![QR Scanner](assets/ic_qr_code_scanner.svg) `ic_qr_code_scanner`) on the right side of the bottom bar.
 *   Point your camera at a generated QR code.
 *   **Attendee QR**: Automatically identifies the individual and adds them to your queue.
 *   **Group QR**: Identifies all members of the group and adds the entire list to your queue at once—perfect for families or teams arriving together.

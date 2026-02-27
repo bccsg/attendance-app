@@ -87,13 +87,14 @@
         *   **Present (Ready)**: Red (`error`) in non-selection mode.
         *   **Pending (Later)**: Theme Grey (`secondary`) in non-selection mode.
         *   Both use **Secondary** in selection mode.
-*   **Queue Launcher**: (Right) Uses dynamic **`FilterNone`** to **`Filter9Plus`** icons.
+*   **Scan QR**: (Right) Launches the QR Scanner sheet. Uses the **`QrCodeScanner`** icon.
 *   **Adaptive Height**: Snaps instantly between 80dp (keyboard open) and 80dp + navBarPadding (keyboard closed) to maintain a clean aesthetic.
 
 ### 2. Screen-Local Floating Action Button
 *   **Main List**: 
-    *   **Default**: QR Scanner icon (`QrCodeScanner`) in `PrimaryContainer`. Positioned 112dp from bottom (above bottom bar).
+    *   **Default (Queue > 0)**: Open Queue button. Uses the dynamic **`FilterNone`** to **`Filter9Plus`** icons in `PrimaryContainer`.
     *   **Selection Mode**: Replaced by an "Add to Queue" icon (`PlaylistAdd`) in `Primary`. Replaces the current queue with the selected subset and opens the queue sheet.
+    *   **Visibility**: Only visible when the queue is not empty or in selection mode.
 *   **Attendee Sheet**: "Add to Queue" icon (`PlaylistAdd`) in `Primary`. Positioned 16dp from bottom (above navigation handle).
 *   **Behavior**:
     *   **Visibility**: Hidden if the attendee was already in the queue when the sheet opened.

@@ -49,12 +49,16 @@ A local-first Android attendance tracking application for ushers. It allows for 
         *   Activating chips manually deactivates "Show Selected Only" mode.
         *   Chips are disabled only when the total category count is zero (regardless of selection).
         *   "Branded" primary coloring (when only one chip is active) is disabled in selection mode.
-*   **Queue Launcher**: Located on the right of the bottom bar. Uses dynamic icons (`FilterNone` to `Filter9Plus`) to show the current queue count.
+*   **QR Scanner Launcher**: Located on the right of the bottom bar. Launches the QR scanner sheet.
 *   **Selection Mode**:
     *   Activated by tapping an attendee's **Attendee Avatar** (circle).
     *   Initial state: Merges the current Queue into the selection.
     *   **Show Selected Only**: A checklist icon in the TopAppBar filters the list to only currently selected items. Activating this closes search and ensures category chips are visible.
-    *   Action: **`PlaylistAdd`** icon replaces the Queue with the selection and automatically opens the Queue sheet.
+    *   Action: **`PlaylistAdd`** icon in the FAB replaces the Queue with the selection and automatically opens the Queue sheet.
+*   **Queue Launcher**: Located in the screen-local Floating Action Button (FAB).
+    *   **Visibility**: Only appears when the queue is not empty (`queueCount > 0`) or when in Selection Mode.
+    *   **Icon**: Uses dynamic icons (`FilterNone` to `Filter9Plus`) to show the current queue count when not in selection mode.
+    *   **Action**: Opens the Queue sheet.
 *   **Attendee Detail Sheet Action**:
     *   **`PlaylistAdd`** FAB adds the individual to the queue with a "Queued" success animation.
     *   **Bulk Group Queuing**: A "Queue [Count]" button on each group header within the detail sheet adds all members of that group to the queue.
