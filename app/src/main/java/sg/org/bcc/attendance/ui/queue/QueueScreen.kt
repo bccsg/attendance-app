@@ -123,9 +123,8 @@ fun QueueScreen(
                                                 contentDescription = null,
                                                 modifier = Modifier.size(24.dp)
                                             )
-                                            Spacer(modifier = Modifier.width(8.dp))
                                             Text(
-                                                text = "Clear",
+                                                text = "Clear All",
                                                 style = MaterialTheme.typography.labelLarge,
                                                 fontWeight = FontWeight.Medium
                                             )
@@ -159,7 +158,7 @@ fun QueueScreen(
                         val swipeOffset = remember { Animatable(0f) }
                         var isArmed by remember { mutableStateOf(false) }
                         val density = LocalDensity.current
-                        val thresholdPx = with(density) { 60.dp.toPx() }
+                        val thresholdPx = with(density) { 72.dp.toPx() }
                         val maxSwipePx = with(density) { 120.dp.toPx() }
 
                         val elevation by animateDpAsState(
