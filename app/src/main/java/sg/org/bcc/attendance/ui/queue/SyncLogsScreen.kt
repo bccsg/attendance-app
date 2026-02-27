@@ -35,6 +35,10 @@ fun SyncLogsScreen(
 
     var showErrorDetail by remember { mutableStateOf<SyncLog?>(null) }
 
+    androidx.activity.compose.BackHandler(enabled = selectedTriggerId != null) {
+        viewModel.selectTrigger(null)
+    }
+
     Scaffold(
         topBar = {
             Surface(
@@ -51,7 +55,9 @@ fun SyncLogsScreen(
                         ) 
                     },
                     navigationIcon = {
-                        IconButton(onClick = if (selectedTriggerId == null) onBack else { { viewModel.selectTrigger(null) } }) {
+                        IconButton(onClick = {
+                            if (selectedTriggerId == null) onBack() else viewModel.selectTrigger(null)
+                        }) {
                             AppIcon(AppIcons.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onPrimary)
                         }
                     },
