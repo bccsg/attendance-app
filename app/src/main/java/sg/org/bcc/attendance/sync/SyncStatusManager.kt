@@ -109,8 +109,11 @@ class SyncStatusManager @Inject constructor(
             val lastPullTimeStored = syncPrefs.getLong("last_pull_time", 0L).let { if (it == 0L) null else it }
             val lastPullStatusStored = syncPrefs.getString("last_pull_status", "Never")
             
-            val nextScheduledPull = pullWorkInfo?.nextScheduleTimeMillis?.let { if (it == 0L) null else it }
-                ?: lastPullTimeStored?.let { it + 15 * 60 * 1000 }
+            val nextScheduledPull = if (pullWorkInfo?.state == androidx.work.WorkInfo.State.ENQUEUED) {
+                pullWorkInfo.nextScheduleTimeMillis.let { if (it == 0L) null else it }
+            } else {
+                null
+            }
 
             var currentOp: String? = null
             var newState = if (isCloudActive) SyncState.SYNCING else SyncState.IDLE

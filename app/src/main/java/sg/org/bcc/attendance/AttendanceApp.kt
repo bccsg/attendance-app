@@ -2,6 +2,9 @@ package sg.org.bcc.attendance
 
 import android.app.Application
 import androidx.hilt.work.HiltWorkerFactory
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.work.Configuration
 import dagger.hilt.android.HiltAndroidApp
 import sg.org.bcc.attendance.sync.SyncScheduler
@@ -23,6 +26,18 @@ class AttendanceApp : Application(), Configuration.Provider {
 
     override fun onCreate() {
         super.onCreate()
-        syncScheduler.schedulePeriodicPull()
+        
+        ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
+            override fun onStart(owner: LifecycleOwner) {
+                // App enters foreground
+                syncScheduler.scheduleSync()
+                syncScheduler.schedulePeriodicPull()
+            }
+
+            override fun onStop(owner: LifecycleOwner) {
+                // App enters background
+                syncScheduler.cancelAllWork()
+            }
+        })
     }
 }

@@ -91,6 +91,7 @@ tasks.withType<Test> {
 dependencies {
     implementation(libs.androidxCoreKtx)
     implementation(libs.androidxLifecycleRuntimeKtx)
+    implementation(libs.androidxLifecycleProcess)
     implementation(libs.androidxLifecycleLiveDataKtx)
     implementation(libs.androidxActivityCompose)
     implementation(platform(libs.androidxComposeBom))

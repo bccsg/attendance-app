@@ -7,7 +7,7 @@
 *   **Asynchrony**: Coroutines & Flow
 *   **Dependency Injection**: Hilt
 *   **Network**: Retrofit + Google Sheets API v4
-*   **Background Tasks**: WorkManager (for Sequential Sync)
+*   **Background Tasks**: WorkManager (Active only while app is in Foreground)
 *   **Security**: EncryptedSharedPreferences (Jetpack Security)
 
 ## Data Layer (Room Schema)

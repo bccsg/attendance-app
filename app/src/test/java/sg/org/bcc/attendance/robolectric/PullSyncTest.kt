@@ -34,6 +34,7 @@ class PullSyncTest {
     private lateinit var cloudProvider: AttendanceCloudProvider
     private lateinit var authManager: AuthManager
     private lateinit var syncScheduler: SyncScheduler
+    private lateinit var foregroundStateProvider: sg.org.bcc.attendance.sync.ForegroundStateProvider
 
     @Before
     fun setup() {
@@ -44,10 +45,12 @@ class PullSyncTest {
         
         cloudProvider = mockk(relaxed = true)
         authManager = mockk(relaxed = true)
+        foregroundStateProvider = mockk(relaxed = true)
         
         every { authManager.isDemoMode } returns MutableStateFlow(false)
         coEvery { authManager.isTokenExpired() } returns false
         coEvery { authManager.silentRefresh() } returns true
+        every { foregroundStateProvider.isForeground() } returns true
         
         repository = AttendanceRepository(
             context,
@@ -67,7 +70,7 @@ class PullSyncTest {
         )
         
         WorkManagerTestInitHelper.initializeTestWorkManager(context)
-        syncScheduler = SyncScheduler(context)
+        syncScheduler = SyncScheduler(context, foregroundStateProvider)
     }
 
     @After

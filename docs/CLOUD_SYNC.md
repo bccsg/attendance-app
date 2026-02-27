@@ -10,7 +10,7 @@ The application is designed for immediate feedback in high-traffic environments.
 2.  A corresponding `SyncJob` is queued in the local `sync_jobs` table for upload.
 
 ### Sequential Processing
-*   **WorkManager Pipeline**: The application processes `sync_jobs` one at a time in strict chronological order to ensure data integrity via `SyncWorker`.
+*   **WorkManager Pipeline**: The application processes `sync_jobs` one at a time in strict chronological order to ensure data integrity via `SyncWorker`. **This processing occurs only while the application is in the foreground** to optimize system resources.
 *   **Integrity Protection**: Remote pulls are automatically skipped while `sync_jobs` are pending to prevent stale data overwrites.
 
 ### Conflict Resolution: "Last Commit Wins"
@@ -26,7 +26,7 @@ The application is designed for immediate feedback in high-traffic environments.
 ## 2. Synchronization Lifecycle
 
 ### Attendance Pushes (Local -> Cloud)
-*   **Trigger**: \`SyncJob\` entries are created instantly and processed sequentially by \`SyncWorker\`.
+*   **Trigger**: \`SyncJob\` entries are created instantly and processed sequentially by \`SyncWorker\` **while the application is in the foreground**.
 *   **Row-Based Indexing**: 
     *   The app tracks a \`lastProcessedRowIndex (M)\` for each event.
     *   After a successful push of \`K\` records, if the cloud returns a total row count \`N = M + K\`, the local index is advanced to \`N\`.
@@ -35,7 +35,7 @@ The application is designed for immediate feedback in high-traffic environments.
 ### Attendance Pulls (Cloud -> Local)
 *   **Integrity Protection**: Pulls are **automatically skipped** if any local \`SyncJobs\` (pushes) are pending to prevent stale cloud state from overwriting recent local changes.
 *   **Trigger-Specific Behavior**:
-    1.  **Periodic Sync (\`PullWorker\`)**: ONLY reconciles attendance for the **currently selected event** (if any). Skips master lists and metadata.
+    1.  **Periodic Sync (\`PullWorker\`)**: ONLY reconciles attendance for the **currently selected event** (if any). Skips master lists and metadata. **Scheduled only while the application is in the foreground.**
     2.  **Event Screen Opening**: ONLY fetches recent events (metadata). Skips all attendance pulls.
     3.  **Full Sync (Login/App Start/Manual)**: Performs the complete suite of pulls (Attendees, Groups, Mappings, Recent Events, and Active Event Attendance).
 *   **Differential Pulls**: Uses the local \`lastProcessedRowIndex\` to fetch only new or missed rows (\`M+1\` to \`N\`), significantly reducing bandwidth.

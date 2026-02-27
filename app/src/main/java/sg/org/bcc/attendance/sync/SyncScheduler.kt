@@ -1,6 +1,7 @@
 package sg.org.bcc.attendance.sync
 
 import android.content.Context
+import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.work.*
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
@@ -8,9 +9,15 @@ import javax.inject.Singleton
 
 @Singleton
 class SyncScheduler @Inject constructor(
-    @param:ApplicationContext private val context: Context
+    @param:ApplicationContext private val context: Context,
+    private val foregroundStateProvider: ForegroundStateProvider
 ) {
     fun scheduleSync() {
+        // Only schedule if the app is in the foreground
+        if (!foregroundStateProvider.isForeground()) {
+            return
+        }
+
         val constraints = Constraints.Builder()
             .setRequiredNetworkType(NetworkType.CONNECTED)
             .build()
@@ -32,6 +39,11 @@ class SyncScheduler @Inject constructor(
     }
 
     fun schedulePeriodicPull() {
+        // Only schedule if the app is in the foreground
+        if (!foregroundStateProvider.isForeground()) {
+            return
+        }
+
         val constraints = Constraints.Builder()
             .setRequiredNetworkType(NetworkType.CONNECTED)
             .build()
@@ -52,6 +64,11 @@ class SyncScheduler @Inject constructor(
             ExistingWorkPolicy.REPLACE,
             pullRequest
         )
+    }
+
+    fun cancelAllWork() {
+        WorkManager.getInstance(context).cancelUniqueWork(SYNC_WORK_NAME)
+        WorkManager.getInstance(context).cancelUniqueWork(PULL_WORK_NAME)
     }
 
     companion object {
