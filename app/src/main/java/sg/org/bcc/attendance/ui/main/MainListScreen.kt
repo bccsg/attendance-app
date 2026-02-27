@@ -150,6 +150,9 @@ fun MainListScreen(
             selectedAttendeeForDetail?.id?.let { queueIds.contains(it) } ?: false
         }
         
+        var lastBackPressTime by remember { mutableStateOf(0L) }
+        val context = LocalContext.current
+    
         val fullyQueuedGroups = remember(groupMembersMap, queueIds) {
             groupMembersMap.filter { (_, members) -> 
                 members.isNotEmpty() && members.all { queueIds.contains(it.id) } 
@@ -172,6 +175,30 @@ fun MainListScreen(
     
                     BackHandler(enabled = isAnySheetActive) {
                         viewModel.dismissAllSheets()
+                    }
+
+                    BackHandler(enabled = isSearchActive && !isAnySheetActive) {
+                        isSearchActive = false
+                        viewModel.onSearchQueryChange("")
+                    }
+
+                    BackHandler(enabled = isSelectionMode && !isAnySheetActive && !isSearchActive) {
+                        viewModel.clearSelection()
+                    }
+
+                    BackHandler(enabled = !isAnySheetActive && !isSelectionMode && !isSearchActive) {
+                        val currentTime = System.currentTimeMillis()
+                        if (currentTime - lastBackPressTime < 2000) {
+                            (context as? Activity)?.finish()
+                        } else {
+                            lastBackPressTime = currentTime
+                            scope.launch {
+                                snackbarHostState.showSnackbar(
+                                    message = "Press back again to exit",
+                                    duration = SnackbarDuration.Short
+                                )
+                            }
+                        }
                     }
                 
                         LaunchedEffect(activeSheet) {
@@ -273,35 +300,58 @@ fun MainListScreen(
                 Box(modifier = Modifier.fillMaxSize()) {
                     // Background Content (The Scaffold we had before)
                     Scaffold(
-                        snackbarHost = { SnackbarHost(snackbarHostState) },
+                        snackbarHost = { },
                         floatingActionButton = {
                             if (!isSearchActive) {
-                                if (isSelectionMode) {
-                                    FloatingActionButton(
-                                        modifier = Modifier.padding(bottom = 16.dp),
-                                        onClick = {
+                                val fabContainerColor by animateColorAsState(
+                                    targetValue = if (isSelectionMode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primaryContainer,
+                                    label = "FABContainerColor"
+                                )
+                                val fabContentColor by animateColorAsState(
+                                    targetValue = if (isSelectionMode) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer,
+                                    label = "FABContentColor"
+                                )
+
+                                ExtendedFloatingActionButton(
+                                    modifier = Modifier.padding(bottom = 24.dp),
+                                    onClick = {
+                                        if (isSelectionMode) {
                                             if (selectedIds.isNotEmpty()) {
                                                 viewModel.confirmSelection()
                                                 viewModel.setShowQueueSheet(true)
                                             }
-                                        },
-                                        containerColor = MaterialTheme.colorScheme.primary,
-                                        contentColor = MaterialTheme.colorScheme.onPrimary,
-                                        shape = CircleShape
-                                    ) {
-                                        AppIcon(resourceId = AppIcons.PlaylistAdd, contentDescription = "Queue selected")
+                                        } else {
+                                            viewModel.setShowScannerSheet(true)
+                                        }
+                                    },
+                                    containerColor = fabContainerColor,
+                                    contentColor = fabContentColor,
+                                    shape = CircleShape,
+                                    icon = {
+                                        AnimatedContent(
+                                            targetState = if (isSelectionMode) AppIcons.PlaylistAdd else AppIcons.QrCodeScanner,
+                                            transitionSpec = {
+                                                (fadeIn(animationSpec = tween(220, delayMillis = 90)) + scaleIn(initialScale = 0.92f, animationSpec = tween(220, delayMillis = 90)))
+                                                    .togetherWith(fadeOut(animationSpec = tween(90)))
+                                            },
+                                            label = "FABIcon"
+                                        ) { iconRes ->
+                                            AppIcon(resourceId = iconRes, contentDescription = null)
+                                        }
+                                    },
+                                    text = {
+                                        AnimatedContent(
+                                            targetState = if (isSelectionMode) "Queue ${selectedIds.size} selected" else "Scan QR",
+                                            transitionSpec = {
+                                                (fadeIn(animationSpec = tween(220, delayMillis = 90)) + slideInVertically(initialOffsetY = { it / 2 }, animationSpec = tween(220, delayMillis = 90)))
+                                                    .togetherWith(fadeOut(animationSpec = tween(90)))
+                                            },
+                                            label = "FABText"
+                                        ) { textValue ->
+                                            Text(textValue)
+                                        }
                                     }
-                                } else {
-                                    ExtendedFloatingActionButton(
-                                        modifier = Modifier.padding(bottom = 16.dp),
-                                        text = { Text("Scan QR") },
-                                        icon = { AppIcon(resourceId = AppIcons.QrCodeScanner, contentDescription = null) },
-                                        onClick = { viewModel.setShowScannerSheet(true) },
-                                        containerColor = MaterialTheme.colorScheme.primaryContainer,
-                                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                                        shape = CircleShape
-                                    )
-                                }
+                                )
                             }
                         },
                         topBar = {
@@ -749,6 +799,13 @@ fun MainListScreen(
                             }
                         }
                     }
+
+                    SnackbarHost(
+                        hostState = snackbarHostState,
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(bottom = 80.dp)
+                    )
     
                                                                                                                                                                     // Custom Scrim for BottomSheetScaffold
                                                                                                                                                                     AnimatedVisibility(
