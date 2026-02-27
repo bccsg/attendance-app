@@ -313,8 +313,8 @@ class GoogleSheetsAdapter @Inject constructor(
         
         service.spreadsheets().batchUpdate(spreadsheetId, batchUpdate).execute()
 
-        // 5. Update headers (ID, Name, State, Final, Pushed At, Pushed By)
-        val headerValues = listOf(listOf("Attendee ID", "Full Name", "State", "Final", "Pushed At", "Pushed By"))
+        // 5. Update headers (ID, Name, State, Final, Committed At, Committed By)
+        val headerValues = listOf(listOf("Attendee ID", "Full Name", "State", "Final", "Committed At", "Committed By"))
         val headerBody = ValueRange().setValues(headerValues)
         service.spreadsheets().values()
             .update(spreadsheetId, "'$title'!A1:F1", headerBody)

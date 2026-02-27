@@ -125,8 +125,8 @@ Each event (like a Sunday Service) is mapped to a specific worksheet named `yyMM
 3.  **State (C)**: Either `PRESENT` or `ABSENT`.
 4.  **Final (D)**: A formula that identifies the **last recorded action** for a specific ID.
     *   If a person is marked `PRESENT` then later "undone" as `ABSENT`, only the `ABSENT` row will show `TRUE` in the Final column.
-5.  **Pushed At (E)**: The exact time the action was performed (synchronized across devices).
-6.  **Pushed By (F)**: The email of the user who performed the action.
+5.  **Committed At (E)**: The exact time the action was performed (synchronized across devices).
+6.  **Committed By (F)**: The email of the user who performed the action.
 
 ### Filter Views
 The application automatically generates a **Filter View** named **"Final Present Only"** on each event worksheet. When activated, this view hides all "ABSENT" records and any older "PRESENT" records that were later undone, leaving only the final list of attendees marked as present.
