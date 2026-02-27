@@ -39,11 +39,6 @@ class MainActivity : ComponentActivity() {
     private var viewModelReference: MainListViewModel? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        // Lock orientation to portrait for small screens (less than 640dp width)
-        if (resources.configuration.smallestScreenWidthDp < 640) {
-            requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-        }
-
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.dark(LightColorScheme.primary.toArgb())
         )

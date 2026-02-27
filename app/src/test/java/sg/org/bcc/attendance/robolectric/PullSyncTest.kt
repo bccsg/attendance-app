@@ -1,6 +1,7 @@
 package sg.org.bcc.attendance.robolectric
 
 import android.content.Context
+import androidx.core.content.edit
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.work.WorkInfo
@@ -98,7 +99,7 @@ class PullSyncTest {
             
             // Set local version in prefs
             context.getSharedPreferences("sync_prefs", Context.MODE_PRIVATE)
-                .edit().putString("local_master_list_version", version).apply()
+                .edit { putString("local_master_list_version", version) }
 
             val (success, status) = repository.syncMasterListWithDetailedResult(isFullSync = true)
             
@@ -144,7 +145,7 @@ class PullSyncTest {
     fun `clearAllData should reset master list version`() {
         runBlocking {
             context.getSharedPreferences("sync_prefs", Context.MODE_PRIVATE)
-                .edit().putString("local_master_list_version", "v123").apply()
+                .edit { putString("local_master_list_version", "v123") }
             
             repository.clearAllData()
             

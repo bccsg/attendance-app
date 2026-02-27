@@ -5,6 +5,7 @@ import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
+import androidx.core.content.edit
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import sg.org.bcc.attendance.data.repository.AttendanceRepository
@@ -49,13 +50,16 @@ class PullWorker @AssistedInject constructor(
             )
             val now = System.currentTimeMillis()
             if (success) {
-                prefs.edit().putLong("last_pull_time", now).putString("last_pull_status", "Success").apply()
+                prefs.edit { 
+                    putLong("last_pull_time", now)
+                    putString("last_pull_status", "Success") 
+                }
                 setProgress(workDataOf(
                     PROGRESS_STATE to "IDLE"
                 ))
                 Result.success()
             } else {
-                prefs.edit().putString("last_pull_status", "Failed").apply()
+                prefs.edit { putString("last_pull_status", "Failed") }
                 setProgress(workDataOf(
                     PROGRESS_STATE to "ERROR",
                     PROGRESS_ERROR to status
@@ -69,7 +73,7 @@ class PullWorker @AssistedInject constructor(
             }
         } catch (e: Exception) {
             val errorMsg = e.message ?: "Unknown error"
-            prefs.edit().putString("last_pull_status", "Error").apply()
+            prefs.edit { putString("last_pull_status", "Error") }
             setProgress(workDataOf(
                 PROGRESS_STATE to "ERROR",
                 PROGRESS_ERROR to errorMsg

@@ -25,6 +25,7 @@ import sg.org.bcc.attendance.ui.theme.PastelGreen
 @Composable
 fun AttendeeListItem(
     attendee: Attendee,
+    modifier: Modifier = Modifier,
     isPresent: Boolean = false,
     isQueued: Boolean = false,
     isGrouped: Boolean = false,
@@ -39,8 +40,7 @@ fun AttendeeListItem(
     onClick: () -> Unit = {},
     onLongClick: () -> Unit = {},
     onAvatarClick: () -> Unit = onClick,
-    trailingContent: @Composable (() -> Unit)? = null,
-    modifier: Modifier = Modifier
+    trailingContent: @Composable (() -> Unit)? = null
 ) {
     val avatarSize = 40.dp * textScale
 

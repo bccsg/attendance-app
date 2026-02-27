@@ -1,6 +1,7 @@
 package sg.org.bcc.attendance.data.repository
 
 import android.content.Context
+import androidx.core.content.edit
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.*
 import sg.org.bcc.attendance.data.local.dao.*
@@ -254,7 +255,7 @@ class AttendanceRepository @Inject constructor(
                     }
 
                     if (remoteVersion.isNotEmpty()) {
-                        prefs.edit().putString(PREF_MASTER_VERSION, remoteVersion).apply()
+                        prefs.edit { putString(PREF_MASTER_VERSION, remoteVersion) }
                     }
                 }
 
@@ -411,7 +412,7 @@ class AttendanceRepository @Inject constructor(
     suspend fun getLatestEvent(): Event? = eventDao.getLatestEvent()
 
     suspend fun clearAllData() {
-        prefs.edit().remove(PREF_MASTER_VERSION).apply()
+        prefs.edit { remove(PREF_MASTER_VERSION) }
         attendeeDao.clearAll()
         attendanceDao.clearAll()
         persistentQueueDao.clear()

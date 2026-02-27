@@ -8,6 +8,8 @@ import android.graphics.Paint
 import android.graphics.Rect
 import android.net.Uri
 import androidx.core.content.FileProvider
+import androidx.core.graphics.createBitmap
+import androidx.core.graphics.set
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.EncodeHintType
 import com.google.zxing.qrcode.QRCodeWriter
@@ -80,7 +82,7 @@ object QrImageGenerator {
         val width = QR_SIZE + (MARGIN * 2)
         val height = QR_SIZE + topTextAreaHeight + bottomTextAreaHeight + (MARGIN * 1.5f).toInt()
 
-        val combinedBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val combinedBitmap = createBitmap(width, height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(combinedBitmap)
         canvas.drawColor(Color.WHITE)
 
@@ -135,10 +137,10 @@ object QrImageGenerator {
         val writer = QRCodeWriter()
         val bitMatrix = writer.encode(content, BarcodeFormat.QR_CODE, size, size, hints)
         
-        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.RGB_565)
+        val bitmap = createBitmap(size, size, Bitmap.Config.RGB_565)
         for (x in 0 until size) {
             for (y in 0 until size) {
-                bitmap.setPixel(x, y, if (bitMatrix[x, y]) Color.BLACK else Color.WHITE)
+                bitmap[x, y] = if (bitMatrix[x, y]) Color.BLACK else Color.WHITE
             }
         }
         return bitmap

@@ -1,6 +1,7 @@
 package sg.org.bcc.attendance.util.qr
 
 import android.net.Uri
+import androidx.core.net.toUri
 
 object QrUrlParser {
     private const val BASE_URL = "https://m.bethany.sg/"
@@ -19,7 +20,7 @@ object QrUrlParser {
         }
 
         return try {
-            val uri = Uri.parse(url)
+            val uri = url.toUri()
             val personId = uri.getQueryParameter(PARAM_PERSON_ID)
             val personName = uri.getQueryParameter(PARAM_PERSON_NAME)
             val groupId = uri.getQueryParameter(PARAM_GROUP_ID)
@@ -44,7 +45,7 @@ object QrUrlParser {
      * Generates a QR code URL from a QrInfo object.
      */
     fun generate(info: QrInfo): String {
-        val builder = Uri.parse(BASE_URL).buildUpon()
+        val builder = BASE_URL.toUri().buildUpon()
         info.personId?.let { builder.appendQueryParameter(PARAM_PERSON_ID, it) }
         info.personName?.let { builder.appendQueryParameter(PARAM_PERSON_NAME, it) }
         info.groupId?.let { builder.appendQueryParameter(PARAM_GROUP_ID, it) }

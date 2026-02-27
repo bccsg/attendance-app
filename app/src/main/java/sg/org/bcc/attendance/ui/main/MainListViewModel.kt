@@ -677,15 +677,18 @@ class MainListViewModel @Inject constructor(
                 val now = System.currentTimeMillis()
                 if (!syncSuccess) {
                     _loginError.value = detailedStatus
-                    syncPrefs.edit().putString("last_pull_status", "Failed").apply()
+                    syncPrefs.edit { putString("last_pull_status", "Failed") }
                 } else {
                     _loginError.value = null
-                    syncPrefs.edit().putLong("last_pull_time", now).putString("last_pull_status", "Success").apply()
+                    syncPrefs.edit { 
+                        putLong("last_pull_time", now)
+                        putString("last_pull_status", "Success") 
+                    }
                 }
             } catch (e: Exception) {
                 val errorMsg = "Sync failed: ${e.message}"
                 _loginError.value = errorMsg
-                syncPrefs.edit().putString("last_pull_status", "Error").apply()
+                syncPrefs.edit { putString("last_pull_status", "Error") }
             }
         }
     }

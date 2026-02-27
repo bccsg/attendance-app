@@ -14,14 +14,14 @@ import androidx.compose.ui.unit.dp
 
 @Composable
 fun AppBottomSheetHeader(
+    modifier: Modifier = Modifier,
     title: String? = null,
     subtitle: String? = null,
     navigationText: String? = null,
     onNavigationClick: (() -> Unit)? = null,
     leadingContent: (@Composable () -> Unit)? = null,
     trailingContent: (@Composable () -> Unit)? = null,
-    textScale: Float = 1.0f,
-    modifier: Modifier = Modifier
+    textScale: Float = 1.0f
 ) {
     Column(modifier = modifier.fillMaxWidth()) {
         // Navigation Row (e.g., "Return to Name")
