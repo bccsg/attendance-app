@@ -1,6 +1,7 @@
 package sg.org.bcc.attendance.data.remote
 
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.Flow
 import sg.org.bcc.attendance.data.local.entities.AttendanceRecord
 import sg.org.bcc.attendance.data.local.entities.Attendee
 import sg.org.bcc.attendance.data.local.entities.AttendeeGroupMapping
@@ -21,6 +22,7 @@ data class PullResult(
 
 interface AttendanceCloudProvider {
     val isSyncing: StateFlow<Boolean>
+    val syncMessages: Flow<String>
 
     /**
      * Push a batch of attendance records to the cloud.

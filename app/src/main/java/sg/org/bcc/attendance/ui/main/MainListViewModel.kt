@@ -465,6 +465,12 @@ class MainListViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
+            repository.cloudMessages.collect { message ->
+                _snackbarMessageEvent.emit(message)
+            }
+        }
+
+        viewModelScope.launch {
             if (!repository.isDemoMode()) {
                 try {
                     repository.syncMasterList(targetEventId = null)

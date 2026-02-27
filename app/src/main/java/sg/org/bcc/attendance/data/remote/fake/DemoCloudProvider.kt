@@ -20,6 +20,8 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 
 @Singleton
 class DemoCloudProvider @Inject constructor(
@@ -28,6 +30,7 @@ class DemoCloudProvider @Inject constructor(
 ) : AttendanceCloudProvider {
 
     override val isSyncing: StateFlow<Boolean> = MutableStateFlow(false).asStateFlow()
+    override val syncMessages: Flow<String> = emptyFlow()
     
     // In-memory "cloud" state for the demo session to simulate real-time push/pull
     // This allows immediate feedback without waiting for Room's asynchronous cycles in some cases

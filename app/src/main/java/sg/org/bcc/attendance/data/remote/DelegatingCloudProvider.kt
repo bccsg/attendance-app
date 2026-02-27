@@ -12,7 +12,7 @@ import javax.inject.Inject
 import javax.inject.Provider
 import javax.inject.Singleton
 
-@OptIn(kotlinx.coroutines.FlowPreview::class)
+@OptIn(kotlinx.coroutines.FlowPreview::class, kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 @Singleton
 class DelegatingCloudProvider @Inject constructor(
     private val authManager: AuthManager,
@@ -32,6 +32,14 @@ class DelegatingCloudProvider @Inject constructor(
             started = SharingStarted.Eagerly,
             initialValue = false
         )
+
+    override val syncMessages: Flow<String> = authManager.isAuthed.flatMapLatest { authed ->
+        if (authed) {
+            gsheetsProvider.get().syncMessages
+        } else {
+            demoProvider.get().syncMessages
+        }
+    }
 
     private val activeProvider: AttendanceCloudProvider
         get() = if (authManager.isAuthed.value) {

@@ -45,6 +45,7 @@ class AttendanceRepository @Inject constructor(
     private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
     val isSyncing: StateFlow<Boolean> = cloudProvider.isSyncing
+    val cloudMessages: Flow<String> = cloudProvider.syncMessages
 
     fun getSyncLogsSummary() = syncLogDao.getTriggersSummary()
     fun getLogsForTrigger(triggerId: String) = syncLogDao.getLogsForTrigger(triggerId)

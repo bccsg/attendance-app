@@ -11,6 +11,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.withContext
 import sg.org.bcc.attendance.data.local.entities.*
 import sg.org.bcc.attendance.sync.SyncLogScope
@@ -24,7 +27,11 @@ class GoogleSheetsAdapter @Inject constructor(
     private val authManager: AuthManager
 ) : AttendanceCloudProvider {
 
-    override val isSyncing: StateFlow<Boolean> = MutableStateFlow(false).asStateFlow()
+    private val _isSyncing = MutableStateFlow(false)
+    override val isSyncing: StateFlow<Boolean> = _isSyncing.asStateFlow()
+
+    private val _syncMessages = MutableSharedFlow<String>(extraBufferCapacity = 1)
+    override val syncMessages: Flow<String> = _syncMessages.asSharedFlow()
 
     private val jsonFactory = GsonFactory.getDefaultInstance()
     private val httpTransport = GoogleNetHttpTransport.newTrustedTransport()
@@ -315,6 +322,50 @@ class GoogleSheetsAdapter @Inject constructor(
         newSheetId
     }
 
+    private suspend fun createMasterSheet(
+        service: Sheets,
+        title: String,
+        headers: List<String>
+    ): Unit = withContext(Dispatchers.IO) {
+        val newSheetId = Random().nextInt(Int.MAX_VALUE)
+
+        val addSheetRequest = com.google.api.services.sheets.v4.model.Request().setAddSheet(
+            com.google.api.services.sheets.v4.model.AddSheetRequest().setProperties(
+                com.google.api.services.sheets.v4.model.SheetProperties()
+                    .setTitle(title)
+                    .setSheetId(newSheetId)
+                    .setGridProperties(com.google.api.services.sheets.v4.model.GridProperties().setFrozenRowCount(1))
+            )
+        )
+
+        val boldHeaderRequest = com.google.api.services.sheets.v4.model.Request().setRepeatCell(
+            com.google.api.services.sheets.v4.model.RepeatCellRequest()
+                .setRange(com.google.api.services.sheets.v4.model.GridRange()
+                    .setSheetId(newSheetId)
+                    .setStartRowIndex(0)
+                    .setEndRowIndex(1)
+                )
+                .setCell(com.google.api.services.sheets.v4.model.CellData()
+                    .setUserEnteredFormat(com.google.api.services.sheets.v4.model.CellFormat()
+                        .setTextFormat(com.google.api.services.sheets.v4.model.TextFormat().setBold(true))
+                    )
+                )
+                .setFields("userEnteredFormat.textFormat.bold")
+        )
+
+        val batchUpdate = com.google.api.services.sheets.v4.model.BatchUpdateSpreadsheetRequest()
+            .setRequests(listOf(addSheetRequest, boldHeaderRequest))
+
+        service.spreadsheets().batchUpdate(masterSpreadsheetId, batchUpdate).execute()
+
+        val headerValues = listOf(headers)
+        val headerBody = ValueRange().setValues(headerValues)
+        service.spreadsheets().values()
+            .update(masterSpreadsheetId, "'$title'!A1", headerBody)
+            .setValueInputOption("RAW")
+            .execute()
+    }
+
     override suspend fun fetchMasterAttendees(scope: SyncLogScope): List<Attendee> = runWithLogging(scope, "fetchMasterAttendees") {
         withContext(Dispatchers.IO) {
             ensureAuthenticated()
@@ -337,8 +388,15 @@ class GoogleSheetsAdapter @Inject constructor(
                 } ?: emptyList()
             } catch (e: Exception) {
                 val type = e.javaClass.simpleName
-                android.util.Log.e("AttendanceSync", "Error fetching attendees ($type): ${e.message}", e)
-                throw Exception("[$type] ${e.message ?: "No message"}")
+                val msg = e.message ?: "No message"
+                if (msg.contains("Unable to parse range") || msg.contains("Grid with id")) {
+                    android.util.Log.w("AttendanceSync", "Attendees sheet missing, creating...")
+                    _syncMessages.tryEmit("Creating missing 'Attendees' sheet...")
+                    createMasterSheet(service, "Attendees", listOf("Attendee ID", "Full Name", "Short Name", "Extra 1", "Extra 2"))
+                    return@withContext emptyList<Attendee>()
+                }
+                android.util.Log.e("AttendanceSync", "Error fetching attendees ($type): $msg", e)
+                throw Exception("[$type] $msg")
             }
         }
     }
@@ -366,7 +424,10 @@ class GoogleSheetsAdapter @Inject constructor(
                 val type = e.javaClass.simpleName
                 val msg = e.message ?: "No message"
                 if (msg.contains("Unable to parse range") || msg.contains("Grid with id")) {
-                    android.util.Log.e("AttendanceSync", "CRITICAL: 'Groups' worksheet not found in master sheet!")
+                    android.util.Log.w("AttendanceSync", "Groups sheet missing, creating...")
+                    _syncMessages.tryEmit("Creating missing 'Groups' sheet...")
+                    createMasterSheet(service, "Groups", listOf("Group ID", "Name"))
+                    return@withContext emptyList<Group>()
                 }
                 android.util.Log.e("AttendanceSync", "Error fetching groups ($type): $msg")
                 throw Exception("[$type] $msg")
@@ -408,7 +469,10 @@ class GoogleSheetsAdapter @Inject constructor(
                 val type = e.javaClass.simpleName
                 val msg = e.message ?: "No message"
                 if (msg.contains("Unable to parse range") || msg.contains("Grid with id")) {
-                    android.util.Log.e("AttendanceSync", "CRITICAL: 'Mappings' worksheet not found in master sheet!")
+                    android.util.Log.w("AttendanceSync", "Mappings sheet missing, creating...")
+                    _syncMessages.tryEmit("Creating missing 'Mappings' sheet...")
+                    createMasterSheet(service, "Mappings", listOf("Group ID", "Attendee ID"))
+                    return@withContext emptyList<AttendeeGroupMapping>()
                 }
                 android.util.Log.e("AttendanceSync", "Error fetching mappings ($type): $msg")
                 throw Exception("[$type] $msg")
