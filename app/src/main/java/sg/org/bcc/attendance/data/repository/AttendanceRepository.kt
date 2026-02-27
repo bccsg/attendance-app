@@ -129,6 +129,10 @@ class AttendanceRepository @Inject constructor(
         return authManager.isDemoMode.value
     }
 
+    fun getMasterListUrl(): String? = cloudProvider.getMasterListUrl()
+
+    fun getEventAttendanceUrl(event: Event?): String? = cloudProvider.getEventAttendanceUrl(event)
+
     private suspend fun checkAuthAndRefresh(): Boolean {
         if (isDemoMode()) return true
         if (authManager.isTokenExpired()) {

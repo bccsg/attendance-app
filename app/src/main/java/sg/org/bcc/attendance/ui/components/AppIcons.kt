@@ -47,6 +47,10 @@ object AppIcons {
     val CalendarMonth = R.drawable.ic_calendar_month
     val Schedule = R.drawable.ic_schedule
     val Help = R.drawable.ic_help
+    val TableChart = R.drawable.ic_table_chart
+    val DatasetLinked = R.drawable.ic_dataset_linked
+    val Sort = R.drawable.ic_sort
+    val SortByAlpha = R.drawable.ic_sort_by_alpha
     
     object Filter {
         val None = R.drawable.ic_filter_none

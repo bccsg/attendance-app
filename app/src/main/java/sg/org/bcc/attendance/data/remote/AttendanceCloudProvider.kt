@@ -73,4 +73,14 @@ interface AttendanceCloudProvider {
         days: Int,
         scope: SyncLogScope
     ): List<Event>
+
+    /**
+     * Returns the URL of the master list.
+     */
+    fun getMasterListUrl(): String?
+
+    /**
+     * Returns the URL of the event attendance.
+     */
+    fun getEventAttendanceUrl(event: Event? = null): String?
 }

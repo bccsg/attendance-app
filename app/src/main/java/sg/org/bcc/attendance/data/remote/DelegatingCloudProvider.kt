@@ -96,4 +96,8 @@ class DelegatingCloudProvider @Inject constructor(
     ): List<Event> = track {
         activeProvider.fetchRecentEvents(days, scope)
     }
+
+    override fun getMasterListUrl(): String? = activeProvider.getMasterListUrl()
+
+    override fun getEventAttendanceUrl(event: Event?): String? = activeProvider.getEventAttendanceUrl(event)
 }

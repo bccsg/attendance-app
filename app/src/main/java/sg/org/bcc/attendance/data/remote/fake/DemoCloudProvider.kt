@@ -154,4 +154,8 @@ class DemoCloudProvider @Inject constructor(
             throw e
         }
     }
+
+    override fun getMasterListUrl(): String? = "https://github.com/bccsg/attendance-app/blob/main/docs/DEMO_MODE.md"
+
+    override fun getEventAttendanceUrl(event: Event?): String? = "https://github.com/bccsg/attendance-app/blob/main/docs/DEMO_MODE.md"
 }

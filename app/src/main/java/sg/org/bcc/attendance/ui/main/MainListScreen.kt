@@ -2,6 +2,7 @@ package sg.org.bcc.attendance.ui.main
 
 import android.app.Activity
 import android.net.Uri
+import androidx.core.net.toUri
 import androidx.activity.compose.BackHandler
 import androidx.browser.customtabs.CustomTabsIntent
 import androidx.compose.animation.*
@@ -153,7 +154,7 @@ fun MainListScreen(
             selectedAttendeeForDetail?.id?.let { queueIds.contains(it) } ?: false
         }
         
-        var lastBackPressTime by remember { mutableStateOf(0L) }
+        var lastBackPressTime by remember { mutableLongStateOf(0L) }
         val context = LocalContext.current
     
         val fullyQueuedGroups = remember(groupMembersMap, queueIds) {
@@ -472,19 +473,22 @@ fun MainListScreen(
                                                         onDismissRequest = { showMenu = false }
                                                     ) {
                                                         DropdownMenuItem(
-                                                            text = { Text("Sort By", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold) },
+                                                            text = { Text("Attendee Sort", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold) },
                                                             onClick = { },
                                                             enabled = false
                                                         )
                                                         DropdownMenuItem(
                                                             text = {
-                                                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                                                    RadioButton(
-                                                                        selected = sortMode == SortMode.NAME_ASC,
-                                                                        onClick = null // Handled by item click
-                                                                    )
-                                                                    Spacer(modifier = Modifier.width(8.dp))
-                                                                    Text("Name (A-Z)")
+                                                                Text(
+                                                                    text = "Name (A-Z)",
+                                                                    color = if (sortMode == SortMode.NAME_ASC) MaterialTheme.colorScheme.primary else Color.Unspecified
+                                                                )
+                                                            },
+                                                            leadingIcon = {
+                                                                if (sortMode == SortMode.NAME_ASC) {
+                                                                    AppIcon(resourceId = AppIcons.SortByAlpha, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
+                                                                } else {
+                                                                    Spacer(modifier = Modifier.size(18.dp))
                                                                 }
                                                             },
                                                             onClick = {
@@ -494,13 +498,16 @@ fun MainListScreen(
                                                         )
                                                         DropdownMenuItem(
                                                             text = {
-                                                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                                                    RadioButton(
-                                                                        selected = sortMode == SortMode.RECENT_UPDATED,
-                                                                        onClick = null // Handled by item click
-                                                                    )
-                                                                    Spacer(modifier = Modifier.width(8.dp))
-                                                                    Text("Recently Updated")
+                                                                Text(
+                                                                    text = "Recently Updated",
+                                                                    color = if (sortMode == SortMode.RECENT_UPDATED) MaterialTheme.colorScheme.primary else Color.Unspecified
+                                                                )
+                                                            },
+                                                            leadingIcon = {
+                                                                if (sortMode == SortMode.RECENT_UPDATED) {
+                                                                    AppIcon(resourceId = AppIcons.Sort, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
+                                                                } else {
+                                                                    Spacer(modifier = Modifier.size(18.dp))
                                                                 }
                                                             },
                                                             onClick = {
@@ -510,11 +517,41 @@ fun MainListScreen(
                                                         )
                                                         HorizontalDivider()
                                                         DropdownMenuItem(
+                                                            text = { Text("Cloud Resources", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold) },
+                                                            onClick = { },
+                                                            enabled = false
+                                                        )
+                                                        val profile = cloudProfile
+                                                        if (profile != null) {
+                                                            DropdownMenuItem(
+                                                                text = { Text("Master Attendees") },
+                                                                onClick = {
+                                                                    showMenu = false
+                                                                    profile.masterListUrl?.let { url ->
+                                                                        val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, url.toUri())
+                                                                        context.startActivity(android.content.Intent.createChooser(intent, "Open Master Attendees"))
+                                                                    }
+                                                                },
+                                                                leadingIcon = { AppIcon(resourceId = AppIcons.DatasetLinked, contentDescription = null, modifier = Modifier.size(18.dp)) }
+                                                            )
+                                                            DropdownMenuItem(
+                                                                text = { Text("Event Attendance") },
+                                                                onClick = {
+                                                                    showMenu = false
+                                                                    profile.eventAttendanceUrl?.let { url ->
+                                                                        val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, url.toUri())
+                                                                        context.startActivity(android.content.Intent.createChooser(intent, "Open Event Attendance"))
+                                                                    }
+                                                                },
+                                                                leadingIcon = { AppIcon(resourceId = AppIcons.DatasetLinked, contentDescription = null, modifier = Modifier.size(18.dp)) }
+                                                            )
+                                                        }
+                                                        DropdownMenuItem(
                                                             text = { Text("User Guide") },
                                                             onClick = {
                                                                 showMenu = false
-                                                                val customTabsIntent = CustomTabsIntent.Builder().build()
-                                                                customTabsIntent.launchUrl(context, Uri.parse("https://github.com/bccsg/attendance-app/blob/main/docs/USER_GUIDE.md"))
+                                                                val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, "https://github.com/bccsg/attendance-app/blob/main/docs/USER_GUIDE.md".toUri())
+                                                                context.startActivity(android.content.Intent.createChooser(intent, "Open User Guide"))
                                                             },
                                                             leadingIcon = { AppIcon(resourceId = AppIcons.Help, contentDescription = null, modifier = Modifier.size(18.dp)) }
                                                         )

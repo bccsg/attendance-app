@@ -35,7 +35,7 @@ import androidx.work.testing.WorkManagerTestInitHelper
 @RunWith(RobolectricTestRunner::class)
 @OptIn(ExperimentalCoroutinesApi::class)
 class MainListViewModelTest {
-    private val repository = mockk<AttendanceRepository>()
+    private val repository = mockk<AttendanceRepository>(relaxed = true)
     private val authManager = mockk<AuthManager>()
     private val syncStatusManager = mockk<SyncStatusManager>()
     private lateinit var context: Context
@@ -78,8 +78,14 @@ class MainListViewModelTest {
         every { repository.getMissingOnCloudEvents() } returns flowOf(emptyList())
         every { repository.getOldestPendingEventId() } returns flowOf(null)
         every { repository.isSyncing } returns MutableStateFlow(false)
+        every { repository.cloudMessages } returns flowOf()
+        every { repository.getMasterListUrl() } returns "https://master"
+        every { repository.getEventAttendanceUrl(any()) } returns "https://event"
         
-        io.mockk.coEvery { repository.syncMasterList(any()) } returns Unit
+        every { authManager.getEmail() } returns "test@user.com"
+        every { authManager.isAuthed } returns isAuthedFlow
+        every { authManager.authState } returns authStateFlow
+        every { authManager.isDemoMode } returns isDemoModeFlow
         io.mockk.coEvery { repository.syncMasterListWithDetailedResult(any(), any(), any()) } returns (true to "OK")
         io.mockk.coEvery { repository.retrySync() } returns Unit
         io.mockk.coEvery { repository.getUpcomingEvent(any()) } returns null

@@ -22,7 +22,9 @@ import androidx.core.content.edit
 
 data class CloudProfile(
     val email: String,
-    val profileImageUrl: String? = null
+    val profileImageUrl: String? = null,
+    val masterListUrl: String? = null,
+    val eventAttendanceUrl: String? = null
 )
 
 enum class SortMode {
@@ -89,12 +91,20 @@ class MainListViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
     val isSyncing = repository.isSyncing
 
-    val cloudProfile: StateFlow<CloudProfile?> = isAuthed.map { authed ->
-        if (authed) {
-            CloudProfile(
-                email = authManager.getEmail() ?: ""
-            )
-        } else null
+    private val _currentEventId = MutableStateFlow<String?>(prefs.getString("selected_event_id", null))
+    val currentEventId: StateFlow<String?> = _currentEventId.asStateFlow()
+
+    val currentEvent = _currentEventId.flatMapLatest { id ->
+        if (id == null) flowOf(null)
+        else repository.getAllEvents().map { events -> events.find { it.id == id } }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    val cloudProfile: StateFlow<CloudProfile?> = combine(isAuthed, currentEvent) { authed, event ->
+        CloudProfile(
+            email = if (authed) (authManager.getEmail() ?: "") else "",
+            masterListUrl = repository.getMasterListUrl(),
+            eventAttendanceUrl = repository.getEventAttendanceUrl(event)
+        )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     private val _showCloudStatusDialog = MutableStateFlow(false)
@@ -188,9 +198,6 @@ class MainListViewModel @Inject constructor(
     val availableEvents: StateFlow<List<Event>> = repository.getManageableEvents()
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
-    private val _currentEventId = MutableStateFlow<String?>(prefs.getString("selected_event_id", null))
-    val currentEventId: StateFlow<String?> = _currentEventId.asStateFlow()
-
     val isBlockingEventMissing: StateFlow<Boolean> = syncProgress.map { it.isBlockingEventMissing }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
@@ -214,11 +221,6 @@ class MainListViewModel @Inject constructor(
             repository.resolveEventDeleteLocally(eventId)
         }
     }
-
-    val currentEvent = _currentEventId.flatMapLatest { id ->
-        if (id == null) flowOf(null)
-        else repository.getAllEvents().map { events -> events.find { it.id == id } }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     val currentEventTitle = currentEvent.map { it?.title ?: "No Event Selected" }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "No Event Selected")

@@ -5,6 +5,7 @@ The application includes a Demo Mode to allow immediate exploration of the UI an
 ## 1. Initial Seeding
 On the first launch (or if the database is empty), the application automatically seeds the local database with **50 Disney characters** as attendees.
 *   **Logic**: Handled in `AttendanceRepository` using `DemoData` utility.
+*   **Cloud Status**: The master list and events in Demo Mode are locally generated for demonstration purposes and do not have cloud copies.
 
 ## 2. UI Indicators
 *   **Sync Icon**: In demo mode (when the user is **not authenticated**), the cloud icon shows **`CloudOff`**. This serves as the primary indicator that the app is in a local-only demo state.

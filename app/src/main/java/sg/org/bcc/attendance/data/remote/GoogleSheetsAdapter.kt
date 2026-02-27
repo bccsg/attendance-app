@@ -39,6 +39,8 @@ class GoogleSheetsAdapter @Inject constructor(
     private val masterSpreadsheetId = sg.org.bcc.attendance.BuildConfig.MASTER_SHEET_ID
     private val eventSpreadsheetId = sg.org.bcc.attendance.BuildConfig.EVENT_SHEET_ID
 
+    private var masterAttendeesSheetId: Int? = null
+
     private suspend fun <T> runWithLogging(
         scope: SyncLogScope,
         operation: String,
@@ -372,6 +374,10 @@ class GoogleSheetsAdapter @Inject constructor(
             val service = getSheetsService()
             android.util.Log.d("AttendanceSync", "Fetching attendees from sheet: $masterSpreadsheetId")
             try {
+                // Fetch spreadsheet metadata to get sheetIds (GIDs)
+                val spreadsheet = service.spreadsheets().get(masterSpreadsheetId).execute()
+                masterAttendeesSheetId = spreadsheet.sheets.find { it.properties.title == "Attendees" }?.properties?.sheetId
+
                 val response = service.spreadsheets().values()
                     .get(masterSpreadsheetId, "Attendees!A2:E")
                     .execute()
@@ -586,6 +592,20 @@ class GoogleSheetsAdapter @Inject constructor(
                     cloudEventId = sheet.properties.sheetId.toString()
                 )
             }
+        }
+    }
+
+    override fun getMasterListUrl(): String? {
+        val base = "https://docs.google.com/spreadsheets/d/$masterSpreadsheetId/edit"
+        return masterAttendeesSheetId?.let { "$base#gid=$it" } ?: "$base#gid=0"
+    }
+
+    override fun getEventAttendanceUrl(event: Event?): String? {
+        val base = "https://docs.google.com/spreadsheets/d/$eventSpreadsheetId/edit"
+        return if (event?.cloudEventId != null) {
+            "$base#gid=${event.cloudEventId}"
+        } else {
+            base
         }
     }
 }
