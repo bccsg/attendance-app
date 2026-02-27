@@ -1062,7 +1062,7 @@ fun MainBottomSheetContent(
                                             AnimatedContent(
                                                 targetState = when {
                                                     isAnimating -> "Queued"
-                                                    isJustAdded -> "Open queue"
+                                                    isJustAdded -> "Open Queue"
                                                     else -> "Queue $attendeeName"
                                                 },
                                                 transitionSpec = {
