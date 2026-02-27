@@ -4,7 +4,7 @@
 *   **Primary Display**: Attendee **Short Name**.
 *   **Fallback**: Full Name (truncated with ellipsis if too long).
 *   **Group Indicator**: A group icon appears to the right of the primary name if the attendee belongs to any groups.
-*   **Queue Status**: Attendees in the queue show a **`BookmarkAdded`** icon on the far right of the list item.
+*   **Queue Status**: Attendees in the queue show a **`Bookmark`** icon on the far right of the list item.
 *   **Presence Status**: Attendees already marked present show a **`PersonCheck`** icon in the main list and in details.
 *   **Context**: TopAppBar displays the active event with a **DateIcon** (Month/Day), event name, time (**12h format**), and **event ID** (Cloud ID or partial Local UUID). Tapping this component navigates to the **Events** screen.
 
@@ -56,7 +56,7 @@
 *   **Format**: Modal Bottom Sheet.
     *   **Dynamic Height**: If the attendee has no groups, the sheet uses `wrapContentHeight()` to provide a compact view while maintaining FAB clearance. Otherwise, it expands to full height.
 *   **Header**: Compact profile info (Name, Short Name, ID).
-    *   **Queue Indicator**: The **`BookmarkAdded`** icon is displayed in the trailing content area, vertically centered with the avatar, with a size of 28dp (50% of avatar height).
+    *   **Queue Indicator**: The **`Bookmark`** icon is displayed in the trailing content area, vertically centered with the avatar, with a size of 28dp (50% of avatar height).
     *   **Menu**: A 3-dot overflow menu button (![More Vert](assets/ic_more_vert.svg)) within the profile header provides access to **QR Code** operations (generating and sharing individual or group QR codes).
 *   **Group Management**:
     *   **Group Peer Discovery**: Lists other members of the attendee's groups.
@@ -64,7 +64,7 @@
     *   **Breadcrumb Back Action**: A "Return to [Name]" line at the top for navigating between group members.
 *   **Action**: A screen-local FAB labeled "Add to Queue" (icon: `PlaylistAdd`).
     *   **Visibility**: Hidden if the attendee was already in the queue when the sheet opened.
-    *   **Animation**: On activation, it transitions to "Queued" with a `BookmarkAdded` icon and a green background (`DeepGreen`) using `AnimatedContent` for morphing.
+    *   **Animation**: On activation, it transitions to "Queued" with a `Bookmark` icon and a green background (`DeepGreen`) using `AnimatedContent` for morphing.
     *   **Logic**: Does not open the queue sheet for individual additions.
     *   **Auto-Close**: If the attendee has no groups, the sheet closes automatically after the 1-second FAB animation completes.
 
@@ -98,7 +98,7 @@
 *   **Attendee Sheet**: "Add to Queue" icon (`PlaylistAdd`) in `Primary`. Positioned 16dp from bottom (above navigation handle).
 *   **Behavior**:
     *   **Visibility**: Hidden if the attendee was already in the queue when the sheet opened.
-    *   **Animation**: On activation, it morphs into a success state ("Queued", `BookmarkAdded` icon, `DeepGreen` color) using `AnimatedVisibility` and `AnimatedContent` for 1 second before hiding or auto-closing the sheet.
+    *   **Animation**: On activation, it morphs into a success state ("Queued", `Bookmark` icon, `DeepGreen` color) using `AnimatedVisibility` and `AnimatedContent` for 1 second before hiding or auto-closing the sheet.
     *   **Transition Awareness**: Automatically hides during sheet transitions to prevent "sliding" artifacts.
     *   **Handle Awareness**: Always adds `navigationBarsPadding` to the base offset when the keyboard is hidden.
 

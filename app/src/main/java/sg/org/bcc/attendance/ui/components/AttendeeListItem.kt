@@ -103,7 +103,7 @@ fun AttendeeListItem(
                                     if (isQueued) {
                                         if (isPresent && (isSelectionMode || isSelected)) Spacer(modifier = Modifier.width(8.dp))
                                         AppIcon(
-                                            resourceId = AppIcons.BookmarkAdded,
+                                            resourceId = AppIcons.Bookmark,
                                             contentDescription = null,
                                             modifier = Modifier.size(20.dp * 1.25f),
                                             tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)

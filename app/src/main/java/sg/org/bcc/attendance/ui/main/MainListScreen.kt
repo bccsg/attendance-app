@@ -1051,7 +1051,7 @@ fun MainBottomSheetContent(
                                         icon = { 
                                             AnimatedContent(
                                                 targetState = when {
-                                                    isAnimating -> AppIcons.BookmarkAdded
+                                                    isAnimating -> AppIcons.Bookmark
                                                     isJustAdded -> AppIcons.Filter.getIcon(queueIds.size)
                                                     else -> AppIcons.PlaylistAdd
                                                 },
@@ -1171,7 +1171,7 @@ fun AttendeeDetailContent(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         if (queueIds.contains(attendee.id)) {
                             AppIcon(
-                                resourceId = AppIcons.BookmarkAdded,
+                                resourceId = AppIcons.Bookmark,
                                 contentDescription = "In Queue",
                                 modifier = Modifier.size(28.dp * 1.25f).padding(end = 4.dp),
                                 tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
@@ -1343,7 +1343,7 @@ fun AttendeeDetailContent(
                                 )
                             ) {
                                 AnimatedContent(
-                                    targetState = if (isAnimating || isGroupFullyQueued) AppIcons.BookmarkAdded else AppIcons.PlaylistAdd,
+                                    targetState = if (isAnimating || isGroupFullyQueued) AppIcons.Bookmark else AppIcons.PlaylistAdd,
                                     transitionSpec = {
                                         fadeIn(animationSpec = tween(300)) togetherWith
                                         fadeOut(animationSpec = tween(300))
