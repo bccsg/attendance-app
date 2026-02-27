@@ -1,7 +1,9 @@
 package sg.org.bcc.attendance.ui.main
 
 import android.app.Activity
+import android.net.Uri
 import androidx.activity.compose.BackHandler
+import androidx.browser.customtabs.CustomTabsIntent
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -505,6 +507,16 @@ fun MainListScreen(
                                                                 viewModel.setSortMode(SortMode.RECENT_UPDATED)
                                                                 showMenu = false
                                                             }
+                                                        )
+                                                        HorizontalDivider()
+                                                        DropdownMenuItem(
+                                                            text = { Text("User Guide") },
+                                                            onClick = {
+                                                                showMenu = false
+                                                                val customTabsIntent = CustomTabsIntent.Builder().build()
+                                                                customTabsIntent.launchUrl(context, Uri.parse("https://github.com/bccsg/attendance-app/blob/main/docs/USER_GUIDE.md"))
+                                                            },
+                                                            leadingIcon = { AppIcon(resourceId = AppIcons.Help, contentDescription = null, modifier = Modifier.size(18.dp)) }
                                                         )
                                                     }
                                                 }

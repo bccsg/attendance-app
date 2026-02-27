@@ -9,7 +9,7 @@ A local-first Android attendance tracking application for ushers. It allows for 
 *   **ID**: Unique identifier (UUID or Remote ID).
 *   **Full Name**: Official name.
 *   **Short Name**: (Optional) Preferred or common name. Used as the primary display if available.
-*   **Groups**: Predefined global categories an attendee can belong to (e.g., "Volunteers", "Youth", "Pastors", "Bishan Cell"). An attendee can belong to **zero or more groups**.
+*   **Groups**: Predefined global categories an attendee can belong to (e.g., **"Pastors"**, **"Bishan Cell"**, **"Matthew & Family"**, **"John & Family"**). An attendee can belong to **zero or more groups**.
 
 ### Event
 *   **Title**: Unique identifier formatted as `<yymmdd> <hhmm> <event-name>`.

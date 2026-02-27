@@ -17,7 +17,7 @@ This guide explains how to use the Attendance application to efficiently track a
 The application follows a **Queue-First** approach. Instead of marking people directly, you add them to a "Pending Queue" and then confirm the entire batch when ready.
 
 ### Adding Attendees to the Queue
-There are four ways to add attendees to your queue:
+There are several ways to add attendees to your queue:
 
 1.  **Individual Add**:
     *   Find an attendee in the main list.
@@ -25,8 +25,8 @@ There are four ways to add attendees to your queue:
     *   Tap the **Add to Queue** FAB (![Playlist Add](assets/ic_playlist_add.svg) `ic_playlist_add`).
 
 2.  **Group Add (Bulk)**:
-    *   Within an **Attendee Detail Sheet**, if the person belongs to any groups, you will see a list of those groups.
-    *   Tap the **Queue [Count]** button next to a group name to add all members of that group to your queue at once.
+    *   Within an **Attendee Detail Sheet** (the attendee profile), if the person belongs to any groups, you will see a list of those groups.
+    *   Tap the **Queue [Count]** button next to a group name to add all members of that group to your queue at once—perfect for families or teams arriving together.
 
 3.  **Selection Mode (Bulk Add)**:
     *   Tap an attendee's **Avatar (Circle)** to enter selection mode.
@@ -37,9 +37,10 @@ There are four ways to add attendees to your queue:
     *   Scan an individual or Group QR code (see [QR Codes](#2-qr-codes-sharing--scanning) section below).
 
 ### Managing the Queue
-Access the queue by tapping the **Queue Launcher** on the right of the bottom bar.
+Access the queue by tapping the **Queue Launcher** on the right of the bottom bar. The icon changes dynamically to reflect the current count:
 *   **Empty Queue**: ![Filter None](assets/ic_filter_none.svg) `ic_filter_none`
-*   **Active Queue**: ![Filter 9+ ](assets/ic_filter_9_plus.svg) `ic_filter_9_plus` (Icon changes dynamically based on the number of items).
+*   **1-9 Items**: `ic_filter_1` to `ic_filter_9`
+*   **10+ Items**: ![Filter 9+ ](assets/ic_filter_9_plus.svg) `ic_filter_9_plus`
 
 *   **Toggle Status**: Tap an item to toggle between **Ready** (mark now) and **Later** (keep in queue for a future action).
 *   **Remove**: Swipe an item to the left (![Playlist Remove](assets/ic_playlist_remove.svg) `ic_playlist_remove`) and lift your finger to remove it from the queue.
@@ -67,10 +68,9 @@ QR codes allow for rapid attendee identification and group-based operations.
 You can generate QR codes for individual attendees or for entire groups to facilitate quick check-ins.
 
 1.  Open the **Attendee Detail Sheet**.
-2.  Tap the **3-dot Menu** (![More Vert](assets/ic_more_vert.svg) `ic_more_vert`) in the top right.
-3.  Tap the **QR Code** (![QR Code](assets/ic_qr_code.svg) `ic_qr_code`) option to open the QR menu.
-4.  Choose **Attendee QR** or a **Group QR** from the menu.
-5.  A preview will appear. Tap **Share QR** (![Share](assets/ic_share.svg) `ic_share`) to send the QR as an image.
+2.  Within the profile header section at the top, tap the **3-dot Menu** (![More Vert](assets/ic_more_vert.svg) `ic_more_vert`).
+3.  Choose **Attendee QR** or a specific **Group QR** from the dropdown menu.
+4.  A preview will appear below the header. Tap **Share QR** (![Share](assets/ic_share.svg) `ic_share`) to send the QR as an image.
 
 ### Scanning QR Codes
 *   Tap the **QR Scanner FAB** (![QR Scanner](assets/ic_qr_code_scanner.svg) `ic_qr_code_scanner`) on the main list (when not in selection mode).

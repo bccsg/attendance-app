@@ -46,6 +46,7 @@ object AppIcons {
     val Checklist = R.drawable.ic_checklist
     val CalendarMonth = R.drawable.ic_calendar_month
     val Schedule = R.drawable.ic_schedule
+    val Help = R.drawable.ic_help
     
     object Filter {
         val None = R.drawable.ic_filter_none

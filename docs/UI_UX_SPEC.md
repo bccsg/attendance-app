@@ -57,7 +57,7 @@
     *   **Dynamic Height**: If the attendee has no groups, the sheet uses `wrapContentHeight()` to provide a compact view while maintaining FAB clearance. Otherwise, it expands to full height.
 *   **Header**: Compact profile info (Name, Short Name, ID).
     *   **Queue Indicator**: The **`BookmarkAdded`** icon is displayed in the trailing content area, vertically centered with the avatar, with a size of 28dp (50% of avatar height).
-    *   **Menu**: A 3-dot overflow menu button (![More Vert](assets/ic_more_vert.svg)) in the top right provides access to **QR Code** operations (generating and sharing individual or group QR codes).
+    *   **Menu**: A 3-dot overflow menu button (![More Vert](assets/ic_more_vert.svg)) within the profile header provides access to **QR Code** operations (generating and sharing individual or group QR codes).
 *   **Group Management**:
     *   **Group Peer Discovery**: Lists other members of the attendee's groups.
     *   **Bulk Queuing**: Each group header includes a **"Queue [Count]"** button (![Playlist Add](assets/ic_playlist_add.svg)). Tapping this adds all members of that group to the queue at once.

@@ -3,7 +3,7 @@
 ## Technical Stack
 *   **Language**: Kotlin
 *   **UI Framework**: Jetpack Compose (Declarative UI)
-*   **Database**: Room (SQLite) with FTS5 support
+*   **Database**: Room (SQLite) with FTS4 support
 *   **Asynchrony**: Coroutines & Flow
 *   **Dependency Injection**: Hilt
 *   **Network**: Retrofit + Google Sheets API v4
@@ -36,7 +36,7 @@
 *   **State Separation**: Demo mode is mutually exclusive with any authenticated identity. Token expiry does *not* trigger fallback to Demo Mode; it triggers an "Action Required" state.
 
 ## Fuzzy Search Implementation
-*   **Engine**: SQLite FTS5 for high-speed indexing.
+*   **Engine**: SQLite FTS4 for high-speed indexing.
 *   **Scoring**: Kotlin-based layer that applies weights:
     1.  Exact Short Name Match (Highest)
     2.  Starts-with Short Name
