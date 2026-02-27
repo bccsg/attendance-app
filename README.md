@@ -2,6 +2,8 @@
 
 An offline-first Android attendance tracking application for BCC ushers. Designed for high-speed tracking in busy environments with robust, sequential synchronization to Google Sheets.
 
+<img src="docs/assets/ss_01_mainattendeelist.webp" height="300"> <img src="docs/assets/ss_02_attendeedetails.webp" height="300"> <img src="docs/assets/ss_03_queue.webp" height="300"> <img src="docs/assets/ss_04_eventsmanagement.png" height="300"> <img src="docs/assets/ss_05_qrcode.png" height="300">
+
 ## Key Features
 - **Offline-First Workflow**: Capture attendance instantly regardless of connectivity; syncs automatically when online.
 - **Queue-Based Tracking**: Batch attendees into a queue for rapid confirmation or set them aside for later.

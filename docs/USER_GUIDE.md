@@ -2,6 +2,8 @@
 
 This guide explains how to use the Attendance application to efficiently track attendees for BCC events.
 
+<img src="assets/ss_01_mainattendeelist.webp" height="300"> <img src="assets/ss_02_attendeedetails.webp" height="300"> <img src="assets/ss_03_queue.webp" height="300"> <img src="assets/ss_04_eventsmanagement.png" height="300"> <img src="assets/ss_05_qrcode.png" height="300">
+
 ## Features Overview
 *   **Offline-First**: Track attendance instantly, even without an internet connection.
 *   **Queue-Based Marking**: Add attendees to a queue for bulk confirmation or set aside for later.
