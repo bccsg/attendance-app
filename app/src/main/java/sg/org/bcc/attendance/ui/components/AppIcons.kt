@@ -59,6 +59,20 @@ object AppIcons {
         val Eight = R.drawable.ic_filter_8
         val Nine = R.drawable.ic_filter_9
         val NinePlus = R.drawable.ic_filter_9_plus
+
+        fun getIcon(count: Int): Int = when (count) {
+            0 -> None
+            1 -> One
+            2 -> Two
+            3 -> Three
+            4 -> Four
+            5 -> Five
+            6 -> Six
+            7 -> Seven
+            8 -> Eight
+            9 -> Nine
+            else -> NinePlus
+        }
     }
 }
 

@@ -37,6 +37,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
@@ -229,7 +230,6 @@ fun MainListScreen(
                 showAddedAnimation = true
                 delay(1000)
                 showAddedAnimation = false
-                wasIndividualAddedJustNow = false
                 
                 if (detailAttendeeGroups.isEmpty()) {
                     viewModel.dismissAttendeeDetail()
@@ -285,6 +285,7 @@ fun MainListScreen(
                                     canNavigateBackInDetail = canNavigateBackInDetail,
                                     previousAttendeeName = previousAttendeeName,
                                     showAddedAnimation = showAddedAnimation,
+                                    wasIndividualAddedJustNow = wasIndividualAddedJustNow,
                                     animatingGroups = animatingGroups,
                                     fabState = fabState,
                                     currentEventId = currentEventId,
@@ -590,8 +591,8 @@ fun MainListScreen(
                                                 val isPresentVisible = showPresent && presentPoolCount > 0
                                                 val isPendingVisible = showAbsent && pendingPoolCount > 0
                                                 
-                                                // No special treatment for only one is set to visible in selection mode
-                                                val isBranded = !isSelectionMode && (isPresentVisible != isPendingVisible)
+                                                val isSingleVisible = isPresentVisible != isPendingVisible
+                                                val isBranded = !isSelectionMode && isSingleVisible
                                                 
                                                 val brandedChipColors = FilterChipDefaults.filterChipColors(
                                                     selectedContainerColor = MaterialTheme.colorScheme.primary,
@@ -646,16 +647,15 @@ fun MainListScreen(
                                                     FilterChip(
                                                         selected = showPresent,
                                                         onClick = { viewModel.onShowPresentToggle() },
-                                                        label = { Text("Present") },
+                                                        label = { 
+                                                            Text(
+                                                                text = "Present",
+                                                                textDecoration = if (showPresent) TextDecoration.None else TextDecoration.LineThrough,
+                                                                fontWeight = if (isSingleVisible && showPresent) FontWeight.Bold else FontWeight.Normal
+                                                            ) 
+                                                        },
                                                         enabled = presentPoolCount > 0,
-                                                        colors = presentChipColors,
-                                                        leadingIcon = {
-                                                            AppIcon(
-                                                                resourceId = if (showPresent) AppIcons.Visibility else AppIcons.VisibilityOff,
-                                                                contentDescription = null,
-                                                                modifier = Modifier.size(18.dp)
-                                                            )
-                                                        }
+                                                        colors = presentChipColors
                                                     )
                                                 }
                                                 
@@ -676,36 +676,53 @@ fun MainListScreen(
                                                     FilterChip(
                                                         selected = showAbsent,
                                                         onClick = { viewModel.onShowAbsentToggle() },
-                                                        label = { Text("Pending") },
+                                                        label = { 
+                                                            Text(
+                                                                text = "Pending",
+                                                                textDecoration = if (showAbsent) TextDecoration.None else TextDecoration.LineThrough,
+                                                                fontWeight = if (isSingleVisible && showAbsent) FontWeight.Bold else FontWeight.Normal
+                                                            ) 
+                                                        },
                                                         enabled = pendingPoolCount > 0,
-                                                        colors = pendingChipColors,
-                                                        leadingIcon = {
-                                                            AppIcon(
-                                                                resourceId = if (showAbsent) AppIcons.Visibility else AppIcons.VisibilityOff,
-                                                                contentDescription = null,
-                                                                modifier = Modifier.size(18.dp)
-                                                            )
-                                                        }
+                                                        colors = pendingChipColors
                                                     )
                                                 }
                                             }
                 
                                             // Right: Queue Launcher with dynamic count icons
-                                            val queueIcon = when (queueCount) {
-                                                0 -> AppIcons.Filter.None
-                                                1 -> AppIcons.Filter.One
-                                                2 -> AppIcons.Filter.Two
-                                                3 -> AppIcons.Filter.Three
-                                                4 -> AppIcons.Filter.Four
-                                                5 -> AppIcons.Filter.Five
-                                                6 -> AppIcons.Filter.Six
-                                                7 -> AppIcons.Filter.Seven
-                                                8 -> AppIcons.Filter.Eight
-                                                9 -> AppIcons.Filter.Nine
-                                                else -> AppIcons.Filter.NinePlus
-                                            }
-                                            IconButton(onClick = { viewModel.setShowQueueSheet(true) }) {
-                                                AppIcon(resourceId = queueIcon, contentDescription = "View Queue")
+                                            val queueIcon = AppIcons.Filter.getIcon(queueCount)
+                                            AnimatedContent(
+                                                targetState = queueCount > 0,
+                                                label = "QueueButtonTransition",
+                                                transitionSpec = {
+                                                    (fadeIn(animationSpec = tween(220, delayMillis = 90)) + scaleIn(initialScale = 0.92f, animationSpec = tween(220, delayMillis = 90)))
+                                                        .togetherWith(fadeOut(animationSpec = tween(90)))
+                                                }
+                                            ) { hasItems ->
+                                                if (hasItems) {
+                                                    Button(
+                                                        onClick = { viewModel.setShowQueueSheet(true) },
+                                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                                                        shape = CircleShape,
+                                                        elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp),
+                                                        modifier = Modifier.padding(end = 8.dp)
+                                                    ) {
+                                                        AppIcon(
+                                                            resourceId = queueIcon,
+                                                            contentDescription = null,
+                                                            modifier = Modifier.size(18.dp)
+                                                        )
+                                                        Spacer(modifier = Modifier.width(8.dp))
+                                                        Text(
+                                                            text = "Open Queue",
+                                                            style = MaterialTheme.typography.labelLarge
+                                                        )
+                                                    }
+                                                } else {
+                                                    IconButton(onClick = { viewModel.setShowQueueSheet(true) }) {
+                                                        AppIcon(resourceId = queueIcon, contentDescription = "View Queue")
+                                                    }
+                                                }
                                             }
                                         }
                                     }
@@ -882,6 +899,7 @@ fun MainBottomSheetContent(
     canNavigateBackInDetail: Boolean,
     previousAttendeeName: String?,
     showAddedAnimation: Boolean,
+    wasIndividualAddedJustNow: Boolean,
     animatingGroups: Set<String>,
     fabState: MainListViewModel.FabState,
     currentEventId: String?,
@@ -936,7 +954,7 @@ fun MainBottomSheetContent(
                         // FAB logic within sheet
                         val isInQueue = queueIds.contains(selectedAttendeeForDetail.id)
                         val attendeeName = if (fabState is MainListViewModel.FabState.AddAttendee) fabState.name else ""
-                        val isVisible = fabState is MainListViewModel.FabState.AddAttendee || (showAddedAnimation && isInQueue)
+                        val isVisible = fabState is MainListViewModel.FabState.AddAttendee || (wasIndividualAddedJustNow && isInQueue)
 
                         Box(
                             modifier = Modifier
@@ -981,21 +999,44 @@ fun MainBottomSheetContent(
                                     exit = fadeOut() + scaleOut()
                                 ) {
                                     val isAnimating = showAddedAnimation && isInQueue
+                                    val isJustAdded = wasIndividualAddedJustNow && isInQueue && !showAddedAnimation
+
                                     val containerColor by animateColorAsState(
-                                        targetValue = if (isAnimating) DeepGreen else MaterialTheme.colorScheme.primary,
+                                        targetValue = when {
+                                            isAnimating -> DeepGreen
+                                            isJustAdded -> MaterialTheme.colorScheme.secondaryContainer
+                                            else -> MaterialTheme.colorScheme.primary
+                                        },
                                         label = "FabColor",
+                                        animationSpec = tween(durationMillis = 500)
+                                    )
+                                    
+                                    val contentColor by animateColorAsState(
+                                        targetValue = when {
+                                            isAnimating -> MaterialTheme.colorScheme.onPrimary
+                                            isJustAdded -> MaterialTheme.colorScheme.onSecondaryContainer
+                                            else -> MaterialTheme.colorScheme.onPrimary
+                                        },
+                                        label = "FabContentColor",
                                         animationSpec = tween(durationMillis = 500)
                                     )
                                     
                                     ExtendedFloatingActionButton(
                                         onClick = {
-                                            if (!isAnimating) {
+                                            if (isAnimating) return@ExtendedFloatingActionButton
+                                            if (isJustAdded) {
+                                                onSetShowQueueSheet(true)
+                                            } else {
                                                 onAddAttendeeToQueue(selectedAttendeeForDetail.id)
                                             }
                                         },
                                         icon = { 
                                             AnimatedContent(
-                                                targetState = if (isAnimating) AppIcons.BookmarkAdded else AppIcons.PlaylistAdd,
+                                                targetState = when {
+                                                    isAnimating -> AppIcons.BookmarkAdded
+                                                    isJustAdded -> AppIcons.Filter.getIcon(queueIds.size)
+                                                    else -> AppIcons.PlaylistAdd
+                                                },
                                                 transitionSpec = {
                                                     fadeIn(animationSpec = tween(300)) togetherWith
                                                     fadeOut(animationSpec = tween(300))
@@ -1007,7 +1048,11 @@ fun MainBottomSheetContent(
                                         },
                                         text = { 
                                             AnimatedContent(
-                                                targetState = if (isAnimating) "Queued" else "Queue $attendeeName",
+                                                targetState = when {
+                                                    isAnimating -> "Queued"
+                                                    isJustAdded -> "Open queue"
+                                                    else -> "Queue $attendeeName"
+                                                },
                                                 transitionSpec = {
                                                     fadeIn(animationSpec = tween(300)) togetherWith
                                                     fadeOut(animationSpec = tween(300))
@@ -1016,7 +1061,7 @@ fun MainBottomSheetContent(
                                             ) { text -> Text(text) }
                                         },
                                         containerColor = containerColor,
-                                        contentColor = MaterialTheme.colorScheme.onPrimary,
+                                        contentColor = contentColor,
                                         shape = CircleShape
                                     )
                                 }
