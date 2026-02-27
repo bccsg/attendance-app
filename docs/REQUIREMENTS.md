@@ -9,7 +9,7 @@ A local-first Android attendance tracking application for ushers. It allows for 
 *   **ID**: Unique identifier (UUID or Remote ID).
 *   **Full Name**: Official name.
 *   **Short Name**: (Optional) Preferred or common name. Used as the primary display if available.
-*   **Groups**: Predefined global categories an attendee can belong to (e.g., "Volunteers", "Youth").
+*   **Groups**: Predefined global categories an attendee can belong to (e.g., "Volunteers", "Youth", "Pastors", "Bishan Cell"). An attendee can belong to **zero or more groups**.
 
 ### Event
 *   **Title**: Unique identifier formatted as `<yymmdd> <hhmm> <event-name>`.
@@ -57,7 +57,9 @@ A local-first Android attendance tracking application for ushers. It allows for 
     *   Action: **`PlaylistAdd`** icon replaces the Queue with the selection and automatically opens the Queue sheet.
 *   **Attendee Detail Sheet Action**:
     *   **`PlaylistAdd`** FAB adds the individual to the queue with a "Queued" success animation.
+    *   **Bulk Group Queuing**: A "Queue [Count]" button on each group header within the detail sheet adds all members of that group to the queue.
     *   **Logic**: Does not automatically open the Queue sheet (preserves context).
+*   **QR Scanner Action**: Scanning an individual or group QR code adds the corresponding attendee(s) to the queue.
 *   **Dynamic Scaling**: Fonts and Attendee Avatars can be scaled by 50% using a **pinch-to-scale gesture** on any list view (pinch-out for Large, pinch-in for Normal) or via the "Text Size" option in the menu.
 
 ### 3. Queue

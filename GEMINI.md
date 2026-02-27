@@ -44,7 +44,7 @@ This document is the absolute source of truth for build configuration, architect
 ## 4. Development Environment
 *   **Emulator**: Use the **Pixel 6** profile (`pixel_6_demo`).
     ```bash
-    emulator -avd Pixel6A_AOSP_30 -no-audio -no-snapshot
+    emulator -avd Pixel6A_GOOGLEPLAY_30 -no-audio -no-snapshot
     ```
 *   **Build \u0026 Run**:
     ```bash
