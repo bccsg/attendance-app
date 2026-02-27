@@ -379,35 +379,33 @@ fun CreateEventDialog(
                     singleLine = true
                 )
 
-                OutlinedTextField(
-                    value = date.format(DateTimeFormatter.ofPattern("yyyy-MM-dd")),
-                    onValueChange = { },
-                    label = { Text("Date") },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { showDatePicker = true },
-                    readOnly = true,
-                    trailingIcon = {
-                        IconButton(onClick = { showDatePicker = true }) {
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    OutlinedTextField(
+                        value = date.format(DateTimeFormatter.ofPattern("yyyy-MM-dd")),
+                        onValueChange = { },
+                        label = { Text("Date") },
+                        modifier = Modifier.fillMaxWidth(),
+                        readOnly = true,
+                        trailingIcon = {
                             AppIcon(resourceId = AppIcons.CalendarMonth, contentDescription = "Select Date")
                         }
-                    }
-                )
+                    )
+                    Box(modifier = Modifier.matchParentSize().clickable { showDatePicker = true })
+                }
 
-                OutlinedTextField(
-                    value = "${time.take(2)}:${time.takeLast(2)}",
-                    onValueChange = { },
-                    label = { Text("Time") },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { showTimePicker = true },
-                    readOnly = true,
-                    trailingIcon = {
-                        IconButton(onClick = { showTimePicker = true }) {
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    OutlinedTextField(
+                        value = "${time.take(2)}:${time.takeLast(2)}",
+                        onValueChange = { },
+                        label = { Text("Time") },
+                        modifier = Modifier.fillMaxWidth(),
+                        readOnly = true,
+                        trailingIcon = {
                             AppIcon(resourceId = AppIcons.Schedule, contentDescription = "Select Time")
                         }
-                    }
-                )
+                    )
+                    Box(modifier = Modifier.matchParentSize().clickable { showTimePicker = true })
+                }
             }
         },
         confirmButton = {
