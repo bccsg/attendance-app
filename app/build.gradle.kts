@@ -26,9 +26,8 @@ android {
         applicationId = "sg.org.bcc.attendance"
         minSdk = 30
         targetSdk = 36
-        versionCode = 9
-        versionName = "1.0.0-beta.8"
-
+        versionCode = 10
+        versionName = "1.0.0-beta.9"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -129,23 +128,34 @@ android {
         onVariants { variant ->
             if (variant.buildType == "release") {
                 variant.outputs.forEach { output ->
-                    val abi = output.filters.find { it.filterType == com.android.build.api.variant.FilterConfiguration.FilterType.ABI }?.identifier
-                    
+                    val abi =
+                        output.filters
+                            .find { it.filterType == com.android.build.api.variant.FilterConfiguration.FilterType.ABI }
+                            ?.identifier
+
                     // Increment version code based on ABI to avoid conflicts in Play Store/Installers
                     // Priority: arm64-v8a > armeabi-v7a > x86_64 > x86
-                    val abiCode = when (abi) {
-                        "arm64-v8a" -> 4
-                        "armeabi-v7a" -> 3
-                        "x86_64" -> 2
-                        "x86" -> 1
-                        else -> 0
-                    }
+                    val abiCode =
+                        when (abi) {
+                            "arm64-v8a" -> 4
+                            "armeabi-v7a" -> 3
+                            "x86_64" -> 2
+                            "x86" -> 1
+                            else -> 0
+                        }
                     if (abiCode > 0) {
-                        (output as com.android.build.api.variant.impl.VariantOutputImpl).versionCode.set(variant.outputs.first().versionCode.get()!! * 10 + abiCode)
+                        (output as com.android.build.api.variant.impl.VariantOutputImpl).versionCode.set(
+                            variant.outputs
+                                .first()
+                                .versionCode
+                                .get()!! * 10 + abiCode,
+                        )
                     }
 
                     val archSuffix = if (abi != null) "-$abi" else "-universal"
-                    (output as com.android.build.api.variant.impl.VariantOutputImpl).outputFileName.set("attendance-v${output.versionName.get()}${archSuffix}.apk")
+                    (output as com.android.build.api.variant.impl.VariantOutputImpl).outputFileName.set(
+                        "attendance-v${output.versionName.get()}$archSuffix.apk",
+                    )
                 }
             }
         }
