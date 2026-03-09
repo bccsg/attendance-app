@@ -71,6 +71,7 @@ android {
             )
         }
     }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_21
         targetCompatibility = JavaVersion.VERSION_21
@@ -104,6 +105,18 @@ android {
             excludes += "META-INF/LICENSE"
             excludes += "META-INF/NOTICE"
             excludes += "META-INF/INDEX.LIST"
+        }
+    }
+
+    androidComponents {
+        onVariants { variant ->
+            if (variant.buildType == "release") {
+                variant.outputs.forEach { output ->
+                    val abi = output.filters.find { it.filterType == com.android.build.api.variant.FilterConfiguration.FilterType.ABI }?.identifier
+                    val archSuffix = if (abi != null) "-$abi" else "-universal"
+                    (output as com.android.build.api.variant.impl.VariantOutputImpl).outputFileName.set("attendance-v${output.versionName.get()}${archSuffix}.apk")
+                }
+            }
         }
     }
 }
