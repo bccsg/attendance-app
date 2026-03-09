@@ -4,13 +4,11 @@ import android.app.Activity
 import android.net.Uri
 import androidx.core.net.toUri
 import androidx.activity.compose.BackHandler
-import androidx.browser.customtabs.CustomTabsIntent
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.*
@@ -27,27 +25,15 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalView
-import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
-import androidx.compose.ui.unit.IntOffset
-import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Popup
-import androidx.compose.ui.window.PopupProperties
-import androidx.core.view.WindowCompat
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -55,19 +41,14 @@ import sg.org.bcc.attendance.data.local.entities.Attendee
 import sg.org.bcc.attendance.data.local.entities.Event
 import sg.org.bcc.attendance.ui.queue.QueueScreen
 import sg.org.bcc.attendance.ui.theme.DeepGreen
-import sg.org.bcc.attendance.ui.theme.PastelGreen
 import sg.org.bcc.attendance.sync.*
-import sg.org.bcc.attendance.ui.theme.Purple40
 import sg.org.bcc.attendance.ui.components.AppIcon
 import sg.org.bcc.attendance.ui.components.AppIcons
+import sg.org.bcc.attendance.ui.components.EventSummary
 import sg.org.bcc.attendance.ui.components.AttendeeListItem
 import sg.org.bcc.attendance.ui.components.RotatingSyncIcon
-import sg.org.bcc.attendance.ui.components.DateIcon
 import sg.org.bcc.attendance.ui.components.pinchToScale
-import sg.org.bcc.attendance.util.EventSuggester
 import sg.org.bcc.attendance.util.qr.QrInfo
-import java.time.LocalTime
-import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -127,97 +108,97 @@ fun MainListScreen(
     val missingCloudGroupsCount by viewModel.missingCloudGroupsCount.collectAsState()
     val missingCloudEventsCount by viewModel.missingCloudEventsCount.collectAsState()
 
-        val isSelectionMode = selectedIds.isNotEmpty()
-        var isSearchActive by remember { mutableStateOf(false) }
-        
-                val focusRequester = remember { FocusRequester() }
-                val activeSheet by viewModel.activeSheet.collectAsState()
-                val isAnySheetActive = activeSheet != SheetType.NONE
-            
-                val scaffoldState = rememberBottomSheetScaffoldState(
-                    bottomSheetState = rememberStandardBottomSheetState(
-                        initialValue = SheetValue.Hidden,
-                        skipHiddenState = false,
-                        confirmValueChange = { newValue ->
-                            if (isAnySheetActive && (newValue == SheetValue.Hidden || newValue == SheetValue.PartiallyExpanded)) {
-                                viewModel.dismissAllSheets()
-                            }
-                            true
-                        }
+    val isSelectionMode = selectedIds.isNotEmpty()
+    var isSearchActive by remember { mutableStateOf(false) }
+    
+    val focusRequester = remember { FocusRequester() }
+    val activeSheet by viewModel.activeSheet.collectAsState()
+    val isAnySheetActive = activeSheet != SheetType.NONE
+
+    val scaffoldState = rememberBottomSheetScaffoldState(
+        bottomSheetState = rememberStandardBottomSheetState(
+            initialValue = SheetValue.Hidden,
+            skipHiddenState = false,
+            confirmValueChange = { newValue ->
+                if (isAnySheetActive && (newValue == SheetValue.Hidden || newValue == SheetValue.PartiallyExpanded)) {
+                    viewModel.dismissAllSheets()
+                }
+                true
+            }
+        )
+    )
+    val snackbarHostState = remember { SnackbarHostState() }
+    
+    val scope = rememberCoroutineScope()
+
+    val isAdded = remember(selectedAttendeeForDetail, queueIds) {
+        selectedAttendeeForDetail?.id?.let { queueIds.contains(it) } ?: false
+    }
+    
+    var lastBackPressTime by remember { mutableLongStateOf(0L) }
+    val context = LocalContext.current
+
+    val fullyQueuedGroups = remember(groupMembersMap, queueIds) {
+        groupMembersMap.filter { (_, members) -> 
+            members.isNotEmpty() && members.all { queueIds.contains(it.id) } 
+        }.keys
+    }
+
+    var lastQueuedGroupId by remember { mutableStateOf<String?>(null) }
+    var wasIndividualAddedJustNow by remember { mutableStateOf(false) }
+    
+    var showAddedAnimation by remember { mutableStateOf(false) }
+    var animatingGroups by remember { mutableStateOf(setOf<String>()) }
+
+    // Reset interaction state when attendee changes
+    LaunchedEffect(selectedAttendeeForDetail) {
+        lastQueuedGroupId = null
+        wasIndividualAddedJustNow = false
+        showAddedAnimation = false
+        animatingGroups = emptySet()
+    }
+
+    BackHandler(enabled = isAnySheetActive) {
+        viewModel.dismissAllSheets()
+    }
+
+    BackHandler(enabled = isSearchActive && !isAnySheetActive) {
+        isSearchActive = false
+        viewModel.onSearchQueryChange("")
+    }
+
+    BackHandler(enabled = isSelectionMode && !isAnySheetActive && !isSearchActive) {
+        viewModel.clearSelection()
+    }
+
+    BackHandler(enabled = !isAnySheetActive && !isSelectionMode && !isSearchActive) {
+        val currentTime = System.currentTimeMillis()
+        if (currentTime - lastBackPressTime < 2000) {
+            (context as? Activity)?.finish()
+        } else {
+            lastBackPressTime = currentTime
+            scope.launch {
+                val job = launch {
+                    snackbarHostState.showSnackbar(
+                        message = "Back again to exit",
+                        duration = SnackbarDuration.Indefinite
                     )
-                )
-                        val snackbarHostState = remember { SnackbarHostState() }
-        
-        val scope = rememberCoroutineScope()
-    
-        val isAdded = remember(selectedAttendeeForDetail, queueIds) {
-            selectedAttendeeForDetail?.id?.let { queueIds.contains(it) } ?: false
+                }
+                delay(2000)
+                job.cancel()
+            }
         }
-        
-        var lastBackPressTime by remember { mutableLongStateOf(0L) }
-        val context = LocalContext.current
-    
-        val fullyQueuedGroups = remember(groupMembersMap, queueIds) {
-            groupMembersMap.filter { (_, members) -> 
-                members.isNotEmpty() && members.all { queueIds.contains(it.id) } 
-            }.keys
+    }
+
+    LaunchedEffect(activeSheet) {
+        if (isAnySheetActive) {
+            scaffoldState.bottomSheetState.expand()
+        } else {
+            scaffoldState.bottomSheetState.hide()
         }
-    
-        var lastQueuedGroupId by remember { mutableStateOf<String?>(null) }
-        var wasIndividualAddedJustNow by remember { mutableStateOf(false) }
-        
-        var showAddedAnimation by remember { mutableStateOf(false) }
-        var animatingGroups by remember { mutableStateOf(setOf<String>()) }
-    
-        // Reset interaction state when attendee changes
-        LaunchedEffect(selectedAttendeeForDetail) {
-            lastQueuedGroupId = null
-            wasIndividualAddedJustNow = false
-            showAddedAnimation = false
-            animatingGroups = emptySet()
-        }
-    
-                    BackHandler(enabled = isAnySheetActive) {
-                        viewModel.dismissAllSheets()
-                    }
-
-                    BackHandler(enabled = isSearchActive && !isAnySheetActive) {
-                        isSearchActive = false
-                        viewModel.onSearchQueryChange("")
-                    }
-
-                    BackHandler(enabled = isSelectionMode && !isAnySheetActive && !isSearchActive) {
-                        viewModel.clearSelection()
-                    }
-
-                    BackHandler(enabled = !isAnySheetActive && !isSelectionMode && !isSearchActive) {
-                        val currentTime = System.currentTimeMillis()
-                        if (currentTime - lastBackPressTime < 2000) {
-                            (context as? Activity)?.finish()
-                        } else {
-                            lastBackPressTime = currentTime
-                            scope.launch {
-                                val job = launch {
-                                    snackbarHostState.showSnackbar(
-                                        message = "Back again to exit",
-                                        duration = SnackbarDuration.Indefinite
-                                    )
-                                }
-                                delay(2000)
-                                job.cancel()
-                            }
-                        }
-                    }
-                
-                        LaunchedEffect(activeSheet) {
-                            if (isAnySheetActive) {
-                                scaffoldState.bottomSheetState.expand()
-                            } else {
-                                scaffoldState.bottomSheetState.hide()
-                            }
-                        }
-                                                    
-                                            LaunchedEffect(isAdded, fullyQueuedGroups, lastQueuedGroupId, wasIndividualAddedJustNow) {
+    }
+                                
+    LaunchedEffect(isAdded, fullyQueuedGroups, lastQueuedGroupId, wasIndividualAddedJustNow) {
             // Animation for Groups - only if user just clicked this group
             if (lastQueuedGroupId != null && fullyQueuedGroups.contains(lastQueuedGroupId)) {
                 val groupId = lastQueuedGroupId!!
@@ -260,12 +241,13 @@ fun MainListScreen(
             }
         }
     
-            BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-                val screenHeight = maxHeight
-                val density = LocalDensity.current
-                val statusBarHeight = with(density) { WindowInsets.statusBars.getTop(this).toDp() }
-                val availableSheetHeight = screenHeight - 56.dp - statusBarHeight
-                    BottomSheetScaffold(
+        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+            val screenHeight = maxHeight
+            val density = LocalDensity.current
+            val statusBarHeight = with(density) { WindowInsets.statusBars.getTop(this).toDp() }
+            val availableSheetHeight = screenHeight - 56.dp - statusBarHeight
+            
+            BottomSheetScaffold(
                 scaffoldState = scaffoldState,
                 sheetPeekHeight = 0.dp,
                 sheetDragHandle = null,
@@ -273,45 +255,44 @@ fun MainListScreen(
                 sheetTonalElevation = 0.dp,
                 sheetShadowElevation = 8.dp,
                 sheetContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-                            sheetContent = {
-                                MainBottomSheetContent(
-                                    activeSheet = activeSheet,
-                                    availableHeight = availableSheetHeight,
-                                    selectedAttendeeForDetail = selectedAttendeeForDetail,
-                                    detailAttendeeGroups = detailAttendeeGroups,
-                                    activeQrInfo = activeQrInfo,
-                                    groupMembersMap = groupMembersMap,
-                                    attendeeGroupsMap = attendeeGroupsMap,
-                                    textScale = textScale,
-                                    presentIds = presentIds,
-                                    queueIds = queueIds,
-                                    canNavigateBackInDetail = canNavigateBackInDetail,
-                                    previousAttendeeName = previousAttendeeName,
-                                    showAddedAnimation = showAddedAnimation,
-                                    wasIndividualAddedJustNow = wasIndividualAddedJustNow,
-                                    animatingGroups = animatingGroups,
-                                    fabState = fabState,
-                                    currentEventId = currentEventId,
-                                    onDismiss = viewModel::dismissAllSheets,
-                                    onPopAttendeeDetail = viewModel::popAttendeeDetail,
-                                    onShowAttendeeDetail = viewModel::showAttendeeDetail,
-                                    onAddAttendeeToQueue = { attendeeId ->
-                                        wasIndividualAddedJustNow = true
-                                        viewModel.addAttendeeToQueue(attendeeId)
-                                    },
-                                    onQrSelected = viewModel::onQrSelected,
-                                    onAddGroupToQueue = { groupId ->
-                                        lastQueuedGroupId = groupId
-                                        viewModel.addGroupToQueue(groupId)
-                                    },
-                                    onSetShowQueueSheet = viewModel::setShowQueueSheet,
-                                    onSetShowScannerSheet = viewModel::setShowScannerSheet,
-                                    onProcessQrResult = viewModel::processQrResult,
-                                    onTextScaleChange = viewModel::setTextScale,
-                                    onShowSnackbar = { scope.launch { snackbarHostState.showSnackbar(it) } }
-                                )
-                            }
-                
+                sheetContent = {
+                    MainBottomSheetContent(
+                        activeSheet = activeSheet,
+                        availableHeight = availableSheetHeight,
+                        selectedAttendeeForDetail = selectedAttendeeForDetail,
+                        detailAttendeeGroups = detailAttendeeGroups,
+                        activeQrInfo = activeQrInfo,
+                        groupMembersMap = groupMembersMap,
+                        attendeeGroupsMap = attendeeGroupsMap,
+                        textScale = textScale,
+                        presentIds = presentIds,
+                        queueIds = queueIds,
+                        canNavigateBackInDetail = canNavigateBackInDetail,
+                        previousAttendeeName = previousAttendeeName,
+                        showAddedAnimation = showAddedAnimation,
+                        wasIndividualAddedJustNow = wasIndividualAddedJustNow,
+                        animatingGroups = animatingGroups,
+                        fabState = fabState,
+                        currentEventId = currentEventId,
+                        onDismiss = viewModel::dismissAllSheets,
+                        onPopAttendeeDetail = viewModel::popAttendeeDetail,
+                        onShowAttendeeDetail = viewModel::showAttendeeDetail,
+                        onAddAttendeeToQueue = { attendeeId ->
+                            wasIndividualAddedJustNow = true
+                            viewModel.addAttendeeToQueue(attendeeId)
+                        },
+                        onQrSelected = viewModel::onQrSelected,
+                        onAddGroupToQueue = { groupId ->
+                            lastQueuedGroupId = groupId
+                            viewModel.addGroupToQueue(groupId)
+                        },
+                        onSetShowQueueSheet = viewModel::setShowQueueSheet,
+                        onSetShowScannerSheet = viewModel::setShowScannerSheet,
+                        onProcessQrResult = viewModel::processQrResult,
+                        onTextScaleChange = viewModel::setTextScale,
+                        onShowSnackbar = { scope.launch { snackbarHostState.showSnackbar(it) } }
+                    )
+                }
             ) {
                 Box(modifier = Modifier.fillMaxSize()) {
                     // Background Content (The Scaffold we had before)
@@ -389,44 +370,11 @@ fun MainListScreen(
                                                 Text("${selectedIds.size} Selected", color = MaterialTheme.colorScheme.onPrimary)
                                             } else {
                                                 currentEvent?.let { event ->
-                                                    val parts = event.title.split(" ", limit = 3)
-                                                    val date = if (parts.isNotEmpty()) EventSuggester.parseDate(parts[0]) else null
-                                                    val timeStr = if (parts.size > 1) parts[1] else "0000"
-                                                    val name = if (parts.size > 2) parts[2] else "Unnamed Event"
-                                                    val time = try {
-                                                        LocalTime.of(timeStr.take(2).toInt(), timeStr.takeLast(2).toInt())
-                                                    } catch (e: Exception) {
-                                                        LocalTime.MIDNIGHT
-                                                    }
-                                                    val formattedTime = time.format(java.time.format.DateTimeFormatter.ofPattern("h:mm a", Locale.ENGLISH))
-                
-                                                    Row(
-                                                        verticalAlignment = Alignment.CenterVertically,
-                                                        modifier = Modifier.clickable { onNavigateToEventManagement() }
-                                                    ) {
-                                                        DateIcon(date = date, textScale = 0.8f)
-                                                        Spacer(modifier = Modifier.width(12.dp))
-                                                        Column {
-                                                            Text(
-                                                                text = name,
-                                                                style = MaterialTheme.typography.titleMedium,
-                                                                color = MaterialTheme.colorScheme.onPrimary
-                                                            )
-                                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                                Text(
-                                                                    text = formattedTime,
-                                                                    style = MaterialTheme.typography.labelMedium,
-                                                                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
-                                                                )
-                                                                Spacer(modifier = Modifier.width(8.dp))
-                                                                Text(
-                                                                    text = event.cloudEventId ?: event.id.take(8),
-                                                                    style = MaterialTheme.typography.labelSmall,
-                                                                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.5f)
-                                                                )
-                                                            }
-                                                        }
-                                                    }
+                                                    EventSummary(
+                                                        event = event,
+                                                        modifier = Modifier.clickable { onNavigateToEventManagement() },
+                                                        contentColor = MaterialTheme.colorScheme.onPrimary
+                                                    )
                                                 } ?: Text("Attendance", color = MaterialTheme.colorScheme.onPrimary)
                                             }
                                         },
@@ -529,7 +477,7 @@ fun MainListScreen(
                                                                     showMenu = false
                                                                     profile.masterListUrl?.let { url ->
                                                                         val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, url.toUri())
-                                                                        context.startActivity(android.content.Intent.createChooser(intent, "Open Master Attendees"))
+                                                                        context.startActivity(intent)
                                                                     }
                                                                 },
                                                                 leadingIcon = { AppIcon(resourceId = AppIcons.DatasetLinked, contentDescription = null, modifier = Modifier.size(18.dp)) }
@@ -540,7 +488,7 @@ fun MainListScreen(
                                                                     showMenu = false
                                                                     profile.eventAttendanceUrl?.let { url ->
                                                                         val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, url.toUri())
-                                                                        context.startActivity(android.content.Intent.createChooser(intent, "Open Event Attendance"))
+                                                                        context.startActivity(intent)
                                                                     }
                                                                 },
                                                                 leadingIcon = { AppIcon(resourceId = AppIcons.DatasetLinked, contentDescription = null, modifier = Modifier.size(18.dp)) }
@@ -551,7 +499,7 @@ fun MainListScreen(
                                                             onClick = {
                                                                 showMenu = false
                                                                 val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, "https://github.com/bccsg/attendance-app/blob/main/docs/USER_GUIDE.md".toUri())
-                                                                context.startActivity(android.content.Intent.createChooser(intent, "Open User Guide"))
+                                                                context.startActivity(intent)
                                                             },
                                                             leadingIcon = { AppIcon(resourceId = AppIcons.Help, contentDescription = null, modifier = Modifier.size(18.dp)) }
                                                         )
@@ -854,26 +802,24 @@ fun MainListScreen(
                             .padding(bottom = 80.dp)
                     )
     
-                                                                                                                                                                    // Custom Scrim for BottomSheetScaffold
-                                                                                                                                                                    AnimatedVisibility(
-                                                                                                                                                                        visible = isAnySheetActive,
-                                                                                                                                                                        enter = fadeIn(),
-                                                                                                                                                                        exit = fadeOut()
-                                                                                                                                                                    ) {
-                                                                                                                                                                        Box(
-                                                                                                                                                                            modifier = Modifier
-                                                                                                                                                                                .fillMaxSize()
-                                                                                                                                                                                .background(Color.Black.copy(alpha = 0.32f))
-                                                                                                                                                                                                            .pointerInput(Unit) {
-                                                                                                                                                                                                                detectTapGestures {
-                                                                                                                                                                                                                    viewModel.dismissAllSheets()
-                                                                                                                                                                                                                }
-                                                                                                                                                                                                            }
-                                                                                                                                                                                
-                                                                                                                                                                        )
-                                                                                                                                                                    }
-                                                                                                                                                    
-                                                                                                                        }
+                    // Custom Scrim for BottomSheetScaffold
+                    AnimatedVisibility(
+                        visible = isAnySheetActive,
+                        enter = fadeIn(),
+                        exit = fadeOut()
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(Color.Black.copy(alpha = 0.32f))
+                                .pointerInput(Unit) {
+                                    detectTapGestures {
+                                        viewModel.dismissAllSheets()
+                                    }
+                                }
+                        )
+                    }
+                }
             }
         }
 

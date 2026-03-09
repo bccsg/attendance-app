@@ -24,13 +24,12 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import sg.org.bcc.attendance.data.local.entities.Event
 import sg.org.bcc.attendance.ui.components.AppIcon
 import sg.org.bcc.attendance.ui.components.AppIcons
+import sg.org.bcc.attendance.ui.components.EventSummary
 import sg.org.bcc.attendance.ui.components.RotatingSyncIcon
-import sg.org.bcc.attendance.ui.components.DateIcon
 import sg.org.bcc.attendance.util.EventSuggester
 import sg.org.bcc.attendance.sync.SyncState
 import java.time.Instant
 import java.time.LocalDate
-import java.time.LocalTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -191,19 +190,6 @@ fun EventItem(
     isDemoMode: Boolean = false,
     onClick: () -> Unit
 ) {
-    // Parse title: yyMMdd HHmm Name
-    val parts = event.title.split(" ", limit = 3)
-    val date = if (parts.isNotEmpty()) EventSuggester.parseDate(parts[0]) else null
-    val timeStr = if (parts.size > 1) parts[1] else "0000"
-    val name = if (parts.size > 2) parts[2] else "Unnamed Event"
-
-    val time = try {
-        LocalTime.of(timeStr.take(2).toInt(), timeStr.takeLast(2).toInt())
-    } catch (e: Exception) {
-        LocalTime.MIDNIGHT
-    }
-    val formattedTime = time.format(DateTimeFormatter.ofPattern("h:mm a", Locale.ENGLISH))
-
     Column {
         Surface(
             modifier = Modifier
@@ -211,70 +197,14 @@ fun EventItem(
                 .clickable { onClick() },
             color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface
         ) {
-            Row(
-                modifier = Modifier
-                    .padding(horizontal = 16.dp, vertical = 8.dp * textScale)
-                    .fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                DateIcon(date = date, textScale = textScale)
-                
-                Spacer(modifier = Modifier.width(16.dp))
-                
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = name,
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                        style = MaterialTheme.typography.titleMedium.copy(
-                            fontSize = MaterialTheme.typography.titleMedium.fontSize * textScale
-                        )
-                    )
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = formattedTime,
-                            style = MaterialTheme.typography.bodyMedium.copy(
-                                fontSize = MaterialTheme.typography.bodyMedium.fontSize * textScale
-                            )
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = event.cloudEventId ?: event.id.take(8),
-                            style = MaterialTheme.typography.labelSmall.copy(
-                                fontSize = MaterialTheme.typography.labelSmall.fontSize * textScale
-                            ),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                        )
-                    }
-                }
-
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (isSelected) {
-                        AppIcon(
-                            resourceId = AppIcons.Check, 
-                            contentDescription = "Selected", 
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(24.dp * textScale)
-                        )
-                    }
-                    
-                    val syncIcon = when {
-                        isDemoMode -> AppIcons.CloudOff
-                        event.cloudEventId != null -> AppIcons.CloudDone
-                        else -> null
-                    }
-                    
-                    if (syncIcon != null) {
-                        if (isSelected) Spacer(modifier = Modifier.width(8.dp))
-                        AppIcon(
-                            resourceId = syncIcon,
-                            contentDescription = "Sync Status",
-                            tint = if (isDemoMode) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                                   else MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(24.dp * textScale)
-                        )
-                    }
-                }
-            }
+            EventSummary(
+                event = event,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp * textScale),
+                isSelected = isSelected,
+                textScale = textScale,
+                showCloudStatus = true,
+                isDemoMode = isDemoMode
+            )
         }
         HorizontalDivider(
             modifier = Modifier.padding(horizontal = 16.dp),

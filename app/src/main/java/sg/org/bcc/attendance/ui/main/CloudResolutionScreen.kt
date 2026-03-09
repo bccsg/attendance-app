@@ -25,12 +25,9 @@ import sg.org.bcc.attendance.ui.components.AppIcon
 import sg.org.bcc.attendance.ui.components.AppIcons
 import sg.org.bcc.attendance.ui.components.AppBottomSheetHeader
 import sg.org.bcc.attendance.ui.components.AttendeeListItem
+import sg.org.bcc.attendance.ui.components.EventSummary
 import sg.org.bcc.attendance.ui.components.RotatingSyncIcon
-import sg.org.bcc.attendance.ui.components.DateIcon
-import sg.org.bcc.attendance.util.EventSuggester
 import sg.org.bcc.attendance.sync.SyncState
-import java.time.LocalTime
-import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -197,16 +194,6 @@ fun CloudResolutionScreen(
 
     if (selectedEventForResolution != null) {
         val event = selectedEventForResolution!!
-        val parts = event.title.split(" ", limit = 3)
-        val date = if (parts.isNotEmpty()) EventSuggester.parseDate(parts[0]) else null
-        val timeStr = if (parts.size > 1) parts[1] else "0000"
-        val name = if (parts.size > 2) parts[2] else "Unnamed Event"
-        val time = try {
-            LocalTime.of(timeStr.take(2).toInt(), timeStr.takeLast(2).toInt())
-        } catch (e: Exception) {
-            LocalTime.MIDNIGHT
-        }
-        val formattedTime = time.format(DateTimeFormatter.ofPattern("h:mm a", Locale.ENGLISH))
 
         ResolutionBottomSheet(
             description = "This event exists locally but its cloud sheet is missing. You can manually restore the sheet on the cloud and sync again, or use the actions below.",
@@ -225,22 +212,13 @@ fun CloudResolutionScreen(
             },
             header = {
                 AppBottomSheetHeader(
-                    title = name,
+                    title = null,
                     leadingContent = {
-                        DateIcon(date = date, textScale = 1.0f)
-                    },
-                    trailingContent = {
-                        Column(horizontalAlignment = Alignment.End) {
-                            Text(
-                                text = formattedTime,
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                            Text(
-                                text = "ID: ${event.cloudEventId ?: "N/A"}",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
-                            )
-                        }
+                        EventSummary(
+                            event = event,
+                            modifier = Modifier.padding(vertical = 16.dp),
+                            textScale = 1.0f
+                        )
                     }
                 )
             },
@@ -357,50 +335,16 @@ fun MissingEventItem(
     event: Event,
     onClick: () -> Unit
 ) {
-    // Parse title: yyMMdd HHmm Name
-    val parts = event.title.split(" ", limit = 3)
-    val date = if (parts.isNotEmpty()) EventSuggester.parseDate(parts[0]) else null
-    val timeStr = if (parts.size > 1) parts[1] else "0000"
-    val name = if (parts.size > 2) parts[2] else "Unnamed Event"
-
-    val time = try {
-        LocalTime.of(timeStr.take(2).toInt(), timeStr.takeLast(2).toInt())
-    } catch (e: Exception) {
-        LocalTime.MIDNIGHT
-    }
-    val formattedTime = time.format(DateTimeFormatter.ofPattern("h:mm a", Locale.ENGLISH))
-
     Surface(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onClick() },
         color = MaterialTheme.colorScheme.surfaceContainerLow
     ) {
-        ListItem(
-            leadingContent = {
-                DateIcon(date = date, textScale = 1.0f)
-            },
-            headlineContent = {
-                Text(
-                    text = name,
-                    style = MaterialTheme.typography.titleMedium
-                )
-            },
-            supportingContent = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = formattedTime,
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "Cloud ID: ${event.cloudEventId ?: "N/A"}",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
-                    )
-                }
-            },
-            colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+        EventSummary(
+            event = event,
+            modifier = Modifier.padding(16.dp),
+            textScale = 1.0f
         )
     }
 }
