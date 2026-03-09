@@ -19,8 +19,8 @@ android {
         applicationId = "sg.org.bcc.attendance"
         minSdk = 30
         targetSdk = 36
-        versionCode = 3
-        versionName = "1.0.0-beta.2"
+        versionCode = 4
+        versionName = "1.0.0-beta.3"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -31,16 +31,19 @@ android {
             properties.load(localPropertiesFile.inputStream())
         }
 
-        val googleClientSecretsJson = (properties.getProperty("GOOGLE_CLIENT_SECRETS_JSON")
-            ?: System.getenv("GOOGLE_CLIENT_SECRETS_JSON")?.let {
-                // If it's base64 encoded (as passed from GitHub Secrets), decode it
-                try {
-                    Base64.getDecoder().decode(it.trim()).decodeToString()
-                } catch (e: Exception) {
-                    it
-                }
-            }
-            ?: "").trim()
+        val googleClientSecretsJson =
+            (
+                properties.getProperty("GOOGLE_CLIENT_SECRETS_JSON")
+                    ?: System.getenv("GOOGLE_CLIENT_SECRETS_JSON")?.let {
+                        // If it's base64 encoded (as passed from GitHub Secrets), decode it
+                        try {
+                            Base64.getDecoder().decode(it.trim()).decodeToString()
+                        } catch (e: Exception) {
+                            it
+                        }
+                    }
+                    ?: ""
+            ).trim()
         val masterSheetId = (properties.getProperty("MASTER_SHEET_ID") ?: System.getenv("MASTER_SHEET_ID") ?: "").trim()
         val eventSheetId = (properties.getProperty("EVENT_SHEET_ID") ?: System.getenv("EVENT_SHEET_ID") ?: "").trim()
 
@@ -63,7 +66,8 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
@@ -112,9 +116,14 @@ android {
         onVariants { variant ->
             if (variant.buildType == "release") {
                 variant.outputs.forEach { output ->
-                    val abi = output.filters.find { it.filterType == com.android.build.api.variant.FilterConfiguration.FilterType.ABI }?.identifier
+                    val abi =
+                        output.filters
+                            .find { it.filterType == com.android.build.api.variant.FilterConfiguration.FilterType.ABI }
+                            ?.identifier
                     val archSuffix = if (abi != null) "-$abi" else "-universal"
-                    (output as com.android.build.api.variant.impl.VariantOutputImpl).outputFileName.set("attendance-v${output.versionName.get()}${archSuffix}.apk")
+                    (output as com.android.build.api.variant.impl.VariantOutputImpl).outputFileName.set(
+                        "attendance-v${output.versionName.get()}$archSuffix.apk",
+                    )
                 }
             }
         }
