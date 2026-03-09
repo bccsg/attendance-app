@@ -547,7 +547,7 @@ fun MainListScreen(
                                                         DropdownMenuItem(
                                                             text = { 
                                                                 Text(
-                                                                    text = "v${viewModel.appVersion}${if (viewModel.isBeta) " (Beta)" else ""}",
+                                                                    text = "v${viewModel.appVersion}",
                                                                     style = MaterialTheme.typography.bodySmall,
                                                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                                                 ) 
