@@ -15,6 +15,13 @@ android {
     namespace = "sg.org.bcc.attendance"
     compileSdk = 36
 
+    // Load secrets from local.properties or env
+    val props = Properties()
+    val localPropertiesFile = project.rootProject.file("local.properties")
+    if (localPropertiesFile.exists()) {
+        localPropertiesFile.inputStream().use { props.load(it) }
+    }
+
     defaultConfig {
         applicationId = "sg.org.bcc.attendance"
         minSdk = 30
@@ -24,16 +31,9 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        // Load secrets from local.properties or env
-        val properties = Properties()
-        val localPropertiesFile = project.rootProject.file("local.properties")
-        if (localPropertiesFile.exists()) {
-            properties.load(localPropertiesFile.inputStream())
-        }
-
         val googleClientSecretsJson =
             (
-                properties.getProperty("GOOGLE_CLIENT_SECRETS_JSON")
+                props.getProperty("GOOGLE_CLIENT_SECRETS_JSON")
                     ?: System.getenv("GOOGLE_CLIENT_SECRETS_JSON")?.let {
                         // If it's base64 encoded (as passed from GitHub Secrets), decode it
                         try {
@@ -44,8 +44,8 @@ android {
                     }
                     ?: ""
             ).trim()
-        val masterSheetId = (properties.getProperty("MASTER_SHEET_ID") ?: System.getenv("MASTER_SHEET_ID") ?: "").trim()
-        val eventSheetId = (properties.getProperty("EVENT_SHEET_ID") ?: System.getenv("EVENT_SHEET_ID") ?: "").trim()
+        val masterSheetId = (props.getProperty("MASTER_SHEET_ID") ?: System.getenv("MASTER_SHEET_ID") ?: "").trim()
+        val eventSheetId = (props.getProperty("EVENT_SHEET_ID") ?: System.getenv("EVENT_SHEET_ID") ?: "").trim()
 
         buildConfigField("String", "GOOGLE_CLIENT_SECRETS_JSON", "\"${googleClientSecretsJson.replace("\"", "\\\"")}\"")
         buildConfigField("String", "MASTER_SHEET_ID", "\"$masterSheetId\"")
@@ -54,17 +54,20 @@ android {
 
     signingConfigs {
         create("release") {
-            val storeFileEnv = System.getenv("RELEASE_STORE_FILE")
+            val storeFileEnv = System.getenv("RELEASE_STORE_FILE") ?: props.getProperty("RELEASE_STORE_FILE")
             if (storeFileEnv != null) {
                 storeFile = file(storeFileEnv)
-                storePassword = System.getenv("RELEASE_STORE_PASSWORD")
-                keyAlias = System.getenv("RELEASE_KEY_ALIAS")
-                keyPassword = System.getenv("RELEASE_KEY_PASSWORD")
+                storePassword = System.getenv("RELEASE_STORE_PASSWORD") ?: props.getProperty("RELEASE_STORE_PASSWORD")
+                keyAlias = System.getenv("RELEASE_KEY_ALIAS") ?: props.getProperty("RELEASE_KEY_ALIAS")
+                keyPassword = System.getenv("RELEASE_KEY_PASSWORD") ?: props.getProperty("RELEASE_KEY_PASSWORD")
             }
         }
     }
 
     buildTypes {
+        debug {
+            signingConfig = signingConfigs.getByName("release")
+        }
         release {
             isMinifyEnabled = true
             isShrinkResources = true
