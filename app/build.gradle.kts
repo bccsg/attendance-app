@@ -26,8 +26,8 @@ android {
         applicationId = "sg.org.bcc.attendance"
         minSdk = 30
         targetSdk = 36
-        versionCode = 10
-        versionName = "1.0.0-beta.9"
+        versionCode = 120
+        versionName = "1.0.0-beta.11"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 

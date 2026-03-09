@@ -3,13 +3,16 @@ package sg.org.bcc.attendance.util
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
-import io.github.z4kn4fein.semver.Version
 import io.github.z4kn4fein.semver.toVersion
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.get
+import io.ktor.client.request.prepareGet
+import io.ktor.client.statement.bodyAsChannel
+import io.ktor.http.contentLength
 import io.ktor.serialization.kotlinx.json.json
+import io.ktor.utils.io.readAvailable
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -110,13 +113,61 @@ class AppUpdateManager(private val context: Context) {
         }
     }
 
-    suspend fun downloadApk(url: String, onProgress: (Float) -> Unit): File? {
+    suspend fun downloadApk(url: String, onProgress: (Long, Long) -> Unit): File? {
+        if (url == "https://example.com/mock.apk") {
+            return mockDownloadCurrentApk(onProgress)
+        }
         return try {
-            val response = client.get(url)
             val file = File(context.cacheDir, "update.apk")
-            val bytes = response.body<ByteArray>()
-            FileOutputStream(file).use { it.write(bytes) }
+            
+            client.prepareGet(url).execute { response ->
+                val channel = response.bodyAsChannel()
+                val contentLength = response.contentLength() ?: -1L
+                var totalBytesRead = 0L
+                val buffer = ByteArray(8192)
+                
+                FileOutputStream(file).use { output ->
+                    while (true) {
+                        val read = channel.readAvailable(buffer)
+                        if (read == -1) break
+                        if (read > 0) {
+                            output.write(buffer, 0, read)
+                            totalBytesRead += read
+                            onProgress(totalBytesRead, contentLength)
+                        }
+                    }
+                }
+            }
             file
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    private suspend fun mockDownloadCurrentApk(onProgress: (Long, Long) -> Unit): File? {
+        return try {
+            val sourceFile = File(context.applicationInfo.sourceDir)
+            val targetFile = File(context.cacheDir, "update.apk")
+            val totalBytes = sourceFile.length()
+            var bytesRead = 0L
+
+            sourceFile.inputStream().use { input ->
+                targetFile.outputStream().use { output ->
+                    // Larger buffer to speed up simulation (256 KB)
+                    val buffer = ByteArray(256 * 1024)
+                    var read: Int
+                    while (input.read(buffer).also { read = it } != -1) {
+                        output.write(buffer, 0, read)
+                        bytesRead += read
+                        onProgress(bytesRead, totalBytes)
+                        // Adjust delay to reach ~5 seconds total.
+                        // Assuming ~60MB APK and 256KB buffer -> ~240 reads.
+                        // 5000ms / 240 ≈ 20ms delay.
+                        kotlinx.coroutines.delay(20)
+                    }
+                }
+            }
+            targetFile
         } catch (e: Exception) {
             null
         }

@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.isActive
 import sg.org.bcc.attendance.data.local.entities.Attendee
 import sg.org.bcc.attendance.data.local.entities.Event
 import sg.org.bcc.attendance.data.repository.AttendanceRepository
@@ -66,6 +67,14 @@ class MainListViewModel @Inject constructor(
     private val _isDownloadingUpdate = MutableStateFlow(false)
     val isDownloadingUpdate: StateFlow<Boolean> = _isDownloadingUpdate.asStateFlow()
 
+    private val _downloadProgress = MutableStateFlow(0f)
+    val downloadProgress: StateFlow<Float> = _downloadProgress.asStateFlow()
+
+    private val _showUpdateDialog = MutableStateFlow(false)
+    val showUpdateDialog: StateFlow<Boolean> = _showUpdateDialog.asStateFlow()
+
+    private var updateDownloadJob: kotlinx.coroutines.Job? = null
+
     fun checkForUpdates() {
         viewModelScope.launch {
             _isUpdateDismissed.value = false
@@ -73,17 +82,42 @@ class MainListViewModel @Inject constructor(
         }
     }
 
+    fun setShowUpdateDialog(show: Boolean) {
+        _showUpdateDialog.value = show
+    }
+
+    fun setMockUpdate() {
+        _appUpdateState.value = AppUpdate.VersionsAvailable(
+            mainline = AppUpdate.NewVersion("9.9.9", "https://example.com/mock.apk", false)
+        )
+    }
+
     fun downloadAndInstallUpdate(url: String) {
-        viewModelScope.launch {
+        updateDownloadJob?.cancel()
+        updateDownloadJob = viewModelScope.launch {
             _isDownloadingUpdate.value = true
-            val file = updateManager.downloadApk(url) { /* progress */ }
+            _downloadProgress.value = 0f
+            val file = updateManager.downloadApk(url) { bytesRead, totalBytes ->
+                if (totalBytes > 0) {
+                    _downloadProgress.value = bytesRead.toFloat() / totalBytes.toFloat()
+                }
+            }
             _isDownloadingUpdate.value = false
             if (file != null) {
                 apkInstaller.install(file)
             } else {
-                _appUpdateState.value = AppUpdate.Error("Download failed")
+                if (isActive) { // Don't show error if it was cancelled
+                    _appUpdateState.value = AppUpdate.Error("Download failed")
+                }
             }
         }
+    }
+
+    fun cancelUpdateDownload() {
+        updateDownloadJob?.cancel()
+        updateDownloadJob = null
+        _isDownloadingUpdate.value = false
+        _downloadProgress.value = 0f
     }
 
     fun dismissUpdate() {
