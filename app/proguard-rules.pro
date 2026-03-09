@@ -42,6 +42,9 @@
 -dontwarn com.google.api.client.**
 -dontwarn com.google.j2objc.annotations.**
 -dontwarn com.google.errorprone.annotations.**
+-dontwarn javax.naming.**
+-dontwarn org.ietf.jgss.**
+-dontwarn org.apache.http.**
 
 # Preserving fields used for JSON serialization (needed for GoogleClientSecrets)
 -keepclassmembers class * {
