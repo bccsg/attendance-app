@@ -552,6 +552,14 @@ fun MainListScreen(
                                                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                                                 ) 
                                                             },
+                                                            leadingIcon = {
+                                                                AppIcon(
+                                                                    resourceId = AppIcons.CheckCircle,
+                                                                    contentDescription = null,
+                                                                    modifier = Modifier.size(18.dp),
+                                                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                                                )
+                                                            },
                                                             onClick = {
                                                                 showMenu = false
                                                                 scope.launch {
