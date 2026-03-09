@@ -35,6 +35,19 @@
 *   **Cleanup**: The repository handles the purge of demo state upon first real sync. See [DEMO_MODE.md](DEMO_MODE.md).
 *   **State Separation**: Demo mode is mutually exclusive with any authenticated identity. Token expiry does *not* trigger fallback to Demo Mode; it triggers an "Action Required" state.
 
+## Build Configuration
+
+### ABI Splits & Optimization
+To minimize APK size and improve performance, the application uses **ABI Splits** and **R8 Minification**:
+*   **Targeting**: Currently optimized for `arm64-v8a` (modern Android devices). Universal builds are disabled in release to reduce download size.
+*   **Minification**: `isMinifyEnabled` and `isShrinkResources` are active for all release builds. Critical libraries (Hilt, Room, Serialization) are protected via `proguard-rules.pro`.
+*   **Version Code Multiplexing**: To prevent version conflicts across different architectures, the final `versionCode` is calculated as `baseVersionCode * 10 + ABI_CODE`.
+    *   `arm64-v8a`: Suffix `4`
+    *   `armeabi-v7a`: Suffix `3`
+    *   `x86_64`: Suffix `2`
+    *   `x86`: Suffix `1`
+    *   Example: Base `versionCode 5` becomes `54` for an `arm64-v8a` APK.
+
 ## Fuzzy Search Implementation
 *   **Engine**: SQLite FTS4 for high-speed indexing.
 *   **Scoring**: Kotlin-based layer that applies weights:
