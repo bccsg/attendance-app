@@ -71,12 +71,25 @@ The following secrets are stored in **GitHub Actions Secrets**:
 | `RELEASE_KEY_ALIAS` | The alias for the signing key | Plain text |
 | `RELEASE_KEY_PASSWORD` | The password for the specific key | Plain text |
 | `GOOGLE_CLIENT_SECRETS_BASE64` | Google OAuth Client Secret JSON | Base64 string |
+| `MASTER_SHEET_ID` | Google Sheets ID for Master List | Plain text |
+| `EVENT_SHEET_ID` | Google Sheets ID for Event Records | Plain text |
+
+### Synchronizing Secrets
+To synchronize secrets from your `local.properties` to GitHub Repository Secrets, you can use the `attendance-sync-secrets` skill:
+
+```bash
+# In Gemini CLI
+/skills activate attendance-sync-secrets
+# Then ask to sync
+Sync my local.properties secrets to GitHub
+```
 
 ### Critical Backups
 You **MUST** maintain secure, offline copies of:
 1.  **`attendance-release.jks`**: Required for local builds and recovery.
 2.  **Keystore/Key Passwords**: Irrecoverable if lost.
 3.  **Google OAuth Client Secret JSON**: Required for Sheets API access.
+4.  **Sheet IDs**: The Master and Event Spreadsheet IDs.
 
 ---
 
@@ -89,6 +102,11 @@ export RELEASE_STORE_PASSWORD=your_password
 export RELEASE_KEY_ALIAS=release-key
 export RELEASE_KEY_PASSWORD=your_password
 export GOOGLE_CLIENT_SECRETS_JSON=$(cat client_secret.json | base64)
+export MASTER_SHEET_ID=your_master_id
+export EVENT_SHEET_ID=your_event_id
 
 ./gradlew assembleRelease
 ```
+
+### Minification and ProGuard
+Release builds enable minification (`isMinifyEnabled = true`). Ensure that `app/proguard-rules.pro` contains the necessary keep rules for Google API Client and Gson to avoid runtime crashes during authentication.

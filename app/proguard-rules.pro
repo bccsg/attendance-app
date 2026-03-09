@@ -34,3 +34,25 @@
 -keep class sg.org.bcc.attendance.data.local.entities.** { *; }
 -keep class sg.org.bcc.attendance.data.remote.** { *; }
 -keep class sg.org.bcc.attendance.util.qr.QrInfo { *; }
+
+# Google API Client
+-keep class com.google.api.client.** { *; }
+-keep class com.google.api.services.sheets.v4.** { *; }
+-keep interface com.google.api.client.** { *; }
+-dontwarn com.google.api.client.**
+-dontwarn com.google.j2objc.annotations.**
+-dontwarn com.google.errorprone.annotations.**
+
+# Preserving fields used for JSON serialization (needed for GoogleClientSecrets)
+-keepclassmembers class * {
+  @com.google.api.client.util.Key <fields>;
+}
+
+# Explicitly keep GoogleClientSecrets and its inner classes
+-keep class com.google.api.client.googleapis.auth.oauth2.GoogleClientSecrets { *; }
+-keep class com.google.api.client.googleapis.auth.oauth2.GoogleClientSecrets$Details { *; }
+
+# Gson
+-keep class com.google.gson.** { *; }
+-keep class com.google.api.client.json.gson.** { *; }
+-dontwarn com.google.gson.**
