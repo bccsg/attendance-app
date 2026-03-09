@@ -29,6 +29,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
@@ -137,6 +138,7 @@ fun MainListScreen(
     
     var lastBackPressTime by remember { mutableLongStateOf(0L) }
     val context = LocalContext.current
+    val focusManager = LocalFocusManager.current
 
     val fullyQueuedGroups = remember(groupMembersMap, queueIds) {
         groupMembersMap.filter { (_, members) -> 
@@ -192,6 +194,7 @@ fun MainListScreen(
 
     LaunchedEffect(activeSheet) {
         if (isAnySheetActive) {
+            focusManager.clearFocus()
             scaffoldState.bottomSheetState.expand()
         } else {
             scaffoldState.bottomSheetState.hide()
@@ -221,14 +224,18 @@ fun MainListScreen(
             }
         }
     
-        LaunchedEffect(isSearchActive) {
-            if (isSearchActive) {
+        LaunchedEffect(isSearchActive, isAnySheetActive) {
+            if (isSearchActive && !isAnySheetActive) {
                 focusRequester.requestFocus()
             }
         }
-    
-        LaunchedEffect(Unit) {
-            viewModel.snackbarMessageEvent.collect { message ->
+
+        LaunchedEffect(currentEventId) {
+            isSearchActive = false
+            viewModel.onSearchQueryChange("")
+        }
+
+        LaunchedEffect(Unit) {            viewModel.snackbarMessageEvent.collect { message ->
                 val duration = if (message.startsWith("Imported")) 1500L else 4000L
                 val job = scope.launch {
                     snackbarHostState.showSnackbar(
@@ -299,7 +306,7 @@ fun MainListScreen(
                     Scaffold(
                         snackbarHost = { },
                         floatingActionButton = {
-                            if (!isSearchActive && (isSelectionMode || queueCount > 0)) {
+                            if (isSelectionMode || queueCount > 0) {
                                 val fabContainerColor by animateColorAsState(
                                     targetValue = if (isSelectionMode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primaryContainer,
                                     label = "FABContainerColor"
@@ -884,6 +891,7 @@ fun MainBottomSheetContent(
             .fillMaxWidth()
             .heightIn(max = availableHeight)
             .navigationBarsPadding()
+            .imePadding()
     ) {
         when (activeSheet) {
             SheetType.ATTENDEE_DETAIL -> {
