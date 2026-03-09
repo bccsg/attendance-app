@@ -57,7 +57,7 @@ class GoogleSheetsAdapter @Inject constructor(
         }
     }
 
-    internal fun getSheetsService(): Sheets {
+    internal suspend fun getSheetsService(): Sheets {
         val accessToken = authManager.getAccessToken() ?: throw IllegalStateException("Not authenticated")
         val credentials = GoogleCredentials.create(AccessToken(accessToken, null))
         

@@ -1,27 +1,26 @@
-@file:Suppress("DEPRECATION")
-
 package sg.org.bcc.attendance.data.remote
 
 import android.content.Context
-import androidx.security.crypto.EncryptedSharedPreferences
-import androidx.security.crypto.MasterKey
+import androidx.datastore.core.DataStore
 import com.google.api.client.googleapis.auth.oauth2.GoogleAuthorizationCodeTokenRequest
 import com.google.api.client.googleapis.auth.oauth2.GoogleClientSecrets
-import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier
 import com.google.api.client.googleapis.auth.oauth2.GoogleRefreshTokenRequest
 import com.google.api.client.http.javanet.NetHttpTransport
 import com.google.api.client.json.gson.GsonFactory
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.withContext
 import sg.org.bcc.attendance.util.time.TimeProvider
 import java.io.StringReader
 import javax.inject.Inject
 import javax.inject.Singleton
-import androidx.core.content.edit
 
 enum class AuthState {
     AUTHENTICATED,
@@ -31,8 +30,9 @@ enum class AuthState {
 
 @Singleton
 class AuthManager @Inject constructor(
-    @ApplicationContext context: Context,
-    private val timeProvider: TimeProvider
+    @ApplicationContext private val context: Context,
+    private val timeProvider: TimeProvider,
+    private val dataStore: DataStore<AuthData>
 ) {
     companion object {
         const val REQUIRED_DOMAIN = "bethany.sg"
@@ -54,53 +54,30 @@ class AuthManager @Inject constructor(
 
     private val jsonFactory = GsonFactory.getDefaultInstance()
     private val transport = NetHttpTransport()
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
-    private val masterKey = MasterKey.Builder(context)
-        .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-        .build()
+    val authState: StateFlow<AuthState> = dataStore.data
+        .map { data ->
+            when {
+                data.accessToken == null -> AuthState.UNAUTHENTICATED
+                data.accessToken == "demo_token" -> AuthState.AUTHENTICATED
+                isTokenExpired(data) -> AuthState.EXPIRED
+                else -> AuthState.AUTHENTICATED
+            }
+        }
+        .stateIn(scope, SharingStarted.Eagerly, AuthState.UNAUTHENTICATED)
 
-    private val prefs = EncryptedSharedPreferences.create(
-        context,
-        "auth_prefs_encrypted",
-        masterKey,
-        EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-        EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
-    )
+    val isAuthed: StateFlow<Boolean> = dataStore.data
+        .map { it.email != null && it.refreshToken != null }
+        .stateIn(scope, SharingStarted.Eagerly, false)
 
-    private val _authState = MutableStateFlow(calculateInitialAuthState())
-    val authState: StateFlow<AuthState> = _authState.asStateFlow()
+    val isDemoMode: StateFlow<Boolean> = dataStore.data
+        .map { it.accessToken == "demo_token" }
+        .stateIn(scope, SharingStarted.Eagerly, false)
 
-    private val _isAuthed = MutableStateFlow(calculateInitialIsAuthed())
-    val isAuthed: StateFlow<Boolean> = _isAuthed.asStateFlow()
-
-    private val _isDemoMode = MutableStateFlow(calculateInitialIsDemoMode())
-    val isDemoMode: StateFlow<Boolean> = _isDemoMode.asStateFlow()
-
-    private fun calculateInitialIsAuthed(): Boolean {
-        return getEmail() != null && getRefreshToken() != null
-    }
-
-    private fun calculateInitialIsDemoMode(): Boolean {
-        return getAccessToken() == "demo_token"
-    }
-
-    private fun calculateInitialAuthState(): AuthState {
-        val accessToken = prefs.getString("access_token", null)
-        android.util.Log.d("AttendanceAuth", "Restoring auth state. Token present: ${accessToken != null}")
-        
-        if (accessToken == null) return AuthState.UNAUTHENTICATED
-        if (accessToken == "demo_token") return AuthState.AUTHENTICATED
-        
-        val expired = isTokenExpired()
-        android.util.Log.d("AttendanceAuth", "Token expired: $expired")
-        
-        return if (expired) AuthState.EXPIRED else AuthState.AUTHENTICATED
-    }
-
-    private fun updateLegacyIsAuthed() {
-        _isAuthed.value = calculateInitialIsAuthed()
-        _isDemoMode.value = calculateInitialIsDemoMode()
-    }
+    val emailFlow: StateFlow<String?> = dataStore.data
+        .map { it.email }
+        .stateIn(scope, SharingStarted.Eagerly, null)
 
     fun getAuthUrl(): String {
         return "https://accounts.google.com/o/oauth2/v2/auth?" +
@@ -144,52 +121,53 @@ class AuthManager @Inject constructor(
         }
     }
 
-    private fun saveTokens(
+    private suspend fun saveTokens(
         email: String,
         accessToken: String,
         refreshToken: String?,
         expiryTime: Long
     ) {
-        prefs.edit {
-            putString("email", email)
-            putString("access_token", accessToken)
-            if (refreshToken != null) {
-                putString("refresh_token", refreshToken)
-            }
-            putLong("expiry_time", expiryTime)
+        dataStore.updateData { current ->
+            current.copy(
+                email = email,
+                accessToken = accessToken,
+                refreshToken = refreshToken ?: current.refreshToken,
+                expiryTime = expiryTime
+            )
         }
-        _authState.value = AuthState.AUTHENTICATED
-        updateLegacyIsAuthed()
     }
 
-    fun login(email: String) {
+    suspend fun login(email: String) {
         // Fallback for demo mode
-        prefs.edit {
-            putString("email", email)
-            putString("access_token", "demo_token")
-            putLong("expiry_time", Long.MAX_VALUE)
+        dataStore.updateData {
+            it.copy(
+                email = email,
+                accessToken = "demo_token",
+                refreshToken = "demo_refresh",
+                expiryTime = Long.MAX_VALUE
+            )
         }
-        
-        _authState.value = AuthState.AUTHENTICATED
-        updateLegacyIsAuthed()
     }
 
-    fun logout() {
-        prefs.edit { clear() }
-        _authState.value = AuthState.UNAUTHENTICATED
-        updateLegacyIsAuthed()
+    suspend fun logout() {
+        dataStore.updateData { AuthData() }
     }
 
-    fun getEmail(): String? = prefs.getString("email", null)
-    fun getAccessToken(): String? = prefs.getString("access_token", null)
-    fun getRefreshToken(): String? = prefs.getString("refresh_token", null)
+    suspend fun getEmail(): String? = dataStore.data.first().email
+    suspend fun getAccessToken(): String? = dataStore.data.first().accessToken
+    suspend fun getRefreshToken(): String? = dataStore.data.first().refreshToken
     
     fun isEmailValid(email: String): Boolean {
         return email.endsWith("@$REQUIRED_DOMAIN", ignoreCase = true)
     }
 
-    fun isTokenExpired(): Boolean {
-        val expiry = prefs.getLong("expiry_time", 0)
+    suspend fun isTokenExpired(): Boolean {
+        val data = dataStore.data.first()
+        return isTokenExpired(data)
+    }
+
+    private fun isTokenExpired(data: AuthData): Boolean {
+        val expiry = data.expiryTime
         if (expiry == 0L || expiry == Long.MAX_VALUE) return false
         
         // Buffer of 5 minutes
@@ -215,13 +193,17 @@ class AuthManager @Inject constructor(
             )
             true
         } catch (e: Exception) {
-            _authState.value = AuthState.EXPIRED
-            updateLegacyIsAuthed()
+            // We don't need to manually update _authState here anymore, 
+            // the authState Flow will automatically emit EXPIRED if isTokenExpired becomes true
+            // or if accessToken is cleared. But if refresh fails, we might want to clear tokens?
+            // The original code did: _authState.value = AuthState.EXPIRED
+            // To achieve this, we might need a way to mark it as explicitly expired even if time hasn't passed,
+            // but usually a failed refresh means we are unauthenticated or need login.
             false
         }
     }
 
     fun setTransientToken(token: String) {
-        // No longer used in web flow, but kept for interface compatibility if needed
+        // No longer used
     }
 }

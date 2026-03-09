@@ -24,7 +24,7 @@ class GoogleSheetsAdapterTest {
         authManager = mockk(relaxed = true)
         mockService = mockk(relaxed = true)
         adapter = spyk(GoogleSheetsAdapter(authManager))
-        every { adapter.getSheetsService() } returns mockService
+        coEvery { adapter.getSheetsService() } returns mockService
     }
 
     @Test

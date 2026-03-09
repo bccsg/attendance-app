@@ -26,8 +26,8 @@ android {
         applicationId = "sg.org.bcc.attendance"
         minSdk = 30
         targetSdk = 36
-        versionCode = 120
-        versionName = "1.0.0-beta.11"
+        versionCode = 121
+        versionName = "1.0.0-beta.12"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -183,6 +183,9 @@ dependencies {
     implementation(libs.androidxHiltWork)
     implementation(libs.androidxSecurityCrypto)
     implementation(libs.androidxBrowser)
+    implementation(libs.androidxDatastore)
+    implementation(libs.androidxDatastorePreferences)
+    implementation(libs.tinkAndroid)
     implementation(libs.googleApiClientAndroid)
     implementation(libs.googleSheetsApi)
     implementation(libs.googleAuthLibrary)

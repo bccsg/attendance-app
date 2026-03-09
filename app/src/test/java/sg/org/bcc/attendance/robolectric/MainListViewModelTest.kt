@@ -42,6 +42,7 @@ class MainListViewModelTest {
     private val isAuthedFlow = MutableStateFlow(false)
     private val authStateFlow = MutableStateFlow(sg.org.bcc.attendance.data.remote.AuthState.UNAUTHENTICATED)
     private val isDemoModeFlow = MutableStateFlow(true)
+    private val emailFlow = MutableStateFlow<String?>(null)
     private val syncProgressFlow = MutableStateFlow(SyncProgress(0, nextScheduledPull = null, lastPullTime = null, lastPullStatus = null, lastErrors = emptyList()))
     private val isOnlineFlow = MutableStateFlow(true)
     private val testDispatcher = UnconfinedTestDispatcher()
@@ -60,6 +61,7 @@ class MainListViewModelTest {
         every { authManager.isAuthed } returns isAuthedFlow
         every { authManager.authState } returns authStateFlow
         every { authManager.isDemoMode } returns isDemoModeFlow
+        every { authManager.emailFlow } returns emailFlow
         
         every { syncStatusManager.syncProgress } returns syncProgressFlow
         every { syncStatusManager.isOnline } returns isOnlineFlow
@@ -82,10 +84,11 @@ class MainListViewModelTest {
         every { repository.getMasterListUrl() } returns "https://master"
         every { repository.getEventAttendanceUrl(any()) } returns "https://event"
         
-        every { authManager.getEmail() } returns "test@user.com"
+        io.mockk.coEvery { authManager.getEmail() } returns "test@user.com"
         every { authManager.isAuthed } returns isAuthedFlow
         every { authManager.authState } returns authStateFlow
         every { authManager.isDemoMode } returns isDemoModeFlow
+        every { authManager.emailFlow } returns emailFlow
         io.mockk.coEvery { repository.syncMasterListWithDetailedResult(any(), any(), any()) } returns (true to "OK")
         io.mockk.coEvery { repository.retrySync() } returns Unit
         io.mockk.coEvery { repository.getUpcomingEvent(any()) } returns null
@@ -308,7 +311,7 @@ class MainListViewModelTest {
     @Test
     fun `handleOAuthCode should exchange code and sync`() = runTest {
         // Transition from null to real email
-        every { authManager.getEmail() } returnsMany listOf(null, "new@user.com")
+        io.mockk.coEvery { authManager.getEmail() } returnsMany listOf(null, "new@user.com")
         isDemoModeFlow.value = false
         
         io.mockk.coEvery { repository.clearAllData() } returns Unit
@@ -347,7 +350,7 @@ class MainListViewModelTest {
 
     @Test
     fun `handleOAuthCode should show error if exchange fails`() = runTest {
-        every { authManager.getEmail() } returns null
+        io.mockk.coEvery { authManager.getEmail() } returns null
         
         // Mock failed exchange
         io.mockk.coEvery { authManager.exchangeCodeForTokens("test_code") } returns false
@@ -364,7 +367,7 @@ class MainListViewModelTest {
     @Test
     fun `handleOAuthCode should preserve data if the same user re-authenticates`() = runTest {
         // Mock existing identity
-        every { authManager.getEmail() } returnsMany listOf("same@user.com", "same@user.com")
+        io.mockk.coEvery { authManager.getEmail() } returnsMany listOf("same@user.com", "same@user.com")
         isDemoModeFlow.value = false
         
         io.mockk.coEvery { authManager.exchangeCodeForTokens("test_code") } returns true

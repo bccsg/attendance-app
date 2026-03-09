@@ -175,9 +175,9 @@ class MainListViewModel @Inject constructor(
         else repository.getAllEvents().map { events -> events.find { it.id == id } }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
-    val cloudProfile: StateFlow<CloudProfile?> = combine(isAuthed, currentEvent) { authed, event ->
+    val cloudProfile: StateFlow<CloudProfile?> = combine(isAuthed, currentEvent, authManager.emailFlow) { authed, event, email ->
         CloudProfile(
-            email = if (authed) (authManager.getEmail() ?: "") else "",
+            email = if (authed) (email ?: "") else "",
             masterListUrl = repository.getMasterListUrl(),
             eventAttendanceUrl = repository.getEventAttendanceUrl(event)
         )
