@@ -103,6 +103,7 @@ fun MainListScreen(
     val textScale by viewModel.textScale.collectAsState()
     val isOnline by viewModel.isOnline.collectAsState()
     val appUpdateState by viewModel.appUpdateState.collectAsState()
+    val isUpdateDismissed by viewModel.isUpdateDismissed.collectAsState()
     val isDownloadingUpdate by viewModel.isDownloadingUpdate.collectAsState()
 
     val totalAttendeesCount by viewModel.totalAttendeesCount.collectAsState()
@@ -787,7 +788,7 @@ fun MainListScreen(
                             }
 
                             AnimatedVisibility(
-                                visible = updateToShow != null,
+                                visible = updateToShow != null && !isUpdateDismissed,
                                 enter = expandVertically() + fadeIn(),
                                 exit = shrinkVertically() + fadeOut()
                             ) {

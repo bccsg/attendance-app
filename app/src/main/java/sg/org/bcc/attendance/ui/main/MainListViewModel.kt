@@ -60,11 +60,15 @@ class MainListViewModel @Inject constructor(
     private val _appUpdateState = MutableStateFlow<AppUpdate>(AppUpdate.UpToDate)
     val appUpdateState: StateFlow<AppUpdate> = _appUpdateState.asStateFlow()
 
+    private val _isUpdateDismissed = MutableStateFlow(false)
+    val isUpdateDismissed: StateFlow<Boolean> = _isUpdateDismissed.asStateFlow()
+
     private val _isDownloadingUpdate = MutableStateFlow(false)
     val isDownloadingUpdate: StateFlow<Boolean> = _isDownloadingUpdate.asStateFlow()
 
     fun checkForUpdates() {
         viewModelScope.launch {
+            _isUpdateDismissed.value = false
             _appUpdateState.value = updateManager.checkForUpdates()
         }
     }
@@ -83,7 +87,7 @@ class MainListViewModel @Inject constructor(
     }
 
     fun dismissUpdate() {
-        _appUpdateState.value = AppUpdate.UpToDate
+        _isUpdateDismissed.value = true
     }
 
     private val prefs = context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
