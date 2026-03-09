@@ -59,3 +59,16 @@
 -keep class com.google.gson.** { *; }
 -keep class com.google.api.client.json.gson.** { *; }
 -dontwarn com.google.gson.**
+
+# CameraX
+-keep class androidx.camera.core.** { *; }
+-keep class androidx.camera.camera2.** { *; }
+-keep class androidx.camera.lifecycle.** { *; }
+-keep class androidx.camera.view.** { *; }
+-dontwarn androidx.camera.view.**
+
+# ML Kit Barcode Scanning
+-keep class com.google.mlkit.vision.barcode.** { *; }
+-keep class com.google.mlkit.vision.common.** { *; }
+-keep class com.google.android.gms.internal.mlkit_vision_barcode.** { *; }
+-keep class com.google.android.gms.internal.mlkit_vision_common.** { *; }
