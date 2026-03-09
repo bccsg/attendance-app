@@ -19,8 +19,8 @@ android {
         applicationId = "sg.org.bcc.attendance"
         minSdk = 30
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "1.0.0-beta.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -31,19 +31,18 @@ android {
             properties.load(localPropertiesFile.inputStream())
         }
 
-        val googleClientSecretsJson =
-            properties.getProperty("GOOGLE_CLIENT_SECRETS_JSON")
-                ?: System.getenv("GOOGLE_CLIENT_SECRETS_JSON")?.let {
-                    // If it's base64 encoded (as passed from GitHub Secrets), decode it
-                    try {
-                        Base64.getDecoder().decode(it).decodeToString()
-                    } catch (e: Exception) {
-                        it
-                    }
+        val googleClientSecretsJson = (properties.getProperty("GOOGLE_CLIENT_SECRETS_JSON")
+            ?: System.getenv("GOOGLE_CLIENT_SECRETS_JSON")?.let {
+                // If it's base64 encoded (as passed from GitHub Secrets), decode it
+                try {
+                    Base64.getDecoder().decode(it.trim()).decodeToString()
+                } catch (e: Exception) {
+                    it
                 }
-                ?: ""
-        val masterSheetId = properties.getProperty("MASTER_SHEET_ID") ?: System.getenv("MASTER_SHEET_ID") ?: ""
-        val eventSheetId = properties.getProperty("EVENT_SHEET_ID") ?: System.getenv("EVENT_SHEET_ID") ?: ""
+            }
+            ?: "").trim()
+        val masterSheetId = (properties.getProperty("MASTER_SHEET_ID") ?: System.getenv("MASTER_SHEET_ID") ?: "").trim()
+        val eventSheetId = (properties.getProperty("EVENT_SHEET_ID") ?: System.getenv("EVENT_SHEET_ID") ?: "").trim()
 
         buildConfigField("String", "GOOGLE_CLIENT_SECRETS_JSON", "\"${googleClientSecretsJson.replace("\"", "\\\"")}\"")
         buildConfigField("String", "MASTER_SHEET_ID", "\"$masterSheetId\"")
