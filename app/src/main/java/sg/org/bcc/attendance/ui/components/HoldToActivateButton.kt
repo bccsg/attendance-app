@@ -47,6 +47,7 @@ fun HoldToActivateButton(
     holdDurationMs: Long = 1000L,
     color: Color = MaterialTheme.colorScheme.primary,
     enabled: Boolean = true,
+    onIncompleteHold: () -> Unit = {},
     content: @Composable (Color, Float) -> Unit = { tint, alpha ->
         Icon(
             painter = painterResource(id = iconResId),
@@ -126,11 +127,19 @@ fun HoldToActivateButton(
                 if (!enabled) return@pointerInput
                 detectTapGestures(
                     onPress = {
+                        val startTime = System.currentTimeMillis()
                         isPressing = true
+                        var released = false
                         try {
                             awaitRelease()
+                            released = true
                         } finally {
                             isPressing = false
+                            val duration = System.currentTimeMillis() - startTime
+                            // Trigger help if user held for a meaningful amount but released before success
+                            if (released && duration in 100L until holdDurationMs) {
+                                onIncompleteHold()
+                            }
                         }
                     }
                 )
@@ -173,32 +182,32 @@ fun HoldToActivateButton(
                     val r = cornerRadius
 
                     moveTo(centerX, top)
-                    lineTo(right - r, top)
-                    arcTo(
-                        rect = androidx.compose.ui.geometry.Rect(right - 2 * r, top, right, top + 2 * r),
-                        startAngleDegrees = 270f,
-                        sweepAngleDegrees = 90f,
-                        forceMoveTo = false
-                    )
-                    lineTo(right, bottom - r)
-                    arcTo(
-                        rect = androidx.compose.ui.geometry.Rect(right - 2 * r, bottom - 2 * r, right, bottom),
-                        startAngleDegrees = 0f,
-                        sweepAngleDegrees = 90f,
-                        forceMoveTo = false
-                    )
-                    lineTo(left + r, bottom)
-                    arcTo(
-                        rect = androidx.compose.ui.geometry.Rect(left, bottom - 2 * r, left + 2 * r, bottom),
-                        startAngleDegrees = 90f,
-                        sweepAngleDegrees = 90f,
-                        forceMoveTo = false
-                    )
-                    lineTo(left, top + r)
+                    lineTo(left + r, top)
                     arcTo(
                         rect = androidx.compose.ui.geometry.Rect(left, top, left + 2 * r, top + 2 * r),
+                        startAngleDegrees = 270f,
+                        sweepAngleDegrees = -90f,
+                        forceMoveTo = false
+                    )
+                    lineTo(left, bottom - r)
+                    arcTo(
+                        rect = androidx.compose.ui.geometry.Rect(left, bottom - 2 * r, left + 2 * r, bottom),
                         startAngleDegrees = 180f,
-                        sweepAngleDegrees = 90f,
+                        sweepAngleDegrees = -90f,
+                        forceMoveTo = false
+                    )
+                    lineTo(right - r, bottom)
+                    arcTo(
+                        rect = androidx.compose.ui.geometry.Rect(right - 2 * r, bottom - 2 * r, right, bottom),
+                        startAngleDegrees = 90f,
+                        sweepAngleDegrees = -90f,
+                        forceMoveTo = false
+                    )
+                    lineTo(right, top + r)
+                    arcTo(
+                        rect = androidx.compose.ui.geometry.Rect(right - 2 * r, top, right, top + 2 * r),
+                        startAngleDegrees = 0f,
+                        sweepAngleDegrees = -90f,
                         forceMoveTo = false
                     )
                     close()

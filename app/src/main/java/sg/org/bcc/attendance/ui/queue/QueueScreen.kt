@@ -440,6 +440,15 @@ fun QueueScreen(
                         color = MaterialTheme.colorScheme.secondary,
                         modifier = Modifier.weight(0.34f),
                         enabled = readyCount > 0 && processingIds.isEmpty(),
+                        onIncompleteHold = {
+                            scope.launch {
+                                snackbarHostState.currentSnackbarData?.dismiss()
+                                snackbarHostState.showSnackbar(
+                                    message = "Hold to mark as Absent",
+                                    duration = SnackbarDuration.Short
+                                )
+                            }
+                        },
                         content = { tint, alpha ->
                             AppIcon(
                                 resourceId = AppIcons.PersonCancel,
@@ -457,7 +466,16 @@ fun QueueScreen(
                         height = 64.dp,
                         holdDurationMs = 1000L,
                         color = MaterialTheme.colorScheme.primary,
-                        enabled = readyCount > 0 && processingIds.isEmpty()
+                        enabled = readyCount > 0 && processingIds.isEmpty(),
+                        onIncompleteHold = {
+                            scope.launch {
+                                snackbarHostState.currentSnackbarData?.dismiss()
+                                snackbarHostState.showSnackbar(
+                                    message = "Hold to mark as Present",
+                                    duration = SnackbarDuration.Short
+                                )
+                            }
+                        }
                     )
                 }
             }
