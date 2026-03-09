@@ -15,6 +15,9 @@ import sg.org.bcc.attendance.util.EventSuggester
 import android.content.Context
 import dagger.hilt.android.qualifiers.ApplicationContext
 import sg.org.bcc.attendance.sync.*
+import sg.org.bcc.attendance.util.AppUpdate
+import sg.org.bcc.attendance.util.AppUpdateManager
+import sg.org.bcc.attendance.util.ApkInstaller
 import sg.org.bcc.attendance.util.qr.QrInfo
 import java.time.LocalDate
 import javax.inject.Inject
@@ -47,6 +50,41 @@ class MainListViewModel @Inject constructor(
     private val syncStatusManager: SyncStatusManager,
     @param:ApplicationContext private val context: Context
 ) : ViewModel() {
+
+    private val updateManager = AppUpdateManager(context)
+    private val apkInstaller = ApkInstaller(context)
+
+    val appVersion = updateManager.getAppVersion()
+    val isBeta = updateManager.isCurrentVersionBeta()
+
+    private val _appUpdateState = MutableStateFlow<AppUpdate>(AppUpdate.UpToDate)
+    val appUpdateState: StateFlow<AppUpdate> = _appUpdateState.asStateFlow()
+
+    private val _isDownloadingUpdate = MutableStateFlow(false)
+    val isDownloadingUpdate: StateFlow<Boolean> = _isDownloadingUpdate.asStateFlow()
+
+    fun checkForUpdates() {
+        viewModelScope.launch {
+            _appUpdateState.value = updateManager.checkForUpdates()
+        }
+    }
+
+    fun downloadAndInstallUpdate(url: String) {
+        viewModelScope.launch {
+            _isDownloadingUpdate.value = true
+            val file = updateManager.downloadApk(url) { /* progress */ }
+            _isDownloadingUpdate.value = false
+            if (file != null) {
+                apkInstaller.install(file)
+            } else {
+                _appUpdateState.value = AppUpdate.Error("Download failed")
+            }
+        }
+    }
+
+    fun dismissUpdate() {
+        _appUpdateState.value = AppUpdate.UpToDate
+    }
 
     private val prefs = context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
 
@@ -450,6 +488,7 @@ class MainListViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
     init {
+        checkForUpdates()
         combine(
             repository.getOldestPendingEventId(),
             _currentEventId,

@@ -35,6 +35,7 @@ object AppIcons {
     val Cloud = R.drawable.ic_cloud
     val CloudAlert = R.drawable.ic_cloud_alert
     val Sync = R.drawable.ic_sync
+    val SystemUpdate = R.drawable.ic_system_update
     val Warning = R.drawable.ic_warning
     val Error = R.drawable.ic_error
     val CheckCircle = R.drawable.ic_check_circle

@@ -1,9 +1,11 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import java.util.Base64
 import java.util.Properties
 
 plugins {
     alias(libs.plugins.androidApplication)
     alias(libs.plugins.kotlinCompose)
+    alias(libs.plugins.kotlinSerialization)
     alias(libs.plugins.hilt)
     alias(libs.plugins.ksp)
     alias(libs.plugins.room)
@@ -22,25 +24,48 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        // Load secrets from local.properties
+        // Load secrets from local.properties or env
         val properties = Properties()
         val localPropertiesFile = project.rootProject.file("local.properties")
         if (localPropertiesFile.exists()) {
             properties.load(localPropertiesFile.inputStream())
         }
 
-        val googleClientSecretsJson = properties.getProperty("GOOGLE_CLIENT_SECRETS_JSON") ?: ""
-        val masterSheetId = properties.getProperty("MASTER_SHEET_ID") ?: ""
-        val eventSheetId = properties.getProperty("EVENT_SHEET_ID") ?: ""
+        val googleClientSecretsJson =
+            properties.getProperty("GOOGLE_CLIENT_SECRETS_JSON")
+                ?: System.getenv("GOOGLE_CLIENT_SECRETS_JSON")?.let {
+                    // If it's base64 encoded (as passed from GitHub Secrets), decode it
+                    try {
+                        Base64.getDecoder().decode(it).decodeToString()
+                    } catch (e: Exception) {
+                        it
+                    }
+                }
+                ?: ""
+        val masterSheetId = properties.getProperty("MASTER_SHEET_ID") ?: System.getenv("MASTER_SHEET_ID") ?: ""
+        val eventSheetId = properties.getProperty("EVENT_SHEET_ID") ?: System.getenv("EVENT_SHEET_ID") ?: ""
 
         buildConfigField("String", "GOOGLE_CLIENT_SECRETS_JSON", "\"${googleClientSecretsJson.replace("\"", "\\\"")}\"")
         buildConfigField("String", "MASTER_SHEET_ID", "\"$masterSheetId\"")
         buildConfigField("String", "EVENT_SHEET_ID", "\"$eventSheetId\"")
     }
 
+    signingConfigs {
+        create("release") {
+            val storeFileEnv = System.getenv("RELEASE_STORE_FILE")
+            if (storeFileEnv != null) {
+                storeFile = file(storeFileEnv)
+                storePassword = System.getenv("RELEASE_STORE_PASSWORD")
+                keyAlias = System.getenv("RELEASE_KEY_ALIAS")
+                keyPassword = System.getenv("RELEASE_KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
@@ -138,7 +163,15 @@ dependencies {
     // Utilities
     implementation(libs.kotlinxDatetime)
     implementation(libs.kotlinxCoroutinesAndroid)
+    implementation(libs.kotlinxSerializationJson)
+    implementation(libs.semver)
     implementation(libs.truetime)
+
+    // Ktor
+    implementation(libs.ktorClientCore)
+    implementation(libs.ktorClientOkHttp)
+    implementation(libs.ktorClientContentNegotiation)
+    implementation(libs.ktorSerializationKotlinxJson)
 
     // Testing
     testImplementation(libs.kotestAssertions)

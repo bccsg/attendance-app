@@ -43,6 +43,7 @@ import sg.org.bcc.attendance.data.local.entities.Event
 import sg.org.bcc.attendance.ui.queue.QueueScreen
 import sg.org.bcc.attendance.ui.theme.DeepGreen
 import sg.org.bcc.attendance.sync.*
+import sg.org.bcc.attendance.util.AppUpdate
 import sg.org.bcc.attendance.ui.components.AppIcon
 import sg.org.bcc.attendance.ui.components.AppIcons
 import sg.org.bcc.attendance.ui.components.EventSummary
@@ -101,6 +102,8 @@ fun MainListScreen(
     val sortMode by viewModel.sortMode.collectAsState()
     val textScale by viewModel.textScale.collectAsState()
     val isOnline by viewModel.isOnline.collectAsState()
+    val appUpdateState by viewModel.appUpdateState.collectAsState()
+    val isDownloadingUpdate by viewModel.isDownloadingUpdate.collectAsState()
 
     val totalAttendeesCount by viewModel.totalAttendeesCount.collectAsState()
     val totalGroupsCount by viewModel.totalGroupsCount.collectAsState()
@@ -510,6 +513,52 @@ fun MainListScreen(
                                                             },
                                                             leadingIcon = { AppIcon(resourceId = AppIcons.Help, contentDescription = null, modifier = Modifier.size(18.dp)) }
                                                         )
+                                                        HorizontalDivider()
+                                                        DropdownMenuItem(
+                                                            text = { Text("Version", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold) },
+                                                            onClick = { },
+                                                            enabled = false
+                                                        )
+                                                        
+                                                        val updateState = appUpdateState
+                                                        if (updateState is AppUpdate.VersionsAvailable) {
+                                                            updateState.mainline?.let { mainline ->
+                                                                DropdownMenuItem(
+                                                                    text = { Text("Update to v${mainline.version}") },
+                                                                    leadingIcon = { AppIcon(resourceId = AppIcons.SystemUpdate, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary) },
+                                                                    onClick = {
+                                                                        showMenu = false
+                                                                        viewModel.downloadAndInstallUpdate(mainline.downloadUrl)
+                                                                    }
+                                                                )
+                                                            }
+                                                            updateState.beta?.let { beta ->
+                                                                DropdownMenuItem(
+                                                                    text = { Text("Update to v${beta.version} (Beta)") },
+                                                                    leadingIcon = { AppIcon(resourceId = AppIcons.SystemUpdate, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.secondary) },
+                                                                    onClick = {
+                                                                        showMenu = false
+                                                                        viewModel.downloadAndInstallUpdate(beta.downloadUrl)
+                                                                    }
+                                                                )
+                                                            }
+                                                        }
+
+                                                        DropdownMenuItem(
+                                                            text = { 
+                                                                Text(
+                                                                    text = "v${viewModel.appVersion}${if (viewModel.isBeta) " (Beta)" else ""}",
+                                                                    style = MaterialTheme.typography.bodySmall,
+                                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                                ) 
+                                                            },
+                                                            onClick = {
+                                                                showMenu = false
+                                                                scope.launch {
+                                                                    snackbarHostState.showSnackbar("Made with ❤️")
+                                                                }
+                                                            }
+                                                        )
                                                     }
                                                 }
                                             }
@@ -714,6 +763,37 @@ fun MainListScreen(
                                 .fillMaxSize()
                                 .padding(padding)
                         ) {
+                            val isCurrentVersionBeta = viewModel.isBeta
+
+                            val updateToShow = remember(appUpdateState, isCurrentVersionBeta) {
+                                when (val state = appUpdateState) {
+                                    is AppUpdate.VersionsAvailable -> {
+                                        if (isCurrentVersionBeta) {
+                                            state.mainline ?: state.beta
+                                        } else {
+                                            state.mainline
+                                        }
+                                    }
+                                    else -> null
+                                }
+                            }
+
+                            AnimatedVisibility(
+                                visible = updateToShow != null,
+                                enter = expandVertically() + fadeIn(),
+                                exit = shrinkVertically() + fadeOut()
+                            ) {
+                                if (updateToShow != null) {
+                                    AppUpdateBanner(
+                                        version = updateToShow.version,
+                                        isBeta = updateToShow.isBeta,
+                                        isDownloading = isDownloadingUpdate,
+                                        onUpdate = { viewModel.downloadAndInstallUpdate(updateToShow.downloadUrl) },
+                                        onDismiss = viewModel::dismissUpdate
+                                    )
+                                }
+                            }
+
                             if (attendees.isEmpty() && searchQuery.isEmpty()) {
                                 Box(
                                     modifier = Modifier
@@ -1667,5 +1747,70 @@ fun SyncInfoRow(label: String, value: String, onClick: (() -> Unit)? = null) {
             fontWeight = FontWeight.Bold,
             color = if (onClick != null) MaterialTheme.colorScheme.primary else Color.Unspecified
         )
+    }
+}
+
+@Composable
+fun AppUpdateBanner(
+    version: String,
+    isBeta: Boolean,
+    isDownloading: Boolean,
+    onUpdate: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(12.dp),
+        color = if (isBeta) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.primaryContainer,
+        shape = RoundedCornerShape(12.dp),
+        tonalElevation = 2.dp
+    ) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            AppIcon(
+                resourceId = AppIcons.SystemUpdate,
+                contentDescription = null,
+                tint = if (isBeta) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onPrimaryContainer,
+                modifier = Modifier.size(28.dp)
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Update Available",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = if (isBeta) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onPrimaryContainer,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = if (isBeta) "Beta version $version is ready." else "Version $version is ready.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = (if (isBeta) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onPrimaryContainer).copy(alpha = 0.8f)
+                )
+            }
+            Row {
+                TextButton(onClick = onDismiss, enabled = !isDownloading) {
+                    Text("Dismiss")
+                }
+                Button(
+                    onClick = onUpdate,
+                    enabled = !isDownloading,
+                    shape = RoundedCornerShape(8.dp),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
+                ) {
+                    if (isDownloading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.onPrimary
+                        )
+                    } else {
+                        Text("Update")
+                    }
+                }
+            }
+        }
     }
 }
